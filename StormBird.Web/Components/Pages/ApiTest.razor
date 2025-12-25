@@ -1,0 +1,38 @@
+@page "/api-test"
+@inject IHttpClientFactory HttpClientFactory
+
+@if (_isLoading)
+{
+    <p>Calling API...</p>
+}
+else if (_errorMessage is not null)
+{
+    <p>@_errorMessage</p>
+}
+else
+{
+    <p>@_responseText</p>
+}
+
+@code {
+    private bool _isLoading = true;
+    private string? _responseText;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("StormBirdApi");
+            _responseText = await client.GetStringAsync("/api/health/ping");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Could not reach the API. {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}
