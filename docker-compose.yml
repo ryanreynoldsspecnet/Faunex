@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  faunex-api:
+    build:
+      context: ./Faunex.Api
+    container_name: faunex-api
+    expose:
+      - "8080"
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=faunex;Username=faunex;Password=faunex
+    depends_on:
+      - db
+
+  faunex-web:
+    build:
+      context: ./Faunex.Web
+    container_name: faunex-web
+    expose:
+      - "8080"
+    ports:
+      - "5001:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ApiSettings__BaseUrl: http://faunex-api:8080
+    depends_on:
+      - faunex-api
+
+  db:
+    image: postgres:16
+    container_name: faunex-db
+    environment:
+      POSTGRES_DB: faunex
+      POSTGRES_USER: faunex
+      POSTGRES_PASSWORD: faunex
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+
+volumes:
+  postgres_data:

@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="Faunex.Api/Faunex.Api.csproj" />
+  <Project Path="Faunex.AppHost/Faunex.AppHost.csproj" />
+  <Project Path="Faunex.Application/Faunex.Application.csproj" />
+  <Project Path="Faunex.Domain/Faunex.Domain.csproj" />
+  <Project Path="Faunex.Infrastructure/Faunex.Infrastructure.csproj" />
+  <Project Path="Faunex.Shared/Faunex.Shared.csproj" />
+  <Project Path="Faunex.Web/Faunex.Web.csproj" />
+</Solution>

@@ -1,6 +1,0 @@
-@StormBird.Api_HostAddress = http://localhost:5069
-
-GET {{StormBird.Api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

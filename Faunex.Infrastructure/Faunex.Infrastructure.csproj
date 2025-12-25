@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\StormBird.Application\StormBird.Application.csproj" />
-    <ProjectReference Include="..\StormBird.Domain\StormBird.Domain.csproj" />
+    <ProjectReference Include="..\Faunex.Application\Faunex.Application.csproj" />
+    <ProjectReference Include="..\Faunex.Domain\Faunex.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>

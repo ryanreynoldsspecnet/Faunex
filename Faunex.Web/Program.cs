@@ -1,8 +1,8 @@
-using StormBird.Web.Components;
+using Faunex.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddHttpClient("StormBirdApi", (sp, client) =>
+builder.Services.AddHttpClient("FaunexApi", (sp, client) =>
 {
     var configuration = sp.GetRequiredService<IConfiguration>();
     var baseUrl = configuration["ApiSettings:BaseUrl"];

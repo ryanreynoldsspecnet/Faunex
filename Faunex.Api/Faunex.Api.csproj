@@ -17,10 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\StormBird.Application\StormBird.Application.csproj" />
-    <ProjectReference Include="..\StormBird.Domain\StormBird.Domain.csproj" />
-    <ProjectReference Include="..\StormBird.Infrastructure\StormBird.Infrastructure.csproj" />
-    <ProjectReference Include="..\StormBird.Shared\StormBird.Shared.csproj" />
+    <ProjectReference Include="..\Faunex.Application\Faunex.Application.csproj" />
+    <ProjectReference Include="..\Faunex.Domain\Faunex.Domain.csproj" />
+    <ProjectReference Include="..\Faunex.Infrastructure\Faunex.Infrastructure.csproj" />
+    <ProjectReference Include="..\Faunex.Shared\Faunex.Shared.csproj" />
   </ItemGroup>
 
 </Project>

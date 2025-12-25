@@ -9,13 +9,13 @@ namespace StormBird.Api.Controllers;
 public sealed class BirdSpeciesController(ApplicationDbContext dbContext) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
-    {
-        var species = await dbContext.BirdSpeciesSet
-            .AsNoTracking()
-            .OrderBy(x => x.CommonName)
-            .ToListAsync(cancellationToken);
+public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+{
+    var species = await dbContext.BirdSpeciesSet
+        .AsNoTracking()
+        .OrderBy(x => x.CommonName)
+        .ToListAsync(cancellationToken);
 
-        return Ok(species);
-    }
+    return Ok(species);
+}
 }
