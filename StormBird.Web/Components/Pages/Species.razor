@@ -1,0 +1,74 @@
+@page "/species"
+@inject IHttpClientFactory HttpClientFactory
+
+@if (_isLoading)
+{
+    <p>Loading species...</p>
+}
+else if (_errorMessage is not null)
+{
+    <p>@_errorMessage</p>
+}
+else if (_species.Count == 0)
+{
+    <p>No species found.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Common Name</th>
+                <th>Scientific Name</th>
+                <th>CITES Appendix</th>
+                <th>Endangered</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in _species)
+            {
+                <tr>
+                    <td>@s.CommonName</td>
+                    <td>@s.ScientificName</td>
+                    <td>@s.CitesAppendix</td>
+                    <td>@(s.IsEndangered ? "Yes" : "No")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private List<BirdSpeciesModel> _species = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("StormBirdApi");
+            using var response = await client.GetAsync("/api/species");
+            response.EnsureSuccessStatusCode();
+
+            var items = await response.Content.ReadFromJsonAsync<List<BirdSpeciesModel>>();
+            _species = items ?? [];
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Could not load species. {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private sealed class BirdSpeciesModel
+    {
+        public string? CommonName { get; set; }
+        public string? ScientificName { get; set; }
+        public string? CitesAppendix { get; set; }
+        public bool IsEndangered { get; set; }
+    }
+}
