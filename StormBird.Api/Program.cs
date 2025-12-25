@@ -1,8 +1,14 @@
+using Microsoft.EntityFrameworkCore;
 using StormBird.Api.Controllers;
+using StormBird.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    var connectionString = builder.Configuration["ConnectionStrings:DefaultConnection"];
+    options.UseNpgsql(connectionString);
+});
 
 builder.Services.AddStormBirdApiControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
