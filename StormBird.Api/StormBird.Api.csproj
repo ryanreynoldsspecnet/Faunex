@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StormBird.Application\StormBird.Application.csproj" />
+    <ProjectReference Include="..\StormBird.Domain\StormBird.Domain.csproj" />
+    <ProjectReference Include="..\StormBird.Infrastructure\StormBird.Infrastructure.csproj" />
+    <ProjectReference Include="..\StormBird.Shared\StormBird.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

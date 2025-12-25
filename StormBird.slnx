@@ -1,1 +1,9 @@
-<Solution />
+<Solution>
+  <Project Path="StormBird.Api/StormBird.Api.csproj" />
+  <Project Path="StormBird.AppHost/StormBird.AppHost.csproj" />
+  <Project Path="StormBird.Application/StormBird.Application.csproj" />
+  <Project Path="StormBird.Domain/StormBird.Domain.csproj" />
+  <Project Path="StormBird.Infrastructure/StormBird.Infrastructure.csproj" />
+  <Project Path="StormBird.Shared/StormBird.Shared.csproj" />
+  <Project Path="StormBird.Web/StormBird.Web.csproj" />
+</Solution>

@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StormBird.Application\StormBird.Application.csproj" />
+    <ProjectReference Include="..\StormBird.Domain\StormBird.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
