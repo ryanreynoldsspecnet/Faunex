@@ -8,14 +8,14 @@ WORKDIR /src
 COPY *.sln ./
 
 # Copy only the Web project file and restore its dependencies
-COPY Faunex.Web/Faunex.Web.csproj Faunex.Web/
-RUN dotnet restore Faunex.Web/Faunex.Web.csproj
+COPY Faunex.Web.csproj ./
+RUN dotnet restore Faunex.Web.csproj
 
 # Copy remaining source
 COPY . .
 
 # Publish
-RUN dotnet publish Faunex.Web/Faunex.Web.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish Faunex.Web.csproj -c Release -o /app/publish --no-restore
 
 # ---- runtime stage ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime

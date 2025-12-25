@@ -8,14 +8,14 @@ WORKDIR /src
 COPY *.sln ./
 
 # Copy only the API project file and restore its dependencies
-COPY Faunex.Api/Faunex.Api.csproj Faunex.Api/
-RUN dotnet restore Faunex.Api/Faunex.Api.csproj
+COPY Faunex.Api.csproj ./
+RUN dotnet restore Faunex.Api.csproj
 
 # Copy remaining source
 COPY . .
 
 # Publish
-RUN dotnet publish Faunex.Api/Faunex.Api.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish Faunex.Api.csproj -c Release -o /app/publish --no-restore
 
 # ---- runtime stage ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
