@@ -23,9 +23,14 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
+          # Write the private key safely (NO indentation, NO CRLF)
           printf "%s" "${{ secrets.FAUNEX_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
+          # Normalize line endings just in case
+          sed -i 's/\r$//' ~/.ssh/id_ed25519
+
+          # Add server host key
           ssh-keyscan -H "${{ secrets.FAUNEX_SERVER_IP }}" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
