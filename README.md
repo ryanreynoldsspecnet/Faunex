@@ -1,6 +1,6 @@
-# StormBird Auction Platform
+# Faunex Auction Platform
 
-StormBird Auction Platform is a modern, scalable auction platform focused on birds—both exotic and indigenous. It’s built to support real-world auction workflows for buyers and sellers, with an admin back-office for operations and reference data management. The platform is designed to be **compliance-aware**, enabling regulatory considerations such as **CITES classification** and permit-related requirements to be modeled and enforced as the system grows.
+StormBird Auction Platform is a modern, scalable auction platform focused on birdsâ€”both exotic and indigenous. Itâ€™s built to support real-world auction workflows for buyers and sellers, with an admin back-office for operations and reference data management. The platform is designed to be **compliance-aware**, enabling regulatory considerations such as **CITES classification** and permit-related requirements to be modeled and enforced as the system grows.
 
 ## Key Concepts
 
