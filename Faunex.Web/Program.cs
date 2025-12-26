@@ -28,7 +28,6 @@ builder.Services.AddRazorComponents()
 var app = builder.Build();
 
 app.UseStaticFiles();
-app.MapStaticAssets();
 app.UseRouting();
 
 // Configure the HTTP request pipeline.
