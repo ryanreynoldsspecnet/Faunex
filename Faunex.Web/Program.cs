@@ -50,10 +50,11 @@ if (!app.Environment.IsDevelopment())
 // app.UseHttpsRedirection();
 
 app.UseStaticFiles();
-app.UseRouting();
 
 // REQUIRED in .NET 10 for Blazor static web assets
 app.MapStaticAssets();
+
+app.UseRouting();
 
 // Blazor must come AFTER static assets
 app.MapRazorComponents<App>()
