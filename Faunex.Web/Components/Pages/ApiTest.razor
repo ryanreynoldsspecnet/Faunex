@@ -23,7 +23,7 @@ else
     {
         try
         {
-            var client = HttpClientFactory.CreateClient("StormBirdApi");
+            var client = HttpClientFactory.CreateClient("FaunexApi");
             _responseText = await client.GetStringAsync("/api/health/ping");
         }
         catch (Exception ex)
