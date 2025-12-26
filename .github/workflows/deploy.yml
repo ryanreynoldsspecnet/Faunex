@@ -23,13 +23,9 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # Write private key from secret without printing it
-          cat > ~/.ssh/id_ed25519 <<'EOF'
-          ${{ secrets.FAUNEX_SSH_KEY }}
-          EOF
+          printf "%s" "${{ secrets.FAUNEX_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          # Add server host key safely (avoids interactive prompt and mitigates MITM)
           ssh-keyscan -H "${{ secrets.FAUNEX_SERVER_IP }}" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
@@ -46,5 +42,4 @@ jobs:
              cd /home/ubuntu/faunex
              git pull origin master
              docker compose down
-             docker compose build
-             docker compose up -d'
+             docker compose up -d --build'
