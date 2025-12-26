@@ -30,7 +30,7 @@ else
                 <tr>
                     <td>@s.CommonName</td>
                     <td>@s.ScientificName</td>
-                    <td>@s.CitesAppendix</td>
+                    <td>@(FormatCitesAppendix(s.CitesAppendix))</td>
                     <td>@(s.IsEndangered ? "Yes" : "No")</td>
                 </tr>
             }
@@ -64,11 +64,28 @@ else
         }
     }
 
+    private static string FormatCitesAppendix(CitesAppendix appendix) => appendix switch
+    {
+        CitesAppendix.None => "None",
+        CitesAppendix.I => "I",
+        CitesAppendix.II => "II",
+        CitesAppendix.III => "III",
+        _ => appendix.ToString()
+    };
+
+    private enum CitesAppendix
+    {
+        None = 0,
+        I = 1,
+        II = 2,
+        III = 3
+    }
+
     private sealed class BirdSpeciesModel
     {
         public string? CommonName { get; set; }
         public string? ScientificName { get; set; }
-        public string? CitesAppendix { get; set; }
+        public CitesAppendix CitesAppendix { get; set; }
         public bool IsEndangered { get; set; }
     }
 }
