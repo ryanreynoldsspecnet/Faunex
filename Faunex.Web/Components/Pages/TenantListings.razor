@@ -1,0 +1,105 @@
+@page "/admin/tenant-listings"
+@inject Faunex.Web.Api.FaunexApiClient Api
+
+<h3>Tenant Listings (Tenant Admin)</h3>
+
+<div style="margin-bottom: 1rem;">
+    <label>Animal Class:</label>
+    <select @bind="_animalClass">
+        <option value="">All</option>
+        <option value="bird">Bird</option>
+        <option value="livestock">Livestock</option>
+        <option value="game">Game</option>
+        <option value="poultry">Poultry</option>
+    </select>
+
+    <button style="margin-left: 1rem;" @onclick="ReloadAsync">Apply</button>
+</div>
+
+@if (_isLoading)
+{
+    <p>Loading...</p>
+}
+else if (_error is not null)
+{
+    <p>@_error</p>
+}
+else if (_result is null || _result.Items.Count == 0)
+{
+    <p>No listings found.</p>
+}
+else
+{
+    <p>Total: @_result.Total | Showing: @_result.Items.Count</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Animal</th>
+                <th>Seller</th>
+                <th>Active</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _result.Items)
+            {
+                <tr>
+                    <td>@item.Title</td>
+                    <td>@item.AnimalClass</td>
+                    <td>@item.SellerId</td>
+                    <td>@(item.IsActive ? "Yes" : "No")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div style="margin-top: 1rem;">
+        <button @onclick="PrevAsync" disabled="@(_skip == 0)">Prev</button>
+        <button style="margin-left: 0.5rem;" @onclick="NextAsync" disabled="@(_result is null || _skip + _take >= _result.Total)">Next</button>
+    </div>
+}
+
+@code {
+    private bool _isLoading;
+    private string? _error;
+    private Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.ListingDto>? _result;
+
+    private string? _animalClass;
+    private int _skip;
+    private int _take = 20;
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var url = $"/api/listings/tenant?animalClass={Uri.EscapeDataString(_animalClass ?? string.Empty)}&skip={_skip}&take={_take}";
+            _result = await Api.GetAsync<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.ListingDto>>(url);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task PrevAsync()
+    {
+        _skip = Math.Max(0, _skip - _take);
+        await ReloadAsync();
+    }
+
+    private async Task NextAsync()
+    {
+        _skip += _take;
+        await ReloadAsync();
+    }
+}

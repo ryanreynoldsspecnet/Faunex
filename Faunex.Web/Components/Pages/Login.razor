@@ -1,0 +1,63 @@
+@page "/login"
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject Faunex.Web.Auth.TokenStore TokenStore
+@inject Faunex.Web.Auth.JwtAuthStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<h3>Login</h3>
+
+<div>
+    <label>Email</label>
+    <input @bind="_email" />
+</div>
+<div>
+    <label>Password</label>
+    <input type="password" @bind="_password" />
+</div>
+<button @onclick="LoginAsync">Login</button>
+
+@if (_error is not null)
+{
+    <p>@_error</p>
+}
+
+@code {
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private string? _error;
+
+    private sealed class LoginRequest
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+
+    private sealed class AuthResponse
+    {
+        public string AccessToken { get; set; } = string.Empty;
+    }
+
+    private async Task LoginAsync()
+    {
+        _error = null;
+
+        try
+        {
+            var response = await Api.PostAsync<LoginRequest, AuthResponse>("/api/auth/login", new LoginRequest { Email = _email, Password = _password });
+
+            if (response is null || string.IsNullOrWhiteSpace(response.AccessToken))
+            {
+                _error = "Login failed.";
+                return;
+            }
+
+            await TokenStore.SetTokenAsync(response.AccessToken);
+            AuthStateProvider.NotifyUserAuthenticationStateChanged();
+            Nav.NavigateTo("/browse");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

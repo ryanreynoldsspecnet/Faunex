@@ -11,4 +11,9 @@ public interface IBirdListingService
     Task UpdateAsync(BirdListingDto listing, CancellationToken cancellationToken = default);
 
     Task DeactivateAsync(Guid listingId, CancellationToken cancellationToken = default);
+
+    Task SubmitForReviewAsync(Guid listingId, CancellationToken cancellationToken = default);
+    Task ApproveListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default);
+    Task RejectListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default);
+    Task SuspendListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default);
 }

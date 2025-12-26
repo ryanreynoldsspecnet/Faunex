@@ -1,5 +1,11 @@
+using Faunex.Api.Auth;
+using Faunex.Api.Tenancy;
 using Faunex.Application.DTOs;
 using Faunex.Application.Interfaces;
+using Faunex.Application.Services;
+using Faunex.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace Faunex.Api.Controllers;
 
@@ -9,47 +15,33 @@ public static class ControllersRegistrationExtensions
     {
         services.AddControllers();
 
-        services.AddScoped<IAuctionService, NotImplementedAuctionService>();
-        services.AddScoped<IBirdListingService, NotImplementedBirdListingService>();
+        services.AddHttpContextAccessor();
+
+        services.AddScoped<ITenantContext, ClaimsTenantContext>();
+
+        services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
+
+        services.AddScoped<IAuctionService, AuctionService>();
+        services.AddScoped<IBidService, BidService>();
+        services.AddScoped<IBirdListingService, BirdListingService>();
+        services.AddScoped<IListingQueryService, ListingQueryService>();
         services.AddScoped<ISpeciesLookupService, NotImplementedSpeciesLookupService>();
 
+        services.AddScoped<JwtTokenIssuer>();
+
+        services.AddDbContext<ApplicationIdentityDbContext>((sp, options) =>
+        {
+            var cfg = sp.GetRequiredService<IConfiguration>();
+            var connectionString = cfg["ConnectionStrings:DefaultConnection"];
+            options.UseNpgsql(connectionString);
+        });
+
+        services.AddIdentityCore<ApplicationUser>()
+            .AddRoles<IdentityRole<Guid>>()
+            .AddEntityFrameworkStores<ApplicationIdentityDbContext>()
+            .AddDefaultTokenProviders();
+
         return services;
-    }
-
-    private sealed class NotImplementedAuctionService : IAuctionService
-    {
-        public Task CloseAsync(Guid auctionId, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-
-        public Task<Guid> CreateAsync(AuctionDto auction, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-
-        public Task<AuctionDto?> GetByIdAsync(Guid auctionId, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-
-        public Task<IReadOnlyList<AuctionDto>> GetByListingIdAsync(Guid listingId, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-
-        public Task UpdateAsync(AuctionDto auction, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-    }
-
-    private sealed class NotImplementedBirdListingService : IBirdListingService
-    {
-        public Task<Guid> CreateAsync(BirdListingDto listing, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-
-        public Task DeactivateAsync(Guid listingId, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-
-        public Task<BirdListingDto?> GetByIdAsync(Guid listingId, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-
-        public Task<IReadOnlyList<BirdListingDto>> GetBySellerIdAsync(Guid sellerId, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-
-        public Task UpdateAsync(BirdListingDto listing, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
     }
 
     private sealed class NotImplementedSpeciesLookupService : ISpeciesLookupService

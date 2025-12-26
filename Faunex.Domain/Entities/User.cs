@@ -5,6 +5,8 @@ namespace Faunex.Domain.Entities;
 
 public sealed class User : BaseEntity
 {
+    public Guid? TenantId { get; set; }
+
     public string Email { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
 

@@ -5,8 +5,10 @@ namespace Faunex.Domain.Entities;
 
 public sealed class Auction : BaseEntity
 {
+    public Guid TenantId { get; set; }
+
     public Guid ListingId { get; set; }
-    public BirdListing? Listing { get; set; }
+    public Listing? Listing { get; set; }
 
     public AuctionType Type { get; set; }
 

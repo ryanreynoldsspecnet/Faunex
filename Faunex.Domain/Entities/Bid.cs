@@ -4,6 +4,8 @@ namespace Faunex.Domain.Entities;
 
 public sealed class Bid : BaseEntity
 {
+    public Guid TenantId { get; set; }
+
     public Guid AuctionId { get; set; }
     public Auction? Auction { get; set; }
 

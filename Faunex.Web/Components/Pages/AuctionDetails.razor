@@ -1,0 +1,133 @@
+@page "/auctions/{AuctionId:guid}"
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject Faunex.Web.Auth.TokenStore TokenStore
+@inject NavigationManager Nav
+
+<h3>Auction Details</h3>
+
+@if (_error is not null)
+{
+    <p>@_error</p>
+}
+
+<p><strong>AuctionId:</strong> @AuctionId</p>
+
+@if (_price is not null)
+{
+    <p><strong>Current Price:</strong> @_price.CurrentPrice</p>
+}
+
+@if (_bids is null)
+{
+    <p>Loading bids...</p>
+}
+else
+{
+    <p>Total bids: @_bids.Total</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Bidder</th>
+                <th>Amount</th>
+                <th>Placed</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var bid in _bids.Items)
+            {
+                <tr>
+                    <td>@bid.BidderId</td>
+                    <td>@bid.Amount @bid.CurrencyCode</td>
+                    <td>@bid.PlacedAt</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h4>Place Bid</h4>
+@if (!_isLoggedIn)
+{
+    <p>Login to bid.</p>
+    <button @onclick="GoToLogin">Login</button>
+}
+else
+{
+    <div>
+        <input type="number" step="0.01" @bind="_newBidAmount" />
+        <button @onclick="PlaceBidAsync">Submit</button>
+    </div>
+}
+
+@if (_bidError is not null)
+{
+    <p>@_bidError</p>
+}
+
+@code {
+    [Parameter] public Guid AuctionId { get; set; }
+
+    private Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>? _bids;
+    private Faunex.Application.DTOs.CurrentPriceDto? _price;
+
+    private decimal _newBidAmount;
+    private string? _error;
+    private string? _bidError;
+
+    private int _skip;
+    private int _take = 20;
+
+    private bool _isLoggedIn;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoggedIn = !string.IsNullOrWhiteSpace(await TokenStore.GetTokenAsync());
+        _ = PollAsync();
+        await ReloadAsync();
+    }
+
+    private void GoToLogin() => Nav.NavigateTo("/login");
+
+    private async Task PollAsync()
+    {
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(4));
+            await ReloadAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _error = null;
+
+        try
+        {
+            _price = await Api.GetAsync<Faunex.Application.DTOs.CurrentPriceDto>($"/api/auctions/{AuctionId}/price");
+            _bids = await Api.GetAsync<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>>(
+                $"/api/auctions/{AuctionId}/bids?skip={_skip}&take={_take}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task PlaceBidAsync()
+    {
+        _bidError = null;
+
+        try
+        {
+            await Api.PostAsync($"/api/auctions/{AuctionId}/bids", new Faunex.Application.DTOs.PlaceBidRequest(_newBidAmount));
+            _newBidAmount = 0;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _bidError = ex.Message;
+        }
+    }
+}
