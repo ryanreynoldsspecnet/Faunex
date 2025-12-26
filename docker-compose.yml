@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   faunex-api:
     build:
@@ -27,7 +25,10 @@ services:
       - "5001:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
       ApiSettings__BaseUrl: http://faunex-api:8080
+    volumes:
+      - dataprotection_keys:/root/.aspnet/DataProtection-Keys
     depends_on:
       - faunex-api
 
@@ -45,3 +46,4 @@ services:
 
 volumes:
   postgres_data:
+  dataprotection_keys:
