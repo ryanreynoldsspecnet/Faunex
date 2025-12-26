@@ -2,8 +2,7 @@ name: Faunex Deploy
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -17,55 +16,41 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure SSH (with diagnostics)
+      - name: Configure SSH (decode key)
         shell: bash
         run: |
           set -euxo pipefail
 
-          echo "== Creating .ssh directory =="
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          echo "== Writing private key =="
-          printf "%s" "${{ secrets.FAUNEX_SSH_KEY }}" > ~/.ssh/id_ed25519
-
-          echo "== Normalizing line endings =="
-          sed -i 's/\r$//' ~/.ssh/id_ed25519
-
-          echo "== Permissions check =="
+          # Decode the key from base64 (avoids newline/format corruption)
+          echo "${{ secrets.FAUNEX_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ls -l ~/.ssh/id_ed25519
 
-          echo "== Key fingerprint (proves key is readable, does NOT expose key) =="
+          # Prove it's a real key (safe)
           ssh-keygen -lf ~/.ssh/id_ed25519
 
-          echo "== Adding server to known_hosts =="
+          # Add server host key
           ssh-keyscan -H "${{ secrets.FAUNEX_SERVER_IP }}" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-          echo "== known_hosts contents =="
-          cat ~/.ssh/known_hosts
-
-      - name: SSH handshake test (NO deploy yet)
+      - name: SSH handshake test
         shell: bash
         run: |
           set -euxo pipefail
-
-          echo "== Attempting SSH connection =="
-          ssh \
-            -vvv \
+          ssh -vvv \
             -i ~/.ssh/id_ed25519 \
             -o IdentitiesOnly=yes \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             ubuntu@${{ secrets.FAUNEX_SERVER_IP }} \
-            "echo 'SSH CONNECTION OK FROM GITHUB ACTIONS'"
+            "echo 'SSH OK FROM ACTIONS'"
 
-      - name: Deploy (only runs if SSH succeeds)
+      - name: Deploy
         shell: bash
         run: |
           set -euxo pipefail
-
           ssh \
             -i ~/.ssh/id_ed25519 \
             -o IdentitiesOnly=yes \
