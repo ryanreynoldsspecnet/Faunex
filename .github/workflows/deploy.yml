@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,38 +14,65 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure SSH
+      - name: Configure SSH (with diagnostics)
         shell: bash
         run: |
-          set -e
+          set -euxo pipefail
+
+          echo "== Creating .ssh directory =="
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
+          echo "== Writing private key =="
           printf "%s" "${{ secrets.FAUNEX_SSH_KEY }}" > ~/.ssh/id_ed25519
-          sed -i 's/\r$//' ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
 
+          echo "== Normalizing line endings =="
+          sed -i 's/\r$//' ~/.ssh/id_ed25519
+
+          echo "== Permissions check =="
+          chmod 600 ~/.ssh/id_ed25519
+          ls -l ~/.ssh/id_ed25519
+
+          echo "== Key fingerprint (proves key is readable, does NOT expose key) =="
+          ssh-keygen -lf ~/.ssh/id_ed25519
+
+          echo "== Adding server to known_hosts =="
           ssh-keyscan -H "${{ secrets.FAUNEX_SERVER_IP }}" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Test SSH
-        run: |
-          ssh -i ~/.ssh/id_ed25519 \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            ubuntu@${{ secrets.FAUNEX_SERVER_IP }} \
-            "echo SSH OK FROM GITHUB"
+          echo "== known_hosts contents =="
+          cat ~/.ssh/known_hosts
 
-      - name: Deploy via SSH
+      - name: SSH handshake test (NO deploy yet)
+        shell: bash
         run: |
-          ssh -i ~/.ssh/id_ed25519 \
+          set -euxo pipefail
+
+          echo "== Attempting SSH connection =="
+          ssh \
+            -vvv \
+            -i ~/.ssh/id_ed25519 \
+            -o IdentitiesOnly=yes \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             ubuntu@${{ secrets.FAUNEX_SERVER_IP }} \
-            'cd /home/ubuntu/faunex && \
-             git pull origin master && \
-             docker compose down && \
+            "echo 'SSH CONNECTION OK FROM GITHUB ACTIONS'"
+
+      - name: Deploy (only runs if SSH succeeds)
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          ssh \
+            -i ~/.ssh/id_ed25519 \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            ubuntu@${{ secrets.FAUNEX_SERVER_IP }} \
+            'cd /home/ubuntu/faunex &&
+             git pull origin master &&
+             docker compose down &&
              docker compose up -d --build'
