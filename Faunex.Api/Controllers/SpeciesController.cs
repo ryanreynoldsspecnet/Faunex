@@ -9,23 +9,23 @@ namespace StormBird.Api.Controllers;
 public sealed class SpeciesController(ISpeciesLookupService species) : ControllerBase
 {
     [HttpGet("{id:guid}")]
-public async Task<ActionResult<SpeciesDto>> GetById(Guid id, CancellationToken cancellationToken)
-{
-    var result = await species.GetByIdAsync(id, cancellationToken);
-    return result is null ? NotFound() : Ok(result);
-}
+    public async Task<ActionResult<SpeciesDto>> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await species.GetByIdAsync(id, cancellationToken);
+        return result is null ? NotFound() : Ok(result);
+    }
 
-[HttpGet("search")]
-public async Task<ActionResult<IReadOnlyList<SpeciesDto>>> Search([FromQuery] string query, [FromQuery] int take = 20, CancellationToken cancellationToken = default)
-{
-    var results = await species.SearchAsync(query, take, cancellationToken);
-    return Ok(results);
-}
+    [HttpGet("search")]
+    public async Task<ActionResult<IReadOnlyList<SpeciesDto>>> Search([FromQuery] string query, [FromQuery] int take = 20, CancellationToken cancellationToken = default)
+    {
+        var results = await species.SearchAsync(query, take, cancellationToken);
+        return Ok(results);
+    }
 
-[HttpGet("by-scientific-name/{scientificName}")]
-public async Task<ActionResult<SpeciesDto>> FindByScientificName(string scientificName, CancellationToken cancellationToken)
-{
-    var result = await species.FindByScientificNameAsync(scientificName, cancellationToken);
-    return result is null ? NotFound() : Ok(result);
-}
+    [HttpGet("by-scientific-name/{scientificName}")]
+    public async Task<ActionResult<SpeciesDto>> FindByScientificName(string scientificName, CancellationToken cancellationToken)
+    {
+        var result = await species.FindByScientificNameAsync(scientificName, cancellationToken);
+        return result is null ? NotFound() : Ok(result);
+    }
 }

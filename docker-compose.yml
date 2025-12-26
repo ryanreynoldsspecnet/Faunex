@@ -3,7 +3,8 @@ version: "3.9"
 services:
   faunex-api:
     build:
-      context: ./Faunex.Api
+      context: .
+      dockerfile: Faunex.Api/Dockerfile
     container_name: faunex-api
     expose:
       - "8080"
@@ -17,7 +18,8 @@ services:
 
   faunex-web:
     build:
-      context: ./Faunex.Web
+      context: .
+      dockerfile: Faunex.Web/Dockerfile
     container_name: faunex-web
     expose:
       - "8080"
