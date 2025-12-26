@@ -1,9 +1,9 @@
-using StormBird.Domain.Entities;
+using Faunex.Domain.Entities;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace StormBird.Infrastructure.Repositories;
+namespace Faunex.Infrastructure.Repositories;
 
 public interface ISpeciesRepository
 {

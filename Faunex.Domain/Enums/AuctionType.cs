@@ -1,4 +1,4 @@
-namespace StormBird.Domain.Enums;
+namespace Faunex.Domain.Enums;
 
 public enum AuctionType
 {

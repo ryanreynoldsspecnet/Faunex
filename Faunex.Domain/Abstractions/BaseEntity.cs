@@ -1,4 +1,4 @@
-namespace StormBird.Domain.Abstractions;
+namespace Faunex.Domain.Abstractions;
 
 public abstract class BaseEntity
 {

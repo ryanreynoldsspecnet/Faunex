@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using StormBird.Application.DTOs;
-using StormBird.Application.Interfaces;
+using Faunex.Application.DTOs;
+using Faunex.Application.Interfaces;
 
-namespace StormBird.Api.Controllers;
+namespace Faunex.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]

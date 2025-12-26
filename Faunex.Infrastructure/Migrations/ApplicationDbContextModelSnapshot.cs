@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using StormBird.Infrastructure.Persistence;
+using Faunex.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace StormBird.Infrastructure.Migrations
+namespace Faunex.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
     partial class ApplicationDbContextModelSnapshot : ModelSnapshot
@@ -22,7 +22,7 @@ namespace StormBird.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("StormBird.Domain.Entities.BirdSpecies", b =>
+            modelBuilder.Entity("Faunex.Domain.Entities.BirdSpecies", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()

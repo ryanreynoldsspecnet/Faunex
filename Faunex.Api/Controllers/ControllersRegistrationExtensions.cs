@@ -1,11 +1,11 @@
-using StormBird.Application.DTOs;
-using StormBird.Application.Interfaces;
+using Faunex.Application.DTOs;
+using Faunex.Application.Interfaces;
 
-namespace StormBird.Api.Controllers;
+namespace Faunex.Api.Controllers;
 
 public static class ControllersRegistrationExtensions
 {
-    public static IServiceCollection AddStormBirdApiControllers(this IServiceCollection services)
+    public static IServiceCollection AddFaunexApiControllers(this IServiceCollection services)
     {
         services.AddControllers();
 

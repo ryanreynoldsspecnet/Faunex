@@ -1,7 +1,7 @@
-using StormBird.Domain.Abstractions;
-using StormBird.Domain.Enums;
+using Faunex.Domain.Abstractions;
+using Faunex.Domain.Enums;
 
-namespace StormBird.Domain.Entities;
+namespace Faunex.Domain.Entities;
 
 public sealed class Auction : BaseEntity
 {

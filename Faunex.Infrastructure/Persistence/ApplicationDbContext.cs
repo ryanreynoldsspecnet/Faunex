@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using StormBird.Domain.Entities;
-using StormBird.Domain.Enums;
+using Faunex.Domain.Entities;
+using Faunex.Domain.Enums;
 
-namespace StormBird.Infrastructure.Persistence;
+namespace Faunex.Infrastructure.Persistence;
 
 public sealed class ApplicationDbContext : DbContext
 {

@@ -1,6 +1,6 @@
-using StormBird.Domain.Entities;
+using Faunex.Domain.Entities;
 
-namespace StormBird.Infrastructure.Repositories;
+namespace Faunex.Infrastructure.Repositories;
 
 public interface IBidRepository
 {

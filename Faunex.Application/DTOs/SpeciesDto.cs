@@ -1,6 +1,6 @@
-using StormBird.Domain.Enums;
+using Faunex.Domain.Enums;
 
-namespace StormBird.Application.DTOs;
+namespace Faunex.Application.DTOs;
 
 public sealed record SpeciesDto(
     Guid Id,

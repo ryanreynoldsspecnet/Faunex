@@ -1,4 +1,4 @@
-namespace StormBird.Infrastructure.Caching;
+namespace Faunex.Infrastructure.Caching;
 
 public interface IRedisCache
 {

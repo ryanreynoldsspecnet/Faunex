@@ -1,6 +1,6 @@
-using StormBird.Domain.Abstractions;
+using Faunex.Domain.Abstractions;
 
-namespace StormBird.Domain.Entities;
+namespace Faunex.Domain.Entities;
 
 public sealed class Bid : BaseEntity
 {

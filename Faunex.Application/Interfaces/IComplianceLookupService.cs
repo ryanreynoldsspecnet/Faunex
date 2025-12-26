@@ -1,6 +1,6 @@
-using StormBird.Domain.Enums;
+using Faunex.Domain.Enums;
 
-namespace StormBird.Application.Interfaces;
+namespace Faunex.Application.Interfaces;
 
 public interface IComplianceLookupService
 {

@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using StormBird.Domain.Entities;
-using StormBird.Infrastructure.Persistence;
+using Faunex.Domain.Entities;
+using Faunex.Infrastructure.Persistence;
 
-namespace StormBird.Infrastructure.Repositories;
+namespace Faunex.Infrastructure.Repositories;
 
 public sealed class SpeciesRepository(ApplicationDbContext dbContext) : ISpeciesRepository
 {

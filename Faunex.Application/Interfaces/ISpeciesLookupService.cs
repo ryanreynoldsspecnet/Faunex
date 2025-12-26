@@ -1,6 +1,6 @@
-using StormBird.Application.DTOs;
+using Faunex.Application.DTOs;
 
-namespace StormBird.Application.Interfaces;
+namespace Faunex.Application.Interfaces;
 
 public interface ISpeciesLookupService
 {

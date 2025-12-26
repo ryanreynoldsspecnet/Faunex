@@ -1,4 +1,4 @@
-namespace StormBird.Application.DTOs;
+namespace Faunex.Application.DTOs;
 
 public sealed record BirdListingDto(
     Guid Id,
