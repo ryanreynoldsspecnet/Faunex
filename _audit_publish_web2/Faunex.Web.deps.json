@@ -1,0 +1,70 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "Faunex.Web/1.0.0": {
+        "dependencies": {
+          "Faunex.Application": "1.0.0",
+          "Faunex.Shared": "1.0.0"
+        },
+        "runtime": {
+          "Faunex.Web.dll": {}
+        }
+      },
+      "Faunex.Application/1.0.0": {
+        "dependencies": {
+          "Faunex.Domain": "1.0.0",
+          "Faunex.Shared": "1.0.0"
+        },
+        "runtime": {
+          "Faunex.Application.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "Faunex.Domain/1.0.0": {
+        "runtime": {
+          "Faunex.Domain.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "Faunex.Shared/1.0.0": {
+        "runtime": {
+          "Faunex.Shared.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Faunex.Web/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Faunex.Application/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Faunex.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Faunex.Shared/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
