@@ -55,4 +55,12 @@ app.MapRazorComponents<App>()
 
 app.UseAntiforgery();
 
+app.MapGet("/__debug/endpoints", (EndpointDataSource dataSource) =>
+{
+    return dataSource.Endpoints
+        .Select(e => e.DisplayName)
+        .OrderBy(n => n)
+        .ToArray();
+});
+
 app.Run();
