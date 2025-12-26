@@ -50,11 +50,6 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseRouting();
 
-app.MapRazorComponents<App>()
-   .AddInteractiveServerRenderMode();
-
-app.UseAntiforgery();
-
 app.MapGet("/__debug/endpoints", (EndpointDataSource dataSource) =>
 {
     return dataSource.Endpoints
@@ -62,5 +57,10 @@ app.MapGet("/__debug/endpoints", (EndpointDataSource dataSource) =>
         .OrderBy(n => n)
         .ToArray();
 });
+
+app.MapRazorComponents<App>()
+   .AddInteractiveServerRenderMode();
+
+app.UseAntiforgery();
 
 app.Run();
