@@ -2,11 +2,17 @@ using Faunex.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var apiBaseUrl = builder.Configuration["ApiSettings:BaseUrl"];
+if (string.IsNullOrWhiteSpace(apiBaseUrl))
+{
+    throw new InvalidOperationException(
+        "Missing configuration value 'ApiSettings:BaseUrl'. " +
+        "Set it in appsettings.Production.json or via the environment variable 'ApiSettings__BaseUrl'.");
+}
+
 builder.Services.AddHttpClient("FaunexApi", client =>
 {
-    client.BaseAddress = new Uri(
-        builder.Configuration["ApiSettings:BaseUrl"]!
-    );
+    client.BaseAddress = new Uri(apiBaseUrl, UriKind.Absolute);
 });
 
 // Add services to the container.
