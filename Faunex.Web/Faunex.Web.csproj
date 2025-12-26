@@ -1,21 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
-    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
-  </PropertyGroup>
-
 	<PropertyGroup>
-		<EnableDefaultStaticWebAssets>true</EnableDefaultStaticWebAssets>
-		<StaticWebAssetsMode>All</StaticWebAssetsMode>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+
+		<!-- REQUIRED for .NET 10 Blazor framework assets -->
+		<RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
 	</PropertyGroup>
 
 	<ItemGroup>
-    <ProjectReference Include="..\Faunex.Application\Faunex.Application.csproj" />
-    <ProjectReference Include="..\Faunex.Shared\Faunex.Shared.csproj" />
-  </ItemGroup>
+		<ProjectReference Include="..\Faunex.Application\Faunex.Application.csproj" />
+		<ProjectReference Include="..\Faunex.Shared\Faunex.Shared.csproj" />
+	</ItemGroup>
 
 </Project>
