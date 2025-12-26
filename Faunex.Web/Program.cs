@@ -15,6 +15,10 @@ builder.Services.AddRazorComponents()
 
 var app = builder.Build();
 
+app.UseStaticFiles();
+app.MapStaticAssets();
+app.UseRouting();
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
@@ -27,7 +31,6 @@ app.UseHttpsRedirection();
 
 app.UseAntiforgery();
 
-app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
