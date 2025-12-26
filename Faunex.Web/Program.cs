@@ -50,9 +50,9 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseRouting();
 
-app.UseAntiforgery();
-
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
+
+app.UseAntiforgery();
 
 app.Run();
