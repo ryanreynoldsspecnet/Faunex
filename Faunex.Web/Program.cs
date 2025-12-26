@@ -4,6 +4,9 @@ using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// =====================
+// Configuration checks
+// =====================
 var apiBaseUrl = builder.Configuration["ApiSettings:BaseUrl"];
 if (string.IsNullOrWhiteSpace(apiBaseUrl))
 {
@@ -12,6 +15,9 @@ if (string.IsNullOrWhiteSpace(apiBaseUrl))
         "Set it in appsettings.Production.json or via the environment variable 'ApiSettings__BaseUrl'.");
 }
 
+// =====================
+// Services
+// =====================
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("/root/.aspnet/DataProtection-Keys"))
     .SetApplicationName("Faunex");
@@ -21,28 +27,32 @@ builder.Services.AddHttpClient("FaunexApi", client =>
     client.BaseAddress = new Uri(apiBaseUrl, UriKind.Absolute);
 });
 
-// Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// =====================
+// Build app
+// =====================
 var app = builder.Build();
+
+// =====================
+// Middleware pipeline
+// =====================
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseHsts();
+}
+
+// NOTE: HTTPS redirection is intentionally disabled in Docker
+// app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 app.UseRouting();
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
-}
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-// app.UseHttpsRedirection();
-
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+   .AddInteractiveServerRenderMode();
 
 app.Run();
