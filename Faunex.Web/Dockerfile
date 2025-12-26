@@ -23,6 +23,7 @@ COPY . .
 RUN dotnet publish Faunex.Web/Faunex.Web.csproj \
     -c Release \
     -o /app/publish \
+    -p:StaticWebAssetsMode=Publish \
     --no-restore
 
 # ---- runtime stage ----
