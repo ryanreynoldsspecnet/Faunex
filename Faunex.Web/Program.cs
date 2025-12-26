@@ -44,20 +44,16 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-// NOTE: HTTPS redirection is intentionally disabled in Docker
+// HTTPS is handled by reverse proxy / Docker host
 // app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 app.UseRouting();
 
-app.MapGet("/__debug/endpoints", (EndpointDataSource dataSource) =>
-{
-    return dataSource.Endpoints
-        .Select(e => e.DisplayName)
-        .OrderBy(n => n)
-        .ToArray();
-});
+// REQUIRED in .NET 10 for Blazor static web assets
+app.MapStaticAssets();
 
+// Blazor must come AFTER static assets
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
 
