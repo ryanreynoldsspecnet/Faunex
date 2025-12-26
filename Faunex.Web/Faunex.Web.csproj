@@ -7,7 +7,12 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
-  <ItemGroup>
+	<PropertyGroup>
+		<EnableDefaultStaticWebAssets>true</EnableDefaultStaticWebAssets>
+		<StaticWebAssetsMode>All</StaticWebAssetsMode>
+	</PropertyGroup>
+
+	<ItemGroup>
     <ProjectReference Include="..\Faunex.Application\Faunex.Application.csproj" />
     <ProjectReference Include="..\Faunex.Shared\Faunex.Shared.csproj" />
   </ItemGroup>
