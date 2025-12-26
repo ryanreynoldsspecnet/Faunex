@@ -35,6 +35,8 @@ builder.Services.AddRazorComponents()
 // =====================
 var app = builder.Build();
 
+app.MapGet("/__ping", () => Results.Ok("pong"));
+
 // =====================
 // Middleware pipeline
 // =====================
