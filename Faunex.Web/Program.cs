@@ -1,4 +1,6 @@
 using Faunex.Web.Components;
+using Microsoft.AspNetCore.DataProtection;
+using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +11,10 @@ if (string.IsNullOrWhiteSpace(apiBaseUrl))
         "Missing configuration value 'ApiSettings:BaseUrl'. " +
         "Set it in appsettings.Production.json or via the environment variable 'ApiSettings__BaseUrl'.");
 }
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/root/.aspnet/DataProtection-Keys"))
+    .SetApplicationName("Faunex");
 
 builder.Services.AddHttpClient("FaunexApi", client =>
 {
