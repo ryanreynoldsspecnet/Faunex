@@ -47,7 +47,7 @@ else
     {
         try
         {
-            var client = HttpClientFactory.CreateClient("StormBirdApi");
+            var client = HttpClientFactory.CreateClient("FaunexApi");
             using var response = await client.GetAsync("/api/species");
             response.EnsureSuccessStatusCode();
 
