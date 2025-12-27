@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+using Microsoft.JSInterop;
 
 namespace Faunex.Web.Auth;
 
@@ -8,8 +9,19 @@ public sealed class TokenStore(ProtectedLocalStorage storage)
 
     public async Task<string?> GetTokenAsync()
     {
-        var result = await storage.GetAsync<string>(Key);
-        return result.Success ? result.Value : null;
+        try
+        {
+            var result = await storage.GetAsync<string>(Key);
+            return result.Success ? result.Value : null;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+        catch (JSException)
+        {
+            return null;
+        }
     }
 
     public async Task SetTokenAsync(string token)
