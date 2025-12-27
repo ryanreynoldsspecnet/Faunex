@@ -11,13 +11,27 @@ var builder = WebApplication.CreateBuilder(args);
 // =====================
 // Configuration checks
 // =====================
-var apiBaseUrl = builder.Configuration["ApiSettings:BaseUrl"];
-if (string.IsNullOrWhiteSpace(apiBaseUrl))
+var apiBaseUrlRaw = builder.Configuration["ApiSettings:BaseUrl"];
+if (string.IsNullOrWhiteSpace(apiBaseUrlRaw))
 {
     throw new InvalidOperationException(
         "Missing configuration value 'ApiSettings:BaseUrl'. " +
         "Set it in appsettings.Production.json or via the environment variable 'ApiSettings__BaseUrl'.");
 }
+
+static Uri NormalizeApiBaseUrl(string raw)
+{
+    if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri))
+    {
+        throw new InvalidOperationException($"Invalid ApiSettings:BaseUrl '{raw}'. It must be an absolute URL like 'https://api.example.com'.");
+    }
+
+    // Force API base address to be the ROOT (no /register, /auth, /api/auth, etc.).
+    // This guarantees request paths like "/api/auth/register" resolve correctly.
+    return new Uri(uri.GetLeftPart(UriPartial.Authority));
+}
+
+var apiBaseUrl = NormalizeApiBaseUrl(apiBaseUrlRaw);
 
 builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Information);
 
@@ -30,7 +44,7 @@ builder.Services.AddDataProtection()
 
 builder.Services.AddHttpClient("FaunexApi", client =>
 {
-    client.BaseAddress = new Uri(apiBaseUrl, UriKind.Absolute);
+    client.BaseAddress = apiBaseUrl;
 });
 
 builder.Services.AddScoped<ProtectedLocalStorage>();
@@ -51,7 +65,8 @@ builder.Services.AddAuthorizationCore();
 var app = builder.Build();
 
 app.Logger.LogInformation("WEB HOST STARTED. Environment={EnvironmentName}", app.Environment.EnvironmentName);
-app.Logger.LogInformation("Web configured ApiSettings:BaseUrl={ApiBaseUrl}", apiBaseUrl);
+app.Logger.LogInformation("Web configured ApiSettings:BaseUrlRaw={ApiBaseUrlRaw}", apiBaseUrlRaw);
+app.Logger.LogInformation("Web normalized ApiSettings:BaseUrl={ApiBaseUrl}", apiBaseUrl);
 
 app.MapGet("/__ping", () => Results.Ok("pong"));
 
