@@ -495,4 +495,93 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
 
         return listings;
     }
+
+    public async Task SubmitForComplianceAsync(Guid listingId, CancellationToken cancellationToken = default)
+    {
+        if (tenantContext.IsPlatformAdmin)
+        {
+            throw new UnauthorizedAccessException("Platform admin cannot submit listings for compliance.");
+        }
+
+        if (!tenantContext.TenantId.HasValue)
+        {
+            throw new UnauthorizedAccessException("TenantId is required.");
+        }
+
+        if (tenantContext is not ITenantContextWithActor actor || !actor.ActorId.HasValue)
+        {
+            throw new UnauthorizedAccessException("Authenticated user context is required.");
+        }
+
+        ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.Seller, FaunexRoles.TenantAdmin);
+
+        var listing = await dbContext.Listings
+            .Include(x => x.Compliance)
+            .FirstOrDefaultAsync(x => x.Id == listingId, cancellationToken);
+
+        if (listing is null)
+        {
+            throw new InvalidOperationException("Listing not found.");
+        }
+
+        if (listing.TenantId != tenantContext.TenantId.Value)
+        {
+            // With global filters this should not usually happen, but keep it explicit.
+            throw new UnauthorizedAccessException("Listing does not belong to the current tenant.");
+        }
+
+        var isTenantAdmin = tenantContext is ITenantContextWithRoles withRoles && withRoles.Roles.Contains(FaunexRoles.TenantAdmin);
+
+        if (!isTenantAdmin)
+        {
+            // Seller anti-spoofing: seller can only submit their own listing.
+            if (listing.SellerId != actor.ActorId.Value)
+            {
+                throw new UnauthorizedAccessException("Seller can only submit their own listings for compliance.");
+            }
+        }
+
+        listing.IsActive = false;
+
+        if (listing.Compliance is null)
+        {
+            listing.Compliance = new ListingCompliance
+            {
+                ListingId = listing.Id,
+                TenantId = listing.TenantId,
+                Status = ListingComplianceStatus.Draft,
+                LastUpdatedAt = DateTimeOffset.UtcNow
+            };
+        }
+
+        if (listing.Compliance.Status != ListingComplianceStatus.Draft)
+        {
+            throw new InvalidOperationException("Listing compliance must be in Draft status to submit.");
+        }
+
+        var required = GetRequiredDocumentTypesForListing(listing);
+
+        var uploadedTypes = await dbContext.ListingDocuments
+            .AsNoTracking()
+            .Where(x => x.ListingId == listing.Id && x.UploadedAt != null)
+            .Select(x => x.DocumentType)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var missing = required.Except(uploadedTypes).ToList();
+
+        if (missing.Count > 0)
+        {
+            listing.Compliance.Status = ListingComplianceStatus.PendingDocuments;
+            listing.Compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
+        }
+        else
+        {
+            listing.Compliance.Status = ListingComplianceStatus.UnderReview;
+            listing.Compliance.SubmittedAt = DateTimeOffset.UtcNow;
+            listing.Compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

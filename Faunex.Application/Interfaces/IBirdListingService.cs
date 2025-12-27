@@ -9,6 +9,8 @@ public interface IBirdListingService
 
     Task<IReadOnlyList<ListingDto>> GetSellerListingsAsync(Guid sellerId, CancellationToken cancellationToken);
 
+    Task SubmitForComplianceAsync(Guid listingId, CancellationToken cancellationToken);
+
     Task<Guid> CreateAsync(BirdListingDto listing, CancellationToken cancellationToken = default);
     Task UpdateAsync(BirdListingDto listing, CancellationToken cancellationToken = default);
 
