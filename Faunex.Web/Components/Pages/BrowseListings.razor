@@ -29,7 +29,9 @@ else
             @foreach (var item in _items)
             {
                 <tr>
-                    <td>@item.Title</td>
+                    <td>
+                        <a href="/listings/@item.Id">@item.Title</a>
+                    </td>
                     <td>@FormatPrice(item)</td>
                     <td>@GetSaleType(item)</td>
                 </tr>

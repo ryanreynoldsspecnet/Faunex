@@ -11,6 +11,85 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
 {
     private const decimal MinimumIncrement = 10m;
 
+    public async Task PlaceBidAsync(CreateBidRequest request, CancellationToken cancellationToken)
+    {
+        if (request.Amount <= 0)
+        {
+            throw new InvalidOperationException("Bid amount must be greater than zero.");
+        }
+
+        if (tenantContext.IsPlatformAdmin)
+        {
+            throw new UnauthorizedAccessException("Platform admins are not allowed to place bids.");
+        }
+
+        if (tenantContext.TenantId.HasValue)
+        {
+            throw new UnauthorizedAccessException("Tenant users are not allowed to place bids.");
+        }
+
+        ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.Buyer);
+
+        if (tenantContext is not ITenantContextWithActor actor || !actor.ActorId.HasValue)
+        {
+            throw new UnauthorizedAccessException("Bidder identity is required.");
+        }
+
+        var listing = await dbContext.Listings
+            .AsNoTracking()
+            .Include(x => x.Compliance)
+            .FirstOrDefaultAsync(x => x.Id == request.ListingId, cancellationToken);
+
+        if (listing is null)
+        {
+            throw new InvalidOperationException("Listing not found.");
+        }
+
+        if (!listing.IsActive)
+        {
+            throw new InvalidOperationException("Listing is not active.");
+        }
+
+        if (listing.Compliance?.Status != ListingComplianceStatus.Approved)
+        {
+            throw new InvalidOperationException("Listing is not approved for bidding.");
+        }
+
+        if (listing.BuyNowPrice.HasValue)
+        {
+            throw new InvalidOperationException("Bids are only allowed for auction listings.");
+        }
+
+        var auction = await dbContext.Auctions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.ListingId == listing.Id, cancellationToken);
+
+        if (auction is null)
+        {
+            throw new InvalidOperationException("Auction not found.");
+        }
+
+        if (auction.IsClosed)
+        {
+            throw new InvalidOperationException("Auction is closed.");
+        }
+
+        var entity = new Bid
+        {
+            TenantId = auction.TenantId,
+            AuctionId = auction.Id,
+            BidderId = actor.ActorId.Value,
+            Amount = request.Amount,
+            CurrencyCode = listing.CurrencyCode,
+            PlacedAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        dbContext.Bids.Add(entity);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<BidDto> PlaceBidAsync(Guid auctionId, decimal amount, CancellationToken cancellationToken = default)
     {
         ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenantContext, "place bids");
