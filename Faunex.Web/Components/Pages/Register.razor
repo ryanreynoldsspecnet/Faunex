@@ -7,7 +7,7 @@
 
 <h3>Register</h3>
 
-<EditForm Model="_model" OnValidSubmit="RegisterAsync">
+<EditForm EditContext="_editContext" OnValidSubmit="RegisterAsync" FormName="register-form">
     <DataAnnotationsValidator />
     <ValidationSummary />
 
@@ -31,7 +31,7 @@
         <InputText class="form-control" type="password" @bind-Value="_model.Password" disabled="@_isSubmitting" />
     </div>
 
-    <button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
+    <button class="btn btn-primary" disabled="@_isSubmitting" @onclick="RegisterAsync" @onclick:preventDefault>
         @(_isSubmitting ? "Registering..." : "Register")
     </button>
 </EditForm>
@@ -52,6 +52,12 @@
     }
 
     private readonly RegisterModel _model = new();
+    private EditContext _editContext = default!;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_model);
+    }
 
     private sealed class RegisterRequest
     {
@@ -66,6 +72,11 @@
 
     private async Task RegisterAsync()
     {
+        if (_isSubmitting)
+        {
+            return;
+        }
+
         _error = null;
         _success = null;
         _isSubmitting = true;
