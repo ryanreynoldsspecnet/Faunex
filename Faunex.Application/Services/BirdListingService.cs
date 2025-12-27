@@ -95,6 +95,107 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         return entity.Id;
     }
 
+    public async Task<ListingDto> CreateBirdListingAsync(CreateBirdListingRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title))
+        {
+            throw new ArgumentException("Title is required.");
+        }
+
+        if (request.Price <= 0)
+        {
+            throw new ArgumentException("Price must be greater than 0.");
+        }
+
+        if (request.SpeciesId == Guid.Empty)
+        {
+            throw new ArgumentException("SpeciesId is required.");
+        }
+
+        // Auth rules (MANDATORY)
+        ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenantContext, "create listings");
+        ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.Seller, FaunexRoles.TenantAdmin);
+
+        if (tenantContext is not ITenantContextWithActor actor || !actor.ActorId.HasValue)
+        {
+            throw new UnauthorizedAccessException("Seller identity is required.");
+        }
+
+        if (actor.ActorId.Value != request.SellerId)
+        {
+            throw new UnauthorizedAccessException("Seller can only create listings for themselves.");
+        }
+
+        if (!tenantContext.TenantId.HasValue)
+        {
+            throw new UnauthorizedAccessException("TenantId is required.");
+        }
+
+        // TODO: Auction creation is not implemented in this slice.
+        _ = request.IsAuction;
+
+        var speciesExists = await dbContext.BirdDetails
+            .IgnoreQueryFilters()
+            .Select(x => x.SpeciesId)
+            .Where(x => x.HasValue)
+            .AnyAsync(x => x == request.SpeciesId, cancellationToken);
+
+        if (!speciesExists)
+        {
+            // Fallback validation using seeded ids if species table is not exposed via IApplicationDbContext.
+            // TODO: Add BirdSpecies DbSet to IApplicationDbContext to validate species properly.
+            throw new ArgumentException("SpeciesId does not exist.");
+        }
+
+        var listingId = Guid.NewGuid();
+        var tenantId = tenantContext.TenantId.Value;
+
+        var entity = new Listing
+        {
+            Id = listingId,
+            TenantId = tenantId,
+            SellerId = request.SellerId,
+            Title = request.Title,
+            Description = request.Description,
+            StartingPrice = request.Price,
+            BuyNowPrice = request.IsAuction ? null : request.Price,
+            CurrencyCode = "USD",
+            Quantity = 1,
+            Location = null,
+            IsActive = false,
+            BirdDetails = new BirdDetails
+            {
+                ListingId = listingId,
+                SpeciesId = request.SpeciesId
+            },
+            Compliance = new ListingCompliance
+            {
+                ListingId = listingId,
+                TenantId = tenantId,
+                Status = ListingComplianceStatus.Draft,
+                LastUpdatedAt = DateTimeOffset.UtcNow
+            }
+        };
+
+        dbContext.Listings.Add(entity);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new ListingDto(
+            entity.Id,
+            entity.TenantId,
+            entity.SellerId,
+            AnimalClass: "Bird",
+            SpeciesId: entity.BirdDetails?.SpeciesId,
+            entity.Title,
+            entity.Description,
+            entity.StartingPrice,
+            entity.BuyNowPrice,
+            entity.CurrencyCode,
+            entity.Quantity,
+            entity.Location,
+            entity.IsActive);
+    }
+
     public async Task UpdateAsync(BirdListingDto listing, CancellationToken cancellationToken = default)
     {
         ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenantContext, "update listings");

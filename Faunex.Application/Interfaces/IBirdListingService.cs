@@ -16,4 +16,6 @@ public interface IBirdListingService
     Task ApproveListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default);
     Task RejectListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default);
     Task SuspendListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default);
+
+    Task<ListingDto> CreateBirdListingAsync(CreateBirdListingRequest request, CancellationToken cancellationToken);
 }
