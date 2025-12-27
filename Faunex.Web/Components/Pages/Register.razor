@@ -1,4 +1,5 @@
 @page "/register"
+@using System.ComponentModel.DataAnnotations
 @inject Faunex.Web.Api.FaunexApiClient Api
 @inject Faunex.Web.Auth.TokenStore TokenStore
 @inject Faunex.Web.Auth.JwtAuthStateProvider AuthStateProvider
@@ -6,26 +7,51 @@
 
 <h3>Register</h3>
 
-<div>
-    <label>Email</label>
-    <input @bind="_email" />
-</div>
-<div>
-    <label>Password</label>
-    <input type="password" @bind="_password" />
-</div>
+<EditForm Model="_model" OnValidSubmit="RegisterAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
 
-<button @onclick="RegisterAsync">Register</button>
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
 
-@if (_error is not null)
-{
-    <p>@_error</p>
-}
+    @if (_success is not null)
+    {
+        <div class="alert alert-success" role="alert">@_success</div>
+    }
+
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <InputText class="form-control" @bind-Value="_model.Email" disabled="@_isSubmitting" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Password</label>
+        <InputText class="form-control" type="password" @bind-Value="_model.Password" disabled="@_isSubmitting" />
+    </div>
+
+    <button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
+        @(_isSubmitting ? "Registering..." : "Register")
+    </button>
+</EditForm>
 
 @code {
-    private string _email = string.Empty;
-    private string _password = string.Empty;
+    private bool _isSubmitting;
     private string? _error;
+    private string? _success;
+
+    private sealed class RegisterModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        public string Password { get; set; } = string.Empty;
+    }
+
+    private readonly RegisterModel _model = new();
 
     private sealed class RegisterRequest
     {
@@ -41,14 +67,14 @@
     private async Task RegisterAsync()
     {
         _error = null;
+        _success = null;
+        _isSubmitting = true;
 
         try
         {
-            var response = await Api.PostAsync<RegisterRequest, AuthResponse>("/api/auth/register", new RegisterRequest
-            {
-                Email = _email,
-                Password = _password
-            });
+            var response = await Api.PostAsync<RegisterRequest, AuthResponse>(
+                "/api/auth/register",
+                new RegisterRequest { Email = _model.Email, Password = _model.Password });
 
             if (response is null || string.IsNullOrWhiteSpace(response.AccessToken))
             {
@@ -58,11 +84,17 @@
 
             await TokenStore.SetTokenAsync(response.AccessToken);
             AuthStateProvider.NotifyUserAuthenticationStateChanged();
-            Nav.NavigateTo("/");
+
+            _success = "Registered successfully.";
+            Nav.NavigateTo("/browse", forceLoad: true);
         }
         catch (Exception ex)
         {
             _error = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
         }
     }
 }

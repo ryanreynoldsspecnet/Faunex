@@ -5,19 +5,19 @@
 
 @if (_isLoading)
 {
-    <p>Loading...</p>
+    <p>Loading listings...</p>
 }
 else if (_error is not null)
 {
-    <p>@_error</p>
+    <div class="alert alert-danger" role="alert">@_error</div>
 }
 else if (_items is null || _items.Count == 0)
 {
-    <p>No listings available</p>
+    <div class="alert alert-info" role="alert">No listings available</div>
 }
 else
 {
-    <table class="table">
+    <table class="table table-striped">
         <thead>
             <tr>
                 <th>Title</th>
