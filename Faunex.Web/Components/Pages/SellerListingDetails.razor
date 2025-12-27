@@ -1,0 +1,186 @@
+@page "/seller/listings/{ListingId:guid}"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<h3>Listing Details</h3>
+
+@if (_isLoading)
+{
+    <p>Loading...</p>
+}
+else if (_pageMessage is not null)
+{
+    <p>@_pageMessage</p>
+}
+else if (_error is not null)
+{
+    <p>@_error</p>
+}
+else if (_listing is null)
+{
+    <p>Listing not found.</p>
+}
+else
+{
+    <dl class="row">
+        <dt class="col-sm-3">Title</dt>
+        <dd class="col-sm-9">@_listing.Title</dd>
+
+        <dt class="col-sm-3">Description</dt>
+        <dd class="col-sm-9">@(_listing.Description ?? "-")</dd>
+
+        <dt class="col-sm-3">Price</dt>
+        <dd class="col-sm-9">@FormatPrice(_listing)</dd>
+
+        <dt class="col-sm-3">Listing type</dt>
+        <dd class="col-sm-9">@GetListingType(_listing)</dd>
+
+        <dt class="col-sm-3">Status</dt>
+        <dd class="col-sm-9">@GetStatus(_listing)</dd>
+
+        <dt class="col-sm-3">SellerId</dt>
+        <dd class="col-sm-9"><code>@_listing.SellerId</code></dd>
+    </dl>
+
+    @if (!_listing.IsActive)
+    {
+        <button class="btn btn-primary" disabled="@_isSubmitting" @onclick="SubmitForReviewAsync">
+            @(_isSubmitting ? "Submitting..." : "Submit for Compliance Review")
+        </button>
+
+        @if (_submitSuccess is not null)
+        {
+            <div class="text-success mt-2">@_submitSuccess</div>
+        }
+        else if (_submitError is not null)
+        {
+            <div class="text-danger mt-2">@_submitError</div>
+        }
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid ListingId { get; set; }
+
+    private bool _isLoading;
+    private string? _pageMessage;
+    private string? _error;
+
+    private Faunex.Application.DTOs.ListingDto? _listing;
+
+    private bool _isSubmitting;
+    private string? _submitSuccess;
+    private string? _submitError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _pageMessage = null;
+        _error = null;
+        _listing = null;
+
+        _isSubmitting = false;
+        _submitSuccess = null;
+        _submitError = null;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated != true)
+            {
+                _pageMessage = "Please log in to view your listing.";
+                return;
+            }
+
+            if (!(user.IsInRole("Seller") || user.IsInRole("TenantAdmin")))
+            {
+                _pageMessage = "You do not have permission to view this listing.";
+                return;
+            }
+
+            var actorIdRaw = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(actorIdRaw, out var actorId))
+            {
+                _pageMessage = "You do not have permission to view this listing.";
+                return;
+            }
+
+            var listings = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>($"/api/seller/listings?sellerId={actorId}");
+            _listing = listings?.FirstOrDefault(x => x.Id == ListingId);
+
+            if (_listing is null)
+            {
+                return;
+            }
+
+            if (_listing.SellerId != actorId)
+            {
+                _listing = null;
+                _pageMessage = "You do not have permission to view this listing.";
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SubmitForReviewAsync()
+    {
+        if (_listing is null)
+        {
+            return;
+        }
+
+        _isSubmitting = true;
+        _submitSuccess = null;
+        _submitError = null;
+
+        try
+        {
+            await Api.PostAsync($"/api/seller/listings/{_listing.Id}/submit", body: new { });
+            _submitSuccess = "Submitted for compliance review";
+        }
+        catch
+        {
+            _submitError = "Could not submit listing for review. Please try again.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private static string FormatPrice(Faunex.Application.DTOs.ListingDto item)
+    {
+        var price = item.BuyNowPrice ?? item.StartingPrice;
+        return $"{price:0.##} {item.CurrencyCode}";
+    }
+
+    private static string GetListingType(Faunex.Application.DTOs.ListingDto item)
+    {
+        // Best-effort (no DTO field): if BuyNowPrice is missing, this is likely an auction.
+        return item.BuyNowPrice.HasValue ? "Fixed price" : "Auction";
+    }
+
+    private static string GetStatus(Faunex.Application.DTOs.ListingDto item)
+    {
+        // Best-effort using existing data only.
+        return item.IsActive ? "Approved" : "Draft / Pending Review";
+    }
+}

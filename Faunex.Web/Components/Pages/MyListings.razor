@@ -43,7 +43,9 @@
                         var state = GetRowState(item.Id);
 
                         <tr>
-                            <td>@item.Title</td>
+                            <td>
+                                <NavLink href="@($"/seller/listings/{item.Id}")">@item.Title</NavLink>
+                            </td>
                             <td>@FormatPrice(item)</td>
                             <td>@GetStatus(item)</td>
                             <td>@(item.IsActive ? "Yes" : "No")</td>
