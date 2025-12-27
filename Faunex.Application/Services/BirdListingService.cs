@@ -334,19 +334,9 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public Task ApproveListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default) =>
-        ReviewAsync(listingId, ListingComplianceStatus.Approved, notes, cancellationToken);
-
-    public Task RejectListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default) =>
-        ReviewAsync(listingId, ListingComplianceStatus.Rejected, notes, cancellationToken);
-
-    public Task SuspendListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default) =>
-        ReviewAsync(listingId, ListingComplianceStatus.Suspended, notes, cancellationToken);
-
-    private async Task ReviewAsync(Guid listingId, ListingComplianceStatus newStatus, string? notes, CancellationToken cancellationToken)
+    public async Task ApproveListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default)
     {
-        ServiceAuthorization.EnsurePlatformAdmin(tenantContext);
-        ServiceAuthorization.EnsurePlatformComplianceAdmin(tenantContext);
+        EnsurePlatformComplianceReviewer();
 
         var listing = await dbContext.Listings
             .Include(x => x.Compliance)
@@ -357,30 +347,73 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             throw new InvalidOperationException("Listing not found.");
         }
 
-        if (listing.Compliance is null)
+        var compliance = listing.Compliance ?? throw new InvalidOperationException("Listing compliance is required.");
+
+        if (compliance.Status != ListingComplianceStatus.UnderReview)
         {
-            listing.Compliance = new ListingCompliance
-            {
-                ListingId = listing.Id,
-                TenantId = listing.TenantId,
-                Status = ListingComplianceStatus.Draft,
-                LastUpdatedAt = DateTimeOffset.UtcNow
-            };
+            throw new InvalidOperationException("Listing compliance must be UnderReview to approve.");
         }
 
-        listing.Compliance.Status = newStatus;
-        listing.Compliance.ReviewNotes = notes;
-        listing.Compliance.ReviewedAt = DateTimeOffset.UtcNow;
-        listing.Compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
+        compliance.Status = ListingComplianceStatus.Approved;
+        compliance.ReviewNotes = notes;
+        compliance.ReviewedAt = DateTimeOffset.UtcNow;
+        compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
+        compliance.ReviewedByUserId = ((ITenantContextWithActor)tenantContext).ActorId;
 
-        if (tenantContext is ITenantContextWithActor actor)
-        {
-            listing.Compliance.ReviewedByUserId = actor.ActorId;
-        }
-
-        listing.IsActive = newStatus == ListingComplianceStatus.Approved;
+        listing.IsActive = true;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RejectListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default)
+    {
+        EnsurePlatformComplianceReviewer();
+
+        var listing = await dbContext.Listings
+            .Include(x => x.Compliance)
+            .FirstOrDefaultAsync(x => x.Id == listingId, cancellationToken);
+
+        if (listing is null)
+        {
+            throw new InvalidOperationException("Listing not found.");
+        }
+
+        var compliance = listing.Compliance ?? throw new InvalidOperationException("Listing compliance is required.");
+
+        if (compliance.Status != ListingComplianceStatus.UnderReview && compliance.Status != ListingComplianceStatus.PendingDocuments)
+        {
+            throw new InvalidOperationException("Listing compliance must be UnderReview or PendingDocuments to reject.");
+        }
+
+        compliance.Status = ListingComplianceStatus.Rejected;
+        compliance.ReviewNotes = notes;
+        compliance.ReviewedAt = DateTimeOffset.UtcNow;
+        compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
+        compliance.ReviewedByUserId = ((ITenantContextWithActor)tenantContext).ActorId;
+
+        listing.IsActive = false;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task SuspendListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default) =>
+        ReviewAsync(listingId, ListingComplianceStatus.Suspended, notes, cancellationToken);
+
+    private void EnsurePlatformComplianceReviewer()
+    {
+        if (tenantContext is not ITenantContextWithActor actor || !actor.ActorId.HasValue)
+        {
+            throw new UnauthorizedAccessException("Authenticated user context (ActorId) is required.");
+        }
+
+        ServiceAuthorization.EnsurePlatformAdmin(tenantContext);
+
+        if (tenantContext.TenantId.HasValue)
+        {
+            throw new UnauthorizedAccessException("Platform admins must not have TenantId.");
+        }
+
+        ServiceAuthorization.EnsurePlatformComplianceAdmin(tenantContext);
     }
 
     private static IReadOnlyCollection<ListingDocumentType> GetRequiredDocumentTypesForListing(Listing listing)
@@ -581,6 +614,32 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             listing.Compliance.SubmittedAt = DateTimeOffset.UtcNow;
             listing.Compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
         }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task ReviewAsync(Guid listingId, ListingComplianceStatus newStatus, string? notes, CancellationToken cancellationToken)
+    {
+        EnsurePlatformComplianceReviewer();
+
+        var listing = await dbContext.Listings
+            .Include(x => x.Compliance)
+            .FirstOrDefaultAsync(x => x.Id == listingId, cancellationToken);
+
+        if (listing is null)
+        {
+            throw new InvalidOperationException("Listing not found.");
+        }
+
+        var compliance = listing.Compliance ?? throw new InvalidOperationException("Listing compliance is required.");
+
+        compliance.Status = newStatus;
+        compliance.ReviewNotes = notes;
+        compliance.ReviewedAt = DateTimeOffset.UtcNow;
+        compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
+        compliance.ReviewedByUserId = ((ITenantContextWithActor)tenantContext).ActorId;
+
+        listing.IsActive = newStatus == ListingComplianceStatus.Approved;
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
