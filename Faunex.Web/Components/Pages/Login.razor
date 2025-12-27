@@ -53,7 +53,7 @@
 
             await TokenStore.SetTokenAsync(response.AccessToken);
             AuthStateProvider.NotifyUserAuthenticationStateChanged();
-            Nav.NavigateTo("/browse");
+            Nav.NavigateTo("/");
         }
         catch (Exception ex)
         {

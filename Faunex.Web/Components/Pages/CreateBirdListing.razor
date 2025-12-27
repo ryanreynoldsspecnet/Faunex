@@ -1,0 +1,170 @@
+@page "/seller/listings/create/bird"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Nav
+
+<h3>Create Bird Listing</h3>
+
+<AuthorizeView Context="authContext">
+    <Authorized>
+        @if (!_isInSellerOrTenantAdminRole)
+        {
+            <p>You are signed in, but you don’t have access to create listings.</p>
+        }
+        else
+        {
+            <EditForm Model="_model" OnValidSubmit="SubmitAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger" role="alert">@_error</div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">SpeciesId (GUID)</label>
+                    <InputText class="form-control" @bind-Value="_model.SpeciesIdRaw" disabled="@_isSubmitting" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Title</label>
+                    <InputText class="form-control" @bind-Value="_model.Title" disabled="@_isSubmitting" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <InputTextArea class="form-control" @bind-Value="_model.Description" disabled="@_isSubmitting" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Price</label>
+                    <InputNumber class="form-control" @bind-Value="_model.Price" disabled="@_isSubmitting" />
+                </div>
+
+                <div class="form-check mb-3">
+                    <InputCheckbox class="form-check-input" @bind-Value="_model.IsAuction" disabled="@_isSubmitting" />
+                    <label class="form-check-label">Is Auction</label>
+                </div>
+
+                <button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
+                    @(_isSubmitting ? "Creating..." : "Create")
+                </button>
+            </EditForm>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>Please log in</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isSubmitting;
+    private string? _error;
+    private bool _isInSellerOrTenantAdminRole;
+
+    private readonly CreateBirdListingModel _model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        _isInSellerOrTenantAdminRole = user.Identity?.IsAuthenticated == true && (user.IsInRole("Seller") || user.IsInRole("TenantAdmin"));
+    }
+
+    private sealed class CreateBirdListingModel
+    {
+        [Required]
+        public string SpeciesIdRaw { get; set; } = string.Empty;
+
+        [Required]
+        [MinLength(3)]
+        public string Title { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+
+        [Range(0.01, double.MaxValue, ErrorMessage = "Price must be greater than 0.")]
+        public decimal Price { get; set; } = 1;
+
+        public bool IsAuction { get; set; }
+    }
+
+    private sealed class CreateBirdListingApiRequest
+    {
+        public Guid SpeciesId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public decimal Price { get; set; }
+        public bool IsAuction { get; set; }
+        public Guid SellerId { get; set; }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _isSubmitting = true;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated != true)
+            {
+                _error = "Please log in";
+                return;
+            }
+
+            if (!(user.IsInRole("Seller") || user.IsInRole("TenantAdmin")))
+            {
+                _error = "You are signed in, but you don’t have access to create listings.";
+                return;
+            }
+
+            var sellerIdRaw = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(sellerIdRaw, out var sellerId))
+            {
+                _error = "Could not determine your user id (SellerId).";
+                return;
+            }
+
+            if (!Guid.TryParse(_model.SpeciesIdRaw, out var speciesId))
+            {
+                _error = "SpeciesId must be a valid GUID.";
+                return;
+            }
+
+            if (_model.Price <= 0)
+            {
+                _error = "Price must be greater than 0.";
+                return;
+            }
+
+            var payload = new CreateBirdListingApiRequest
+            {
+                SpeciesId = speciesId,
+                Title = _model.Title,
+                Description = string.IsNullOrWhiteSpace(_model.Description) ? null : _model.Description,
+                Price = _model.Price,
+                IsAuction = _model.IsAuction,
+                SellerId = sellerId
+            };
+
+            await Api.PostAsync("/api/seller/listings/bird", payload);
+
+            Nav.NavigateTo("/seller/listings");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+}

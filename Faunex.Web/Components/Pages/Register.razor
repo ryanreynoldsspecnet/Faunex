@@ -4,7 +4,7 @@
 @inject Faunex.Web.Auth.JwtAuthStateProvider AuthStateProvider
 @inject NavigationManager Nav
 
-<h3>Register (dev-friendly)</h3>
+<h3>Register</h3>
 
 <div>
     <label>Email</label>
@@ -13,18 +13,6 @@
 <div>
     <label>Password</label>
     <input type="password" @bind="_password" />
-</div>
-<div>
-    <label>TenantId (blank for platform)</label>
-    <input style="width: 28rem;" @bind="_tenantIdRaw" />
-</div>
-<div>
-    <label>Is Platform Admin</label>
-    <input type="checkbox" @bind="_isPlatformAdmin" />
-</div>
-<div>
-    <label>Roles (comma-separated)</label>
-    <input style="width: 28rem;" @bind="_rolesRaw" />
 </div>
 
 <button @onclick="RegisterAsync">Register</button>
@@ -37,19 +25,12 @@
 @code {
     private string _email = string.Empty;
     private string _password = string.Empty;
-    private string _tenantIdRaw = string.Empty;
-    private bool _isPlatformAdmin;
-    private string _rolesRaw = "Buyer";
-
     private string? _error;
 
     private sealed class RegisterRequest
     {
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
-        public Guid? TenantId { get; set; }
-        public bool IsPlatformAdmin { get; set; }
-        public List<string> Roles { get; set; } = [];
     }
 
     private sealed class AuthResponse
@@ -63,29 +44,10 @@
 
         try
         {
-            Guid? tenantId = null;
-            if (!string.IsNullOrWhiteSpace(_tenantIdRaw))
-            {
-                if (!Guid.TryParse(_tenantIdRaw, out var parsed))
-                {
-                    _error = "Invalid tenant id.";
-                    return;
-                }
-
-                tenantId = parsed;
-            }
-
-            var roles = _rolesRaw
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .ToList();
-
             var response = await Api.PostAsync<RegisterRequest, AuthResponse>("/api/auth/register", new RegisterRequest
             {
                 Email = _email,
-                Password = _password,
-                TenantId = tenantId,
-                IsPlatformAdmin = _isPlatformAdmin,
-                Roles = roles
+                Password = _password
             });
 
             if (response is null || string.IsNullOrWhiteSpace(response.AccessToken))
@@ -96,7 +58,7 @@
 
             await TokenStore.SetTokenAsync(response.AccessToken);
             AuthStateProvider.NotifyUserAuthenticationStateChanged();
-            Nav.NavigateTo("/browse");
+            Nav.NavigateTo("/");
         }
         catch (Exception ex)
         {

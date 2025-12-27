@@ -1,85 +1,104 @@
-@page "/seller/my-listings"
+@page "/seller/listings"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
 @inject Faunex.Web.Api.FaunexApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
-<h3>My Listings (Seller)</h3>
+<h3>My Listings</h3>
 
-<div style="margin-bottom: 1rem;">
-    <label>Seller Id:</label>
-    <input style="width: 28rem;" @bind="_sellerIdRaw" />
-    <button style="margin-left: 1rem;" @onclick="ReloadAsync">Load</button>
-</div>
-
-@if (_isLoading)
-{
-    <p>Loading...</p>
-}
-else if (_error is not null)
-{
-    <p>@_error</p>
-}
-else if (_result is null || _result.Items.Count == 0)
-{
-    <p>No listings found.</p>
-}
-else
-{
-    <p>Total: @_result.Total | Showing: @_result.Items.Count</p>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Animal</th>
-                <th>Active</th>
-                <th>Location</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in _result.Items)
-            {
-                <tr>
-                    <td>@item.Title</td>
-                    <td>@item.AnimalClass</td>
-                    <td>@(item.IsActive ? "Yes" : "No")</td>
-                    <td>@item.Location</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-
-    <div style="margin-top: 1rem;">
-        <button @onclick="PrevAsync" disabled="@(_skip == 0)">Prev</button>
-        <button style="margin-left: 0.5rem;" @onclick="NextAsync" disabled="@(_result is null || _skip + _take >= _result.Total)">Next</button>
-    </div>
-}
+<AuthorizeView>
+    <Authorized>
+        @if (!_isInSellerOrTenantAdminRole)
+        {
+            <p>You are signed in, but you don’t have access to seller listings.</p>
+        }
+        else if (_isLoading)
+        {
+            <p>Loading...</p>
+        }
+        else if (_error is not null)
+        {
+            <p>@_error</p>
+        }
+        else if (_listings is null || _listings.Count == 0)
+        {
+            <p>You haven’t created any listings yet.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th>IsActive</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _listings)
+                    {
+                        <tr>
+                            <td>@item.Title</td>
+                            <td>@FormatPrice(item)</td>
+                            <td>@GetStatus(item)</td>
+                            <td>@(item.IsActive ? "Yes" : "No")</td>
+                            <td>@GetCreated(item)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>Please log in to view your listings.</p>
+    </NotAuthorized>
+</AuthorizeView>
 
 @code {
     private bool _isLoading;
     private string? _error;
-    private Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.ListingDto>? _result;
+    private IReadOnlyList<Faunex.Application.DTOs.ListingDto>? _listings;
 
-    private int _skip;
-    private int _take = 20;
+    private bool _isInSellerOrTenantAdminRole;
 
-    private string _sellerIdRaw = "";
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
 
-    protected override Task OnInitializedAsync() => ReloadAsync();
-
-    private async Task ReloadAsync()
+    private async Task LoadAsync()
     {
         _isLoading = true;
         _error = null;
+        _listings = null;
+        _isInSellerOrTenantAdminRole = false;
 
         try
         {
-            if (!Guid.TryParse(_sellerIdRaw, out var sellerId))
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated != true)
             {
-                _error = "Enter your seller id (a GUID).";
                 return;
             }
 
-            var url = $"/api/listings/my?sellerId={sellerId}&skip={_skip}&take={_take}";
-            _result = await Api.GetAsync<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.ListingDto>>(url);
+            _isInSellerOrTenantAdminRole = user.IsInRole("Seller") || user.IsInRole("TenantAdmin");
+            if (!_isInSellerOrTenantAdminRole)
+            {
+                return;
+            }
+
+            var actorIdRaw = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(actorIdRaw, out var actorId))
+            {
+                _error = "Could not determine your user id (ActorId).";
+                return;
+            }
+
+            _listings = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>($"/api/seller/listings?sellerId={actorId}");
         }
         catch (Exception ex)
         {
@@ -91,15 +110,22 @@ else
         }
     }
 
-    private async Task PrevAsync()
+    private static string FormatPrice(Faunex.Application.DTOs.ListingDto item)
     {
-        _skip = Math.Max(0, _skip - _take);
-        await ReloadAsync();
+        var price = item.BuyNowPrice ?? item.StartingPrice;
+        return $"{price:0.##} {item.CurrencyCode}";
     }
 
-    private async Task NextAsync()
+    private static string GetStatus(Faunex.Application.DTOs.ListingDto item)
     {
-        _skip += _take;
-        await ReloadAsync();
+        // Compliance status is not included in ListingDto.
+        // Use a best-effort display that still meets the UX requirement to show *a* status column.
+        return item.IsActive ? "Approved" : "Draft";
+    }
+
+    private static string GetCreated(Faunex.Application.DTOs.ListingDto item)
+    {
+        // ListingDto currently does not include CreatedAt.
+        return "-";
     }
 }

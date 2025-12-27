@@ -1,0 +1,15 @@
+@page "/logout"
+@inject Faunex.Web.Auth.TokenStore TokenStore
+@inject Faunex.Web.Auth.JwtAuthStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<h3>Logging out...</h3>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await TokenStore.ClearAsync();
+        AuthStateProvider.NotifyUserAuthenticationStateChanged();
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+}
