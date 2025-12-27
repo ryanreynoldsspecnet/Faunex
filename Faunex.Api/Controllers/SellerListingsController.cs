@@ -8,6 +8,13 @@ namespace Faunex.Api.Controllers;
 [Route("api/seller/listings")]
 public sealed class SellerListingsController(IBirdListingService birdListings) : ControllerBase
 {
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<ListingDto>>> GetSellerListings([FromQuery] Guid sellerId, CancellationToken cancellationToken)
+    {
+        var results = await birdListings.GetSellerListingsAsync(sellerId, cancellationToken);
+        return Ok(results);
+    }
+
     [HttpPost("bird")]
     public async Task<ActionResult<ListingDto>> CreateBirdListing([FromBody] CreateBirdListingRequest request, CancellationToken cancellationToken)
     {

@@ -7,6 +7,8 @@ public interface IBirdListingService
     Task<BirdListingDto?> GetByIdAsync(Guid listingId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BirdListingDto>> GetBySellerIdAsync(Guid sellerId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<ListingDto>> GetSellerListingsAsync(Guid sellerId, CancellationToken cancellationToken);
+
     Task<Guid> CreateAsync(BirdListingDto listing, CancellationToken cancellationToken = default);
     Task UpdateAsync(BirdListingDto listing, CancellationToken cancellationToken = default);
 

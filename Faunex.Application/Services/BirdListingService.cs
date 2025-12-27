@@ -440,4 +440,59 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             listing.IsActive
         );
     }
+
+    public async Task<IReadOnlyList<ListingDto>> GetSellerListingsAsync(Guid sellerId, CancellationToken cancellationToken = default)
+    {
+        if (tenantContext.IsPlatformAdmin)
+        {
+            throw new UnauthorizedAccessException("Platform admin cannot access seller listings view.");
+        }
+
+        if (!tenantContext.TenantId.HasValue)
+        {
+            throw new UnauthorizedAccessException("TenantId is required.");
+        }
+
+        if (tenantContext is not ITenantContextWithActor actor || !actor.ActorId.HasValue)
+        {
+            throw new UnauthorizedAccessException("Authenticated user context is required.");
+        }
+
+        ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.Seller, FaunexRoles.TenantAdmin);
+
+        if (sellerId != actor.ActorId.Value)
+        {
+            throw new UnauthorizedAccessException("Cannot query listings for another seller.");
+        }
+
+        var listings = await dbContext.Listings
+            .AsNoTracking()
+            .Where(x => x.SellerId == sellerId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new ListingDto(
+                x.Id,
+                x.TenantId,
+                x.SellerId,
+                x.BirdDetails != null
+                    ? "bird"
+                    : x.LivestockDetails != null
+                        ? "livestock"
+                        : x.GameAnimalDetails != null
+                            ? "game"
+                            : x.PoultryDetails != null
+                                ? "poultry"
+                                : "unknown",
+                x.BirdDetails != null ? x.BirdDetails.SpeciesId : null,
+                x.Title,
+                x.Description,
+                x.StartingPrice,
+                x.BuyNowPrice,
+                x.CurrencyCode,
+                x.Quantity,
+                x.Location,
+                x.IsActive))
+            .ToListAsync(cancellationToken);
+
+        return listings;
+    }
 }
