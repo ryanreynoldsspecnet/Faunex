@@ -25,6 +25,7 @@ public static class ControllersRegistrationExtensions
         services.AddScoped<IBidService, BidService>();
         services.AddScoped<IBirdListingService, BirdListingService>();
         services.AddScoped<IListingQueryService, ListingQueryService>();
+        services.AddScoped<IListingBrowseService, ListingBrowseService>();
         services.AddScoped<ISpeciesLookupService, NotImplementedSpeciesLookupService>();
 
         services.AddScoped<JwtTokenIssuer>();
