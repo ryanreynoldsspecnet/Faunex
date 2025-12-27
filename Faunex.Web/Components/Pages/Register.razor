@@ -31,15 +31,6 @@
         <InputText class="form-control" type="password" @bind-Value="_model.Password" disabled="@_isSubmitting" />
     </div>
 
-    <div class="mb-3">
-        <label class="form-label">Account type</label>
-        <InputSelect class="form-select" @bind-Value="_model.Role" disabled="@_isSubmitting">
-            <option value="Buyer">Buyer</option>
-            <option value="Seller">Seller</option>
-        </InputSelect>
-        <div class="form-text">DEV-only role assignment is supported by the API in Development.</div>
-    </div>
-
     <button type="submit" class="btn btn-primary" disabled="@_isSubmitting">
         @(_isSubmitting ? "Registering..." : "Register")
     </button>
@@ -58,9 +49,6 @@
 
         [Required]
         public string Password { get; set; } = string.Empty;
-
-        [Required]
-        public string Role { get; set; } = "Buyer";
     }
 
     private readonly RegisterModel _model = new();
@@ -69,22 +57,11 @@
     {
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
-
-        public Guid? TenantId { get; set; }
-        public bool IsPlatformAdmin { get; set; }
-        public string[] Roles { get; set; } = [];
     }
 
     private sealed class AuthResponse
     {
-        // API returns "accessToken" (camelCase)
         public string AccessToken { get; set; } = string.Empty;
-    }
-
-    private sealed class ErrorResponse
-    {
-        public string? Error { get; set; }
-        public string[]? Errors { get; set; }
     }
 
     private async Task RegisterAsync()
@@ -97,14 +74,7 @@
         {
             var response = await Api.PostAsync<RegisterRequest, AuthResponse>(
                 "/api/auth/register",
-                new RegisterRequest
-                {
-                    Email = _model.Email,
-                    Password = _model.Password,
-                    TenantId = null,
-                    IsPlatformAdmin = false,
-                    Roles = [ _model.Role ]
-                });
+                new RegisterRequest { Email = _model.Email, Password = _model.Password });
 
             if (response is null || string.IsNullOrWhiteSpace(response.AccessToken))
             {
@@ -117,11 +87,6 @@
 
             _success = "Registered successfully.";
             Nav.NavigateTo("/browse", forceLoad: true);
-        }
-        catch (HttpRequestException ex)
-        {
-            // FaunexApiClient uses EnsureSuccessStatusCode, so 400 comes through here.
-            _error = ex.Message;
         }
         catch (Exception ex)
         {

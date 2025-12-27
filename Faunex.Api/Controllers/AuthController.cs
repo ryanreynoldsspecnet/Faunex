@@ -24,8 +24,8 @@ public sealed class AuthController(
             Id = Guid.NewGuid(),
             UserName = request.Email,
             Email = request.Email,
-            TenantId = request.TenantId,
-            IsPlatformAdmin = request.IsPlatformAdmin
+            TenantId = null,
+            IsPlatformAdmin = false
         };
 
         var result = await users.CreateAsync(user, request.Password);
@@ -34,27 +34,21 @@ public sealed class AuthController(
             return BadRequest(new { errors = result.Errors.Select(e => e.Description).ToArray() });
         }
 
-        if (environment.IsDevelopment())
+        // Public registration is ALWAYS Buyer-only.
+        const string role = FaunexRoles.Buyer;
+        if (!await roles.RoleExistsAsync(role))
         {
-            // DEV ONLY: allow role assignment via request for local testing.
-            foreach (var role in request.Roles.Distinct())
+            var createRole = await roles.CreateAsync(new IdentityRole<Guid>(role));
+            if (!createRole.Succeeded)
             {
-                if (!FaunexRoles.All.Contains(role))
-                {
-                    return BadRequest(new { error = $"Unknown role '{role}'." });
-                }
-
-                if (!await roles.RoleExistsAsync(role))
-                {
-                    await roles.CreateAsync(new IdentityRole<Guid>(role));
-                }
-
-                await users.AddToRoleAsync(user, role);
+                return BadRequest(new { errors = createRole.Errors.Select(e => e.Description).ToArray() });
             }
         }
-        else
+
+        var addToRole = await users.AddToRoleAsync(user, role);
+        if (!addToRole.Succeeded)
         {
-            // TODO: In production, roles should be assigned by an admin workflow.
+            return BadRequest(new { errors = addToRole.Errors.Select(e => e.Description).ToArray() });
         }
 
         var (token, expiresAt, assignedRoles) = await tokenIssuer.IssueAsync(user, cancellationToken);
