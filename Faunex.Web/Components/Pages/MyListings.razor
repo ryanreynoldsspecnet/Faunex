@@ -26,7 +26,7 @@
         }
         else
         {
-            <table>
+            <table class="table">
                 <thead>
                     <tr>
                         <th>Title</th>
@@ -34,17 +34,39 @@
                         <th>Status</th>
                         <th>IsActive</th>
                         <th>Created</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var item in _listings)
                     {
+                        var state = GetRowState(item.Id);
+
                         <tr>
                             <td>@item.Title</td>
                             <td>@FormatPrice(item)</td>
                             <td>@GetStatus(item)</td>
                             <td>@(item.IsActive ? "Yes" : "No")</td>
                             <td>@GetCreated(item)</td>
+                            <td>
+                                @if (!item.IsActive)
+                                {
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            disabled="@(state.IsSubmitting)"
+                                            @onclick="(() => SubmitForReviewAsync(item.Id))">
+                                        @(state.IsSubmitting ? "Submitting..." : "Submit for Review")
+                                    </button>
+
+                                    @if (state.SuccessMessage is not null)
+                                    {
+                                        <div class="text-success mt-1">@state.SuccessMessage</div>
+                                    }
+                                    else if (state.ErrorMessage is not null)
+                                    {
+                                        <div class="text-danger mt-1">@state.ErrorMessage</div>
+                                    }
+                                }
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -62,6 +84,8 @@
     private IReadOnlyList<Faunex.Application.DTOs.ListingDto>? _listings;
 
     private bool _isInSellerOrTenantAdminRole;
+
+    private readonly Dictionary<Guid, RowState> _rowStates = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -110,6 +134,48 @@
         }
     }
 
+    private sealed class RowState
+    {
+        public bool IsSubmitting { get; set; }
+        public string? SuccessMessage { get; set; }
+        public string? ErrorMessage { get; set; }
+    }
+
+    private RowState GetRowState(Guid listingId)
+    {
+        if (_rowStates.TryGetValue(listingId, out var state))
+        {
+            return state;
+        }
+
+        state = new RowState();
+        _rowStates[listingId] = state;
+        return state;
+    }
+
+    private async Task SubmitForReviewAsync(Guid listingId)
+    {
+        var state = GetRowState(listingId);
+        state.IsSubmitting = true;
+        state.SuccessMessage = null;
+        state.ErrorMessage = null;
+
+        try
+        {
+            await Api.PostAsync($"/api/seller/listings/{listingId}/submit", body: new { });
+            state.SuccessMessage = "Submitted for compliance review";
+        }
+        catch
+        {
+            state.ErrorMessage = "Could not submit listing for review. Please try again.";
+        }
+        finally
+        {
+            state.IsSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
     private static string FormatPrice(Faunex.Application.DTOs.ListingDto item)
     {
         var price = item.BuyNowPrice ?? item.StartingPrice;
@@ -118,9 +184,9 @@
 
     private static string GetStatus(Faunex.Application.DTOs.ListingDto item)
     {
-        // Compliance status is not included in ListingDto.
-        // Use a best-effort display that still meets the UX requirement to show *a* status column.
-        return item.IsActive ? "Approved" : "Draft";
+        // Do not guess compliance status fields.
+        // Treat inactive as Draft/Pending and active as Approved.
+        return item.IsActive ? "Approved" : "Draft / Pending";
     }
 
     private static string GetCreated(Faunex.Application.DTOs.ListingDto item)

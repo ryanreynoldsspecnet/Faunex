@@ -3,22 +3,6 @@
 
 <h3>Browse Listings</h3>
 
-<div style="margin-bottom: 1rem;">
-    <label>Animal Class:</label>
-    <select @bind="_animalClass">
-        <option value="">All</option>
-        <option value="bird">Bird</option>
-        <option value="livestock">Livestock</option>
-        <option value="game">Game</option>
-        <option value="poultry">Poultry</option>
-    </select>
-
-    <label style="margin-left: 1rem;">Location:</label>
-    <input @bind="_location" />
-
-    <button style="margin-left: 1rem;" @onclick="ReloadAsync">Apply</button>
-</div>
-
 @if (_isLoading)
 {
     <p>Loading...</p>
@@ -27,52 +11,37 @@ else if (_error is not null)
 {
     <p>@_error</p>
 }
-else if (_result is null || _result.Items.Count == 0)
+else if (_items is null || _items.Count == 0)
 {
-    <p>No listings found.</p>
+    <p>No listings available</p>
 }
 else
 {
-    <p>Total: @_result.Total | Showing: @_result.Items.Count</p>
-
-    <table>
+    <table class="table">
         <thead>
             <tr>
                 <th>Title</th>
-                <th>Animal</th>
-                <th>Location</th>
                 <th>Price</th>
+                <th>Type</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var item in _result.Items)
+            @foreach (var item in _items)
             {
                 <tr>
                     <td>@item.Title</td>
-                    <td>@item.AnimalClass</td>
-                    <td>@item.Location</td>
-                    <td>@item.StartingPrice @item.CurrencyCode</td>
+                    <td>@FormatPrice(item)</td>
+                    <td>@GetSaleType(item)</td>
                 </tr>
             }
         </tbody>
     </table>
-
-    <div style="margin-top: 1rem;">
-        <button @onclick="PrevAsync" disabled="@(_skip == 0)">Prev</button>
-        <button style="margin-left: 0.5rem;" @onclick="NextAsync" disabled="@(_result is null || _skip + _take >= _result.Total)">Next</button>
-    </div>
 }
 
 @code {
     private bool _isLoading;
     private string? _error;
-    private Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.ListingDto>? _result;
-
-    private string? _animalClass;
-    private string? _location;
-
-    private int _skip;
-    private int _take = 20;
+    private IReadOnlyList<Faunex.Application.DTOs.ListingDto>? _items;
 
     protected override Task OnInitializedAsync() => ReloadAsync();
 
@@ -80,11 +49,11 @@ else
     {
         _isLoading = true;
         _error = null;
+        _items = null;
 
         try
         {
-            var url = $"/api/listings/browse?animalClass={Uri.EscapeDataString(_animalClass ?? string.Empty)}&location={Uri.EscapeDataString(_location ?? string.Empty)}&skip={_skip}&take={_take}";
-            _result = await Api.GetAsync<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.ListingDto>>(url);
+            _items = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>("/api/browse/listings");
         }
         catch (Exception ex)
         {
@@ -96,15 +65,15 @@ else
         }
     }
 
-    private async Task PrevAsync()
+    private static string FormatPrice(Faunex.Application.DTOs.ListingDto item)
     {
-        _skip = Math.Max(0, _skip - _take);
-        await ReloadAsync();
+        var price = item.BuyNowPrice ?? item.StartingPrice;
+        return $"{price:0.##} {item.CurrencyCode}";
     }
 
-    private async Task NextAsync()
+    private static string GetSaleType(Faunex.Application.DTOs.ListingDto item)
     {
-        _skip += _take;
-        await ReloadAsync();
+        // Heuristic only (no extra DTO fields): if BuyNowPrice is missing, treat as auction.
+        return item.BuyNowPrice.HasValue ? "Fixed" : "Auction";
     }
 }

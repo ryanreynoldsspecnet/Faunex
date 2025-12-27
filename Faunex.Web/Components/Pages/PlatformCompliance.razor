@@ -1,0 +1,207 @@
+@page "/platform/compliance"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<h3>Compliance Review</h3>
+
+<AuthorizeView Context="authContext">
+    <Authorized>
+        @if (!_isPlatformComplianceAdmin)
+        {
+            <p>Access denied. This page is for platform compliance admins only.</p>
+        }
+        else if (_isLoading)
+        {
+            <p>Loading...</p>
+        }
+        else if (_error is not null)
+        {
+            <p>@_error</p>
+        }
+        else if (_items is null || _items.Count == 0)
+        {
+            <p>No listings found.</p>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>SellerId</th>
+                        <th>IsActive</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _items)
+                    {
+                        var state = GetRowState(item.Id);
+
+                        <tr>
+                            <td>@item.Title</td>
+                            <td>@item.SellerId</td>
+                            <td>@(item.IsActive ? "Yes" : "No")</td>
+                            <td style="width: 20rem;">
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-success" disabled="@state.IsProcessing" @onclick="(() => ApproveAsync(item.Id))">
+                                        @(state.IsProcessing && state.Action == "approve" ? "Approving..." : "Approve")
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" disabled="@state.IsProcessing" @onclick="(() => RejectAsync(item.Id))">
+                                        @(state.IsProcessing && state.Action == "reject" ? "Rejecting..." : "Reject")
+                                    </button>
+                                </div>
+
+                                @if (state.SuccessMessage is not null)
+                                {
+                                    <div class="text-success mt-1">@state.SuccessMessage</div>
+                                }
+                                else if (state.ErrorMessage is not null)
+                                {
+                                    <div class="text-danger mt-1">@state.ErrorMessage</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>Please log in to review listings.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isLoading;
+    private string? _error;
+
+    private List<Faunex.Application.DTOs.ListingDto>? _items;
+
+    private bool _isPlatformComplianceAdmin;
+
+    private readonly Dictionary<Guid, RowState> _rowStates = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var roles = user.FindAll(ClaimTypes.Role).Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var isPlatformAdmin = user.HasClaim(c => string.Equals(c.Type, "IsPlatformAdmin", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(c.Value, "true", StringComparison.OrdinalIgnoreCase))
+                || user.HasClaim(c => string.Equals(c.Type, "is_platform_admin", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(c.Value, "true", StringComparison.OrdinalIgnoreCase));
+
+            _isPlatformComplianceAdmin = isPlatformAdmin && (roles.Contains("PlatformSuperAdmin") || roles.Contains("PlatformComplianceAdmin"));
+        }
+
+        if (_isPlatformComplianceAdmin)
+        {
+            await ReloadAsync();
+        }
+    }
+
+    private sealed class RowState
+    {
+        public bool IsProcessing { get; set; }
+        public string? Action { get; set; }
+        public string? SuccessMessage { get; set; }
+        public string? ErrorMessage { get; set; }
+    }
+
+    private RowState GetRowState(Guid listingId)
+    {
+        if (_rowStates.TryGetValue(listingId, out var state))
+        {
+            return state;
+        }
+
+        state = new RowState();
+        _rowStates[listingId] = state;
+        return state;
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            // Reuse the existing platform listing view endpoint already wired.
+            // NOTE: This returns a page; keep it simple and just display the first page.
+            var url = "/api/listings/all?skip=0&take=50";
+            var page = await Api.GetAsync<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.ListingDto>>(url);
+            _items = page?.Items?.ToList() ?? [];
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ApproveAsync(Guid listingId)
+    {
+        var state = GetRowState(listingId);
+        state.IsProcessing = true;
+        state.Action = "approve";
+        state.SuccessMessage = null;
+        state.ErrorMessage = null;
+
+        try
+        {
+            await Api.PostAsync($"/api/platform/compliance/listings/{listingId}/approve", new { notes = (string?)null });
+
+            state.SuccessMessage = "Approved";
+
+            // Simplest UI update: remove from the list.
+            _items?.RemoveAll(x => x.Id == listingId);
+        }
+        catch
+        {
+            state.ErrorMessage = "Could not approve listing. Please try again.";
+        }
+        finally
+        {
+            state.IsProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RejectAsync(Guid listingId)
+    {
+        var state = GetRowState(listingId);
+        state.IsProcessing = true;
+        state.Action = "reject";
+        state.SuccessMessage = null;
+        state.ErrorMessage = null;
+
+        try
+        {
+            await Api.PostAsync($"/api/platform/compliance/listings/{listingId}/reject", new { notes = (string?)null });
+
+            state.SuccessMessage = "Rejected";
+
+            // Simplest UI update: remove from the list.
+            _items?.RemoveAll(x => x.Id == listingId);
+        }
+        catch
+        {
+            state.ErrorMessage = "Could not reject listing. Please try again.";
+        }
+        finally
+        {
+            state.IsProcessing = false;
+            StateHasChanged();
+        }
+    }
+}
