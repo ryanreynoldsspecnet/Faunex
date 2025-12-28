@@ -1,12 +1,17 @@
 @page "/login"
 @rendermode InteractiveServer
-@using System.ComponentModel.DataAnnotations
+@using Faunex.Web.Auth
 @inject Faunex.Web.Api.FaunexApiClient Api
 @inject Faunex.Web.Auth.TokenStore TokenStore
 @inject Faunex.Web.Auth.JwtAuthStateProvider AuthStateProvider
 @inject NavigationManager Nav
 
 <h3>Login</h3>
+
+@* .NET 10 Blazor Web App (InteractiveServer) requirement:
+   Do not declare EditForm models as nested/private types inside .razor files.
+   Component-scoped types can break circuit state serialization and crash during input binding.
+   Use a top-level public model type in a shared namespace instead. *@
 
 @* EditForm uses an EditContext created from the single _model instance.
    All inputs must bind to that same _model instance (do not reassign _model after creating _editContext).
@@ -49,18 +54,8 @@
     private string? _error;
     private string? _success;
 
-    private sealed class LoginModel
-    {
-        [Required]
-        [EmailAddress]
-        public string Email { get; set; } = string.Empty;
-
-        [Required]
-        public string Password { get; set; } = string.Empty;
-    }
-
     // Single model instance for the lifetime of the component instance.
-    private readonly LoginModel _model = new();
+    private readonly LoginFormModel _model = new();
 
     // Single EditContext bound to _model; do not recreate it after the form is rendered.
     private EditContext _editContext = default!;
