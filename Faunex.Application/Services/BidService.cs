@@ -13,31 +13,23 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
 
     public async Task PlaceBidAsync(CreateBidRequest request, CancellationToken cancellationToken)
     {
-        if (request.Amount <= 0)
-        {
-            throw new InvalidOperationException("Bid amount must be greater than zero.");
-        }
-
-        if (tenantContext.IsPlatformAdmin)
-        {
-            throw new UnauthorizedAccessException("Platform admins are not allowed to place bids.");
-        }
-
-        if (tenantContext.TenantId.HasValue)
-        {
-            throw new UnauthorizedAccessException("Tenant users are not allowed to place bids.");
-        }
-
+        ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenantContext, "place bids");
+        ServiceAuthorization.EnsureTenantUser(tenantContext);
         ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.Buyer);
 
         if (tenantContext is not ITenantContextWithActor actor || !actor.ActorId.HasValue)
         {
-            throw new UnauthorizedAccessException("Bidder identity is required.");
+            throw new UnauthorizedAccessException("Authenticated user context is required.");
+        }
+
+        if (request.Amount <= 0)
+        {
+            throw new ArgumentException("Bid amount must be greater than 0.");
         }
 
         var listing = await dbContext.Listings
-            .AsNoTracking()
             .Include(x => x.Compliance)
+            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == request.ListingId, cancellationToken);
 
         if (listing is null)
@@ -55,11 +47,16 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
             throw new InvalidOperationException("Listing is not approved for bidding.");
         }
 
+        // Bidding is only supported for auction listings (BuyNowPrice indicates fixed-price listing).
         if (listing.BuyNowPrice.HasValue)
         {
             throw new InvalidOperationException("Bids are only allowed for auction listings.");
         }
 
+        // Canonical bid placement path is listing-based:
+        // - Resolve the listing's auction.
+        // - Enforce auction lifecycle rules (only open auctions accept bids).
+        // Auction lifecycle is modeled implicitly (v1): IsClosed == true means bidding MUST be rejected.
         var auction = await dbContext.Auctions
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.ListingId == listing.Id, cancellationToken);
@@ -69,6 +66,8 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
             throw new InvalidOperationException("Auction not found.");
         }
 
+        // Single rule for correctness: only open auctions accept bids.
+        // "Open" is represented by IsClosed == false. "Closed" is IsClosed == true.
         if (auction.IsClosed)
         {
             throw new InvalidOperationException("Auction is closed.");
@@ -92,6 +91,8 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
 
     public async Task<BidDto> PlaceBidAsync(Guid auctionId, decimal amount, CancellationToken cancellationToken = default)
     {
+        // Compatibility wrapper (HTTP /api/auctions/{auctionId}/bids):
+        // Resolve auction -> listingId, then delegate to canonical listing-based bid placement.
         var auction = await dbContext.Auctions
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == auctionId, cancellationToken);
@@ -103,7 +104,7 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
 
         await PlaceBidAsync(new CreateBidRequest(auction.ListingId, amount), cancellationToken);
 
-        // Return the newest bid for this auction (matches previous response shape without changing DTOs)
+        // Return the newest bid for this auction (response shape preserved).
         var bid = await dbContext.Bids
             .AsNoTracking()
             .Where(x => x.AuctionId == auctionId)
@@ -153,6 +154,7 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
 
         var total = await q.CountAsync(cancellationToken);
 
+        // Bid history ordering: newest-first by PlacedAt.
         var items = await q
             .OrderByDescending(x => x.PlacedAt)
             .Skip(skip)
@@ -167,6 +169,8 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
     {
         ServiceAuthorization.EnsureTenantUser(tenantContext);
 
+        // Current price rule (v1): highest bid amount wins.
+        // Note: This is a "highest-bid" model, not "most-recent bid".
         var top = await dbContext.Bids
             .AsNoTracking()
             .Where(x => x.AuctionId == auctionId)

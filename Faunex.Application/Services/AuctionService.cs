@@ -122,6 +122,11 @@ public sealed class AuctionService(IApplicationDbContext dbContext, ITenantConte
             throw new InvalidOperationException("Auction not found.");
         }
 
+        // Auction lifecycle (v1):
+        // - "Open" is represented by IsClosed == false.
+        // - "Closed" is represented by IsClosed == true.
+        // - StartsAt/EndsAt are informational timestamps; IsClosed is authoritative for open/close.
+        // Bidding rules elsewhere MUST treat IsClosed == true as non-biddable.
         if (!entity.IsClosed)
         {
             // Already open (v1 state uses IsClosed + timestamps).
@@ -164,6 +169,7 @@ public sealed class AuctionService(IApplicationDbContext dbContext, ITenantConte
             throw new InvalidOperationException("Auction not found.");
         }
 
+        // Auction lifecycle (v1): once IsClosed is set to true, the auction is no longer open and MUST reject bids.
         if (entity.IsClosed)
         {
             throw new InvalidOperationException("Auction is already closed.");
