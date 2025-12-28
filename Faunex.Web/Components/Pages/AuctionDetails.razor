@@ -119,24 +119,41 @@ else
         <Authorized>
             @if (_isBuyer)
             {
-                <div class="mb-3" style="max-width: 320px;">
-                    <label class="form-label">Bid amount</label>
-                    <input class="form-control" type="number" step="0.01" min="0" @bind="_bidAmount" disabled="@_isSubmitting" />
+                @if (_auction is null)
+                {
+                    <div class="text-muted">This listing does not have an active auction.</div>
+                }
+                else
+                {
+                    <div class="mb-3" style="max-width: 320px;">
+                        <label class="form-label">Bid amount</label>
+                        <input class="form-control" type="number" step="0.01" min="0" @bind="_bidAmount" disabled="@(_isSubmitting || _auction.IsClosed)" />
 
-                    <button class="btn btn-primary mt-2" @onclick="PlaceBidAsync" disabled="@(_isSubmitting || _bidAmount <= 0 || _auctionId is null)">
-                        @(_isSubmitting ? "Placing bid..." : "Place Bid")
-                    </button>
+                        @if (_auction.IsClosed)
+                        {
+                            <button class="btn btn-secondary mt-2" disabled>
+                                Auction closed
+                            </button>
+                            <div class="text-muted"><small>Bidding is no longer available for this auction.</small></div>
+                        }
+                        else
+                        {
+                            <button class="btn btn-primary mt-2" @onclick="PlaceBidAsync" disabled="@(_isSubmitting || _bidAmount <= 0 || _auctionId is null)">
+                                @(_isSubmitting ? "Placing bid..." : "Place Bid")
+                            </button>
+                        }
 
-                    @if (_bidSuccess is not null)
-                    {
-                        <div class="alert alert-success mt-2">@_bidSuccess</div>
-                    }
+                        @if (_bidSuccess is not null)
+                        {
+                            <div class="alert alert-success mt-2">@_bidSuccess</div>
+                        }
 
-                    @if (_bidError is not null)
-                    {
-                        <div class="alert alert-danger mt-2">@_bidError</div>
-                    }
-                </div>
+                        @if (_bidError is not null)
+                        {
+                            <div class="alert alert-danger mt-2">@_bidError</div>
+                        }
+                    </div>
+                }
             }
             else
             {
