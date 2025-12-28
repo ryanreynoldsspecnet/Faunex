@@ -50,25 +50,30 @@ else
     </div>
 
     <div class="mb-3">
-        <h5>Current bid</h5>
         @if (_auctionId is null)
         {
+            <h5>Current bid</h5>
             <p>No auction found for this listing.</p>
         }
         else if (_isAuctionLoading)
         {
+            <h5>Current bid</h5>
             <p>Loading auction...</p>
         }
         else if (_auctionError is not null)
         {
+            <h5>Current bid</h5>
             <div class="alert alert-danger" role="alert">@_auctionError</div>
         }
         else if (_currentPrice is null)
         {
-            <p>-</p>
+            <h5>Starting price</h5>
+            <p>@FormatMoney(_item.StartingPrice, _item.CurrencyCode)</p>
+            <div class="text-muted"><small>No bids have been placed yet.</small></div>
         }
         else
         {
+            <h5>Current highest bid</h5>
             <p>@FormatMoney(_currentPrice.Value, _item.CurrencyCode)</p>
         }
 
