@@ -8,8 +8,11 @@
 <h3>Register</h3>
 
 @* EditForm uses an EditContext created from the single _model instance.
-   All inputs must bind to that same _model instance (do not reassign _model after creating _editContext). *@
-<EditForm EditContext="_editContext" OnValidSubmit="RegisterAsync" FormName="register-form">
+   All inputs must bind to that same _model instance (do not reassign _model after creating _editContext).
+
+   Note: Do not set FormName here. FormName participates in Blazor's enhanced form handling and can cause the browser
+   to take over submission (bypassing EditForm's OnValidSubmit) depending on render mode/configuration. *@
+<EditForm EditContext="_editContext" OnValidSubmit="RegisterAsync">
     <DataAnnotationsValidator />
     <ValidationSummary />
 
