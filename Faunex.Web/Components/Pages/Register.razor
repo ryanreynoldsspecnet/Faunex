@@ -7,6 +7,8 @@
 
 <h3>Register</h3>
 
+@* EditForm uses an EditContext created from the single _model instance.
+   All inputs must bind to that same _model instance (do not reassign _model after creating _editContext). *@
 <EditForm EditContext="_editContext" OnValidSubmit="RegisterAsync" FormName="register-form">
     <DataAnnotationsValidator />
     <ValidationSummary />
@@ -23,7 +25,7 @@
 
     <div class="mb-3">
         <label class="form-label">Email</label>
-        @* Bind on input so values are reflected in the model before validation/submit. *@
+        @* Use @bind-Value (not @bind) to bind to the EditContext model, and bind on input so values are current at submit time. *@
         <InputText class="form-control" @bind-Value="_model.Email" @bind-Value:event="oninput" disabled="@_isSubmitting" />
     </div>
 
@@ -38,8 +40,7 @@
         <ValidationMessage For="() => _model.ConfirmPassword" />
     </div>
 
-    @* Important: do not attach @onclick to the submit button.
-       Using @onclick + preventDefault can bypass the EditForm validation pipeline and run with stale/empty model values. *@
+    @* Validation/submission is driven only by OnValidSubmit; the button must be type="submit" and have no @onclick handler. *@
     <button class="btn btn-primary" type="submit" disabled="@_isSubmitting">
         @(_isSubmitting ? "Registering..." : "Register")
     </button>
@@ -64,7 +65,10 @@
         public string ConfirmPassword { get; set; } = string.Empty;
     }
 
+    // Single model instance for the lifetime of the component instance.
     private readonly RegisterModel _model = new();
+
+    // Single EditContext bound to _model; do not recreate it after the form is rendered.
     private EditContext _editContext = default!;
 
     protected override void OnInitialized()
