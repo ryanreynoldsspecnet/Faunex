@@ -31,16 +31,14 @@ else
             {
                 <tr>
                     <td>
-                        @* Use NavLink for internal navigation (do not use raw <a href> for app routes). *@
-                        <NavLink href="/listings/@item.Id">@item.Title</NavLink>
+                        <NavLink href="@($"/listings/{item.Id}")">@item.Title</NavLink>
                     </td>
                     <td>@FormatPrice(item)</td>
                     <td>@GetSaleType(item)</td>
                     <td>
                         @if (!item.BuyNowPrice.HasValue)
                         {
-                            @* Use NavLink for internal navigation (do not use raw <a href> for app routes). *@
-                            <NavLink class="btn btn-outline-primary btn-sm" href="/auctions/@item.Id">View auction</NavLink>
+                            <NavLink class="btn btn-outline-primary btn-sm" href="@($"/auctions/{item.Id}")">View auction</NavLink>
                         }
                     </td>
                 </tr>
@@ -84,7 +82,6 @@ else
 
     private static string GetSaleType(Faunex.Application.DTOs.ListingDto item)
     {
-        // Heuristic only (no extra DTO fields): if BuyNowPrice is missing, treat as auction.
         return item.BuyNowPrice.HasValue ? "Fixed" : "Auction";
     }
 }
