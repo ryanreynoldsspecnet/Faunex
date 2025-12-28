@@ -22,6 +22,19 @@ else
     <div class="mb-3">
         <h4>@_item.Title</h4>
 
+        @if (_auctionId is null)
+        {
+            <span class="badge badge-secondary d-inline-block mt-1">No auction for this listing</span>
+        }
+        else if (_auction?.IsClosed == true)
+        {
+            <span class="badge badge-danger d-inline-block mt-1">Auction closed</span>
+        }
+        else
+        {
+            <span class="badge badge-success d-inline-block mt-1">Open for bidding</span>
+        }
+
         <div>
             <strong>Price</strong>
             <div>@FormatPrice(_item)</div>
@@ -145,6 +158,7 @@ else
     private bool _isAuctionLoading;
     private string? _auctionError;
     private Guid? _auctionId;
+    private Faunex.Application.DTOs.AuctionDto? _auction;
     private decimal? _currentPrice;
 
     private int _skip;
@@ -176,6 +190,7 @@ else
         _isAuctionLoading = false;
         _auctionError = null;
         _auctionId = null;
+        _auction = null;
         _currentPrice = null;
         _bidsPage = null;
         _skip = 0;
@@ -231,8 +246,8 @@ else
         try
         {
             var auctions = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.AuctionDto>>($"/api/auctions/by-listing/{_item.Id}");
-            var auction = auctions?.FirstOrDefault();
-            _auctionId = auction?.Id;
+            _auction = auctions?.FirstOrDefault();
+            _auctionId = _auction?.Id;
 
             if (_auctionId is null)
             {
