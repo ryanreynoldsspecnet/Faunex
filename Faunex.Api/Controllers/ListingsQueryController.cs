@@ -6,7 +6,7 @@ namespace Faunex.Api.Controllers;
 
 [ApiController]
 [Route("api/listings")]
-public sealed class ListingsQueryController(IListingQueryService listings) : ControllerBase
+public sealed class ListingsQueryController(IListingQueryService listings, IListingBrowseService browse) : ControllerBase
 {
     [HttpGet("browse")]
     public Task<PagedResult<ListingDto>> Browse(
@@ -63,5 +63,12 @@ public sealed class ListingsQueryController(IListingQueryService listings) : Con
     {
         var query = new ListingQuery(animalClass, speciesId, location, activeOnly, skip, take);
         return listings.GetAllListingsAsync(query, cancellationToken);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<ListingDto>> Get(Guid id, CancellationToken cancellationToken)
+    {
+        var item = await browse.GetApprovedListingByIdAsync(id, cancellationToken);
+        return item is null ? NotFound() : Ok(item);
     }
 }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Faunex.Application.DTOs;
 using Faunex.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Faunex.Api.Controllers;
 
@@ -22,6 +23,7 @@ public sealed class BirdListingsController(IBirdListingService listings) : Contr
         return Ok(results);
     }
 
+    [Authorize(Policy = "SellerOnly")]
     [HttpPost]
     public async Task<ActionResult<Guid>> Create([FromBody] BirdListingDto listing, CancellationToken cancellationToken)
     {
@@ -29,6 +31,7 @@ public sealed class BirdListingsController(IBirdListingService listings) : Contr
         return CreatedAtAction(nameof(GetById), new { id }, id);
     }
 
+    [Authorize(Policy = "SellerOnly")]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] BirdListingDto listing, CancellationToken cancellationToken)
     {
@@ -37,6 +40,7 @@ public sealed class BirdListingsController(IBirdListingService listings) : Contr
         return NoContent();
     }
 
+    [Authorize(Policy = "SellerOnly")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
     {

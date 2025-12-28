@@ -1,10 +1,9 @@
 @page "/auctions/{ListingId:guid}"
-
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
-
 @inject Faunex.Web.Api.FaunexApiClient Api
 
-<h3>Auction</h3>
+<h3>Auction details</h3>
 
 @if (_isLoading)
 {
@@ -12,19 +11,21 @@
 }
 else if (_error is not null)
 {
-    <p>@_error</p>
+    <div class="alert alert-danger" role="alert">@_error</div>
 }
 else if (_item is null)
 {
-    <p>Auction not found</p>
+    <div class="alert alert-warning" role="alert">Listing not found.</div>
 }
 else
 {
     <div class="mb-3">
         <h4>@_item.Title</h4>
-        <p class="text-muted mb-1"><strong>Auction status:</strong> Approved</p>
-        <p class="text-muted mb-1"><strong>Listing type:</strong> Auction</p>
-        <p class="mb-1"><strong>Starting price:</strong> @($"R{_item.StartingPrice:0.##}")</p>
+
+        <div>
+            <strong>Price</strong>
+            <div>@FormatPrice(_item)</div>
+        </div>
 
         @if (!string.IsNullOrWhiteSpace(_item.Description))
         {
@@ -37,10 +38,63 @@ else
 
     <div class="mb-3">
         <h5>Current bid</h5>
-        <p>Coming soon</p>
+        @if (_auctionId is null)
+        {
+            <p>No auction found for this listing.</p>
+        }
+        else if (_isAuctionLoading)
+        {
+            <p>Loading auction...</p>
+        }
+        else if (_auctionError is not null)
+        {
+            <div class="alert alert-danger" role="alert">@_auctionError</div>
+        }
+        else if (_currentPrice is null)
+        {
+            <p>-</p>
+        }
+        else
+        {
+            <p>@FormatMoney(_currentPrice.Value, _item.CurrencyCode)</p>
+        }
 
         <h5>Bid history</h5>
-        <p>Coming soon</p>
+        @if (_auctionId is null)
+        {
+            <p>-</p>
+        }
+        else if (_isAuctionLoading)
+        {
+            <p>Loading bid history...</p>
+        }
+        else if (_bidsPage is null || _bidsPage.Items is null || _bidsPage.Items.Count == 0)
+        {
+            <p>No bids yet.</p>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var bid in _bidsPage.Items)
+                    {
+                        <tr>
+                            <td>@FormatMoney(bid.Amount, _item.CurrencyCode)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <div>
+                <button class="btn btn-secondary" @onclick="PrevPageAsync" disabled="@(!_canPrev || _isPaging)">Previous</button>
+                <button class="btn btn-secondary" @onclick="NextPageAsync" disabled="@(!_canNext || _isPaging)">Next</button>
+            </div>
+        }
     </div>
 
     <AuthorizeView>
@@ -56,7 +110,7 @@ else
                     <label class="form-label">Bid amount</label>
                     <input class="form-control" type="number" step="0.01" min="0" @bind="_bidAmount" disabled="@_isSubmitting" />
 
-                    <button class="btn btn-primary mt-2" @onclick="PlaceBidAsync" disabled="@(_isSubmitting || _bidAmount <= 0)">
+                    <button class="btn btn-primary mt-2" @onclick="PlaceBidAsync" disabled="@(_isSubmitting || _bidAmount <= 0 || _auctionId is null)">
                         @(_isSubmitting ? "Placing bid..." : "Place Bid")
                     </button>
 
@@ -88,6 +142,17 @@ else
     private string? _error;
     private Faunex.Application.DTOs.ListingDto? _item;
 
+    private bool _isAuctionLoading;
+    private string? _auctionError;
+    private Guid? _auctionId;
+    private decimal? _currentPrice;
+
+    private int _skip;
+    private const int _take = 20;
+    private bool _isPaging;
+
+    private Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>? _bidsPage;
+
     private bool _isBuyer;
 
     private decimal _bidAmount;
@@ -107,6 +172,15 @@ else
         _isLoading = true;
         _error = null;
         _item = null;
+
+        _isAuctionLoading = false;
+        _auctionError = null;
+        _auctionId = null;
+        _currentPrice = null;
+        _bidsPage = null;
+        _skip = 0;
+        _isPaging = false;
+
         _isBuyer = false;
 
         _bidAmount = 0;
@@ -116,14 +190,18 @@ else
 
         try
         {
-            var items = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>("/api/browse/listings");
-            _item = items?.FirstOrDefault(x => x.Id == ListingId);
+            _item = await Api.GetAsync<Faunex.Application.DTOs.ListingDto>($"/api/listings/{ListingId}");
 
             var authState = AuthenticationStateTask is null ? null : await AuthenticationStateTask;
             var user = authState?.User;
 
             _isBuyer = user?.Identity?.IsAuthenticated == true
                 && (user.IsInRole("Buyer") || user.Claims.Any(c => c.Type == "role" && c.Value == "Buyer"));
+
+            if (_item is not null)
+            {
+                await LoadAuctionAsync(resetPaging: true);
+            }
         }
         catch (Exception ex)
         {
@@ -132,6 +210,146 @@ else
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private async Task LoadAuctionAsync(bool resetPaging)
+    {
+        if (_item is null)
+        {
+            return;
+        }
+
+        _isAuctionLoading = true;
+        _auctionError = null;
+
+        if (resetPaging)
+        {
+            _skip = 0;
+        }
+
+        try
+        {
+            var auctions = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.AuctionDto>>($"/api/auctions/by-listing/{_item.Id}");
+            var auction = auctions?.FirstOrDefault();
+            _auctionId = auction?.Id;
+
+            if (_auctionId is null)
+            {
+                _currentPrice = null;
+                _bidsPage = null;
+                return;
+            }
+
+            _currentPrice = await LoadCurrentPriceAsync(_auctionId.Value);
+            _bidsPage = await LoadBidsPageAsync(_auctionId.Value, _skip, _take);
+        }
+        catch (Exception ex)
+        {
+            _auctionError = ex.Message;
+        }
+        finally
+        {
+            _isAuctionLoading = false;
+        }
+    }
+
+    private sealed class CurrentPriceDto
+    {
+        public decimal Price { get; set; }
+    }
+
+    private static bool HasNext(Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto> page, int skip, int take)
+    {
+        return skip + take < page.Total;
+    }
+
+    private bool _canPrev => _skip > 0;
+
+    private bool _canNext
+    {
+        get
+        {
+            if (_bidsPage is null)
+            {
+                return false;
+            }
+
+            return HasNext(_bidsPage, _skip, _take);
+        }
+    }
+
+    private async Task<decimal?> LoadCurrentPriceAsync(Guid auctionId)
+    {
+        var dto = await Api.GetAsync<CurrentPriceDto>($"/api/auctions/{auctionId}/price");
+        return dto is null ? null : dto.Price;
+    }
+
+    private Task<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>?> LoadBidsPageAsync(Guid auctionId, int skip, int take)
+        => Api.GetAsync<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>>($"/api/auctions/{auctionId}/bids?skip={skip}&take={take}");
+
+    private async Task PrevPageAsync()
+    {
+        if (_auctionId is null || _isPaging || !_canPrev)
+        {
+            return;
+        }
+
+        _isPaging = true;
+        try
+        {
+            _skip = Math.Max(0, _skip - _take);
+            _bidsPage = await LoadBidsPageAsync(_auctionId.Value, _skip, _take);
+        }
+        catch (Exception ex)
+        {
+            _auctionError = ex.Message;
+        }
+        finally
+        {
+            _isPaging = false;
+        }
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (_auctionId is null || _isPaging || !_canNext)
+        {
+            return;
+        }
+
+        _isPaging = true;
+        try
+        {
+            _skip += _take;
+            _bidsPage = await LoadBidsPageAsync(_auctionId.Value, _skip, _take);
+        }
+        catch (Exception ex)
+        {
+            _auctionError = ex.Message;
+        }
+        finally
+        {
+            _isPaging = false;
+        }
+    }
+
+    private async Task RefreshAfterBidAsync()
+    {
+        if (_auctionId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _currentPrice = await LoadCurrentPriceAsync(_auctionId.Value);
+            _skip = 0;
+            _bidsPage = await LoadBidsPageAsync(_auctionId.Value, _skip, _take);
+        }
+        catch (Exception ex)
+        {
+            _auctionError = ex.Message;
         }
     }
 
@@ -157,6 +375,8 @@ else
         {
             await Api.PostAsync("/api/buyer/bids", new Faunex.Application.DTOs.CreateBidRequest(_item.Id, _bidAmount));
             _bidSuccess = "Bid placed successfully";
+
+            await RefreshAfterBidAsync();
         }
         catch (Exception ex)
         {
@@ -167,4 +387,13 @@ else
             _isSubmitting = false;
         }
     }
+
+    private static string FormatPrice(Faunex.Application.DTOs.ListingDto item)
+    {
+        var price = item.BuyNowPrice ?? item.StartingPrice;
+        return FormatMoney(price, item.CurrencyCode);
+    }
+
+    private static string FormatMoney(decimal amount, string currencyCode)
+        => $"{amount:0.##} {currencyCode}";
 }

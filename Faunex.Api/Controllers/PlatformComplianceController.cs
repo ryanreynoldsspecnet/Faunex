@@ -1,10 +1,12 @@
 using Faunex.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Faunex.Api.Controllers;
 
 [ApiController]
 [Route("api/platform/compliance")]
+[Authorize(Policy = "PlatformCompliance")]
 public sealed class PlatformComplianceController(IBirdListingService birdListings) : ControllerBase
 {
     public sealed record ReviewListingRequest(string? Notes);

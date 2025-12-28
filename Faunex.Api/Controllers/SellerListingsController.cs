@@ -1,11 +1,13 @@
 using Faunex.Application.DTOs;
 using Faunex.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Faunex.Api.Controllers;
 
 [ApiController]
 [Route("api/seller/listings")]
+[Authorize(Policy = "SellerOnly")]
 public sealed class SellerListingsController(IBirdListingService birdListings) : ControllerBase
 {
     [HttpGet]

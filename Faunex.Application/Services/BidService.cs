@@ -92,21 +92,8 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
 
     public async Task<BidDto> PlaceBidAsync(Guid auctionId, decimal amount, CancellationToken cancellationToken = default)
     {
-        ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenantContext, "place bids");
-        ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.Buyer);
-
-        if (amount <= 0)
-        {
-            throw new InvalidOperationException("Bid amount must be greater than zero.");
-        }
-
-        if (tenantContext is not ITenantContextWithActor actor || !actor.ActorId.HasValue)
-        {
-            // TODO: Replace with real authenticated user id.
-            throw new UnauthorizedAccessException("Bidder identity is required.");
-        }
-
         var auction = await dbContext.Auctions
+            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == auctionId, cancellationToken);
 
         if (auction is null)
@@ -114,61 +101,17 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
             throw new InvalidOperationException("Auction not found.");
         }
 
-        if (auction.IsClosed)
-        {
-            throw new InvalidOperationException("Auction is closed.");
-        }
+        await PlaceBidAsync(new CreateBidRequest(auction.ListingId, amount), cancellationToken);
 
-        var now = DateTimeOffset.UtcNow;
-        if (auction.StartsAt.HasValue && auction.StartsAt.Value > now)
-        {
-            throw new InvalidOperationException("Auction is not open yet.");
-        }
-
-        if (auction.EndsAt.HasValue && auction.EndsAt.Value <= now)
-        {
-            throw new InvalidOperationException("Auction has ended.");
-        }
-
-        var listing = await dbContext.Listings
-            .Include(x => x.Compliance)
+        // Return the newest bid for this auction (matches previous response shape without changing DTOs)
+        var bid = await dbContext.Bids
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == auction.ListingId, cancellationToken);
+            .Where(x => x.AuctionId == auctionId)
+            .OrderByDescending(x => x.PlacedAt)
+            .Select(x => new BidDto(x.Id, x.AuctionId, x.BidderId, x.Amount, x.CurrencyCode, x.PlacedAt))
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (listing is null)
-        {
-            throw new InvalidOperationException("Listing not found.");
-        }
-
-        if (!listing.IsActive || listing.Compliance?.Status != ListingComplianceStatus.Approved)
-        {
-            throw new InvalidOperationException("Listing is not approved for bidding.");
-        }
-
-        var currentPrice = await GetCurrentPriceAsync(auctionId, cancellationToken);
-        var minimumAllowed = (currentPrice ?? auction.StartingPrice) + MinimumIncrement;
-
-        if (amount < minimumAllowed)
-        {
-            throw new InvalidOperationException($"Bid must be at least {minimumAllowed}.");
-        }
-
-        var entity = new Bid
-        {
-            TenantId = auction.TenantId,
-            AuctionId = auction.Id,
-            BidderId = actor.ActorId.Value,
-            Amount = amount,
-            CurrencyCode = "USD",
-            PlacedAt = DateTimeOffset.UtcNow,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
-
-        dbContext.Bids.Add(entity);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return new BidDto(entity.Id, entity.AuctionId, entity.BidderId, entity.Amount, entity.CurrencyCode, entity.PlacedAt);
+        return bid ?? throw new InvalidOperationException("Bid could not be created.");
     }
 
     public async Task<PagedResult<BidDto>> GetBidsForAuctionAsync(Guid auctionId, int skip, int take, CancellationToken cancellationToken = default)

@@ -1,6 +1,7 @@
 using Faunex.Application.DTOs;
 using Faunex.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Faunex.Api.Controllers;
 
@@ -8,11 +9,15 @@ namespace Faunex.Api.Controllers;
 [Route("api/auctions/{auctionId:guid}")]
 public sealed class AuctionBidsController(IBidService bids, IAuctionService auctions) : ControllerBase
 {
+    [Authorize(Policy = "BuyerOnly")]
     [HttpPost("bids")]
     public async Task<ActionResult<BidDto>> PlaceBid(Guid auctionId, [FromBody] PlaceBidRequest request, CancellationToken cancellationToken)
     {
         try
         {
+            Response.Headers.TryAdd("Deprecation", "true");
+            Response.Headers.TryAdd("Link", "</api/buyer/bids>; rel=\"alternate\"");
+
             var bid = await bids.PlaceBidAsync(auctionId, request.Amount, cancellationToken);
             return Ok(bid);
         }
@@ -40,8 +45,6 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
         }
         catch (InvalidOperationException ex)
         {
-            // Not found is signaled as InvalidOperationException("...") currently.
-            // Keep it simple for now.
             return BadRequest(new { error = ex.Message });
         }
     }
@@ -60,6 +63,7 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
         }
     }
 
+    [Authorize(Policy = "SellerOnly")]
     [HttpPost("open")]
     public async Task<IActionResult> Open(Guid auctionId, CancellationToken cancellationToken)
     {
@@ -78,6 +82,7 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
         }
     }
 
+    [Authorize(Policy = "SellerOnly")]
     [HttpPost("close")]
     public async Task<IActionResult> Close(Guid auctionId, CancellationToken cancellationToken)
     {

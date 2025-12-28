@@ -1,9 +1,9 @@
 using Faunex.Api.Auth;
 using Faunex.Api.Tenancy;
-using Faunex.Application.DTOs;
 using Faunex.Application.Interfaces;
 using Faunex.Application.Services;
 using Faunex.Infrastructure.Persistence;
+using Faunex.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,7 +26,7 @@ public static class ControllersRegistrationExtensions
         services.AddScoped<IBirdListingService, BirdListingService>();
         services.AddScoped<IListingQueryService, ListingQueryService>();
         services.AddScoped<IListingBrowseService, ListingBrowseService>();
-        services.AddScoped<ISpeciesLookupService, NotImplementedSpeciesLookupService>();
+        services.AddScoped<ISpeciesLookupService, SpeciesLookupService>();
 
         services.AddScoped<JwtTokenIssuer>();
 
@@ -43,17 +43,5 @@ public static class ControllersRegistrationExtensions
             .AddDefaultTokenProviders();
 
         return services;
-    }
-
-    private sealed class NotImplementedSpeciesLookupService : ISpeciesLookupService
-    {
-        public Task<SpeciesDto?> FindByScientificNameAsync(string scientificName, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-
-        public Task<SpeciesDto?> GetByIdAsync(Guid speciesId, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
-
-        public Task<IReadOnlyList<SpeciesDto>> SearchAsync(string query, int take = 20, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
     }
 }

@@ -39,4 +39,36 @@ public sealed class ListingBrowseService(IApplicationDbContext dbContext) : ILis
 
         return listings;
     }
+
+    public async Task<ListingDto?> GetApprovedListingByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var listing = await dbContext.Listings
+            .AsNoTracking()
+            .Where(x => x.Id == id && x.IsActive && x.Compliance != null && x.Compliance.Status == ListingComplianceStatus.Approved)
+            .Select(x => new ListingDto(
+                x.Id,
+                x.TenantId,
+                x.SellerId,
+                x.BirdDetails != null
+                    ? "bird"
+                    : x.LivestockDetails != null
+                        ? "livestock"
+                        : x.GameAnimalDetails != null
+                            ? "game"
+                            : x.PoultryDetails != null
+                                ? "poultry"
+                                : "unknown",
+                x.BirdDetails != null ? x.BirdDetails.SpeciesId : null,
+                x.Title,
+                x.Description,
+                x.StartingPrice,
+                x.BuyNowPrice,
+                x.CurrencyCode,
+                x.Quantity,
+                x.Location,
+                x.IsActive))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return listing;
+    }
 }

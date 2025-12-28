@@ -1,19 +1,24 @@
+using System.Text;
+using Faunex.Api.Controllers;
+using Faunex.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Faunex.Api.Controllers;
-using Faunex.Infrastructure.Persistence;
-using System.Text;
+using Faunex.Application.Auth;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+builder.Services.AddFaunexApiControllers();
+
+builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
 {
-    var connectionString = builder.Configuration["ConnectionStrings:DefaultConnection"];
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    var connectionString = cfg["ConnectionStrings:DefaultConnection"];
     options.UseNpgsql(connectionString);
 });
 
-builder.Services.AddFaunexApiControllers();
+builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -71,28 +76,29 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
-
-builder.Services.AddSwaggerGen(options =>
+builder.Services.AddAuthorization(options =>
 {
-    const string schemeName = "Bearer";
+    options.AddPolicy("BuyerOnly", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole(FaunexRoles.Buyer));
 
-    options.AddSecurityDefinition(schemeName, new Microsoft.OpenApi.OpenApiSecurityScheme
-    {
-        Type = Microsoft.OpenApi.SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Description = "Enter: Bearer {token}",
-        Name = "Authorization",
-        In = Microsoft.OpenApi.ParameterLocation.Header
-    });
+    options.AddPolicy("SellerOnly", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole(FaunexRoles.Seller));
 
-    options.AddSecurityRequirement(_ => new Microsoft.OpenApi.OpenApiSecurityRequirement
+    options.AddPolicy("PlatformSuperAdminOnly", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole(FaunexRoles.PlatformSuperAdmin));
+
+    options.AddPolicy("PlatformCompliance", policy =>
     {
-        [new Microsoft.OpenApi.OpenApiSecuritySchemeReference(schemeName)] = new List<string>()
+        policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(ctx =>
+            ctx.User.IsInRole(FaunexRoles.PlatformSuperAdmin)
+            || ctx.User.IsInRole(FaunexRoles.PlatformComplianceAdmin)
+            || string.Equals(ctx.User.FindFirst(FaunexClaimTypes.IsPlatformAdmin)?.Value, "true", StringComparison.OrdinalIgnoreCase));
     });
 });
-
 
 var app = builder.Build();
 
@@ -115,8 +121,12 @@ using (var scope = app.Services.CreateScope())
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler("/error");
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();

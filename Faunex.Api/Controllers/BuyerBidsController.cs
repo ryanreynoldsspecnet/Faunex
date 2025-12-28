@@ -1,11 +1,13 @@
 using Faunex.Application.DTOs;
 using Faunex.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Faunex.Api.Controllers;
 
 [ApiController]
 [Route("api/buyer/bids")]
+[Authorize(Policy = "BuyerOnly")]
 public sealed class BuyerBidsController(IBidService bids) : ControllerBase
 {
     [HttpPost]

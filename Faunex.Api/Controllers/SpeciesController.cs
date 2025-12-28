@@ -5,9 +5,16 @@ using Faunex.Application.Interfaces;
 namespace Faunex.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/species")]
 public sealed class SpeciesController(ISpeciesLookupService species) : ControllerBase
 {
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<SpeciesDto>>> GetAll(CancellationToken cancellationToken)
+    {
+        var results = await species.GetAllAsync(cancellationToken);
+        return Ok(results);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<SpeciesDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
