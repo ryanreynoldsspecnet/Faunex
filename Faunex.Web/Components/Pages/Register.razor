@@ -23,15 +23,24 @@
 
     <div class="mb-3">
         <label class="form-label">Email</label>
-        <InputText class="form-control" @bind-Value="_model.Email" disabled="@_isSubmitting" />
+        @* Bind on input so values are reflected in the model before validation/submit. *@
+        <InputText class="form-control" @bind-Value="_model.Email" @bind-Value:event="oninput" disabled="@_isSubmitting" />
     </div>
 
     <div class="mb-3">
         <label class="form-label">Password</label>
-        <InputText class="form-control" type="password" @bind-Value="_model.Password" disabled="@_isSubmitting" />
+        <InputText class="form-control" type="password" @bind-Value="_model.Password" @bind-Value:event="oninput" disabled="@_isSubmitting" />
     </div>
 
-    <button class="btn btn-primary" disabled="@_isSubmitting" @onclick="RegisterAsync" @onclick:preventDefault>
+    <div class="mb-3">
+        <label class="form-label">Confirm Password</label>
+        <InputText class="form-control" type="password" @bind-Value="_model.ConfirmPassword" @bind-Value:event="oninput" disabled="@_isSubmitting" />
+        <ValidationMessage For="() => _model.ConfirmPassword" />
+    </div>
+
+    @* Important: do not attach @onclick to the submit button.
+       Using @onclick + preventDefault can bypass the EditForm validation pipeline and run with stale/empty model values. *@
+    <button class="btn btn-primary" type="submit" disabled="@_isSubmitting">
         @(_isSubmitting ? "Registering..." : "Register")
     </button>
 </EditForm>
@@ -49,6 +58,10 @@
 
         [Required]
         public string Password { get; set; } = string.Empty;
+
+        [Required]
+        [Compare(nameof(Password), ErrorMessage = "Passwords do not match.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
     }
 
     private readonly RegisterModel _model = new();
@@ -59,16 +72,11 @@
         _editContext = new EditContext(_model);
     }
 
-    private sealed class RegisterRequest
-    {
-        public string Email { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
-    }
+    // Match backend DTO contract exactly (Faunex.Api.Auth.RegisterRequest).
+    private sealed record RegisterRequest(string Email, string Password);
 
-    private sealed class AuthResponse
-    {
-        public string AccessToken { get; set; } = string.Empty;
-    }
+    // Match backend DTO contract (Faunex.Api.Auth.AuthResponse) but only bind what we need.
+    private sealed record AuthResponse(string AccessToken);
 
     private async Task RegisterAsync()
     {
@@ -85,7 +93,7 @@
         {
             var response = await Api.PostAsync<RegisterRequest, AuthResponse>(
                 "/api/auth/register",
-                new RegisterRequest { Email = _model.Email, Password = _model.Password });
+                new RegisterRequest(_model.Email, _model.Password));
 
             if (response is null || string.IsNullOrWhiteSpace(response.AccessToken))
             {
