@@ -2,8 +2,10 @@ using Faunex.Web.Api;
 using Faunex.Web.Auth;
 using Faunex.Web.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Logging;
 using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -59,6 +61,18 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddAuthorizationCore();
 
+// Observability-only: enable Blazor circuit detailed errors + circuit termination logging.
+// Safe for Development only; do NOT enable in Production because it can expose sensitive details in error output.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.Configure<Microsoft.AspNetCore.Components.Server.CircuitOptions>(options =>
+    {
+        options.DetailedErrors = true;
+    });
+
+    builder.Services.AddScoped<CircuitHandler, DevCircuitDiagnosticsHandler>();
+}
+
 // =====================
 // Build app
 // =====================
@@ -96,3 +110,53 @@ app.MapRazorComponents<App>()
 app.UseAntiforgery();
 
 app.Run();
+
+// Dev-only circuit diagnostics.
+// This captures exceptions from inbound circuit activities (UI events / binding / rendering), and logs full stack traces.
+file sealed class DevCircuitDiagnosticsHandler(ILogger<DevCircuitDiagnosticsHandler> logger) : CircuitHandler
+{
+    public override Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Blazor circuit opened. CircuitId={CircuitId}", circuit.Id);
+        return Task.CompletedTask;
+    }
+
+    public override Task OnConnectionUpAsync(Circuit circuit, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Blazor circuit connection up. CircuitId={CircuitId}", circuit.Id);
+        return Task.CompletedTask;
+    }
+
+    public override Task OnConnectionDownAsync(Circuit circuit, CancellationToken cancellationToken)
+    {
+        logger.LogWarning("Blazor circuit connection down. CircuitId={CircuitId}", circuit.Id);
+        return Task.CompletedTask;
+    }
+
+    public override Task OnCircuitClosedAsync(Circuit circuit, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Blazor circuit closed. CircuitId={CircuitId}", circuit.Id);
+        return Task.CompletedTask;
+    }
+
+    public override Func<CircuitInboundActivityContext, Task> CreateInboundActivityHandler(Func<CircuitInboundActivityContext, Task> next)
+    {
+        return async context =>
+        {
+            try
+            {
+                await next(context);
+            }
+            catch (Exception ex)
+            {
+                // Full exception + stack trace.
+                // This framework version exposes Circuit but not handler/event names on CircuitInboundActivityContext.
+                logger.LogError(ex,
+                    "Unhandled exception in Blazor inbound activity. CircuitId={CircuitId}",
+                    context.Circuit.Id);
+
+                throw;
+            }
+        };
+    }
+}
