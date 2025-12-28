@@ -8,6 +8,24 @@
 
             <div class="navbar-nav">
                 <NavLink class="nav-link" href="/browse">Browse Listings</NavLink>
+
+                <AuthorizeView Roles="Buyer">
+                    <Authorized>
+                        <NavLink class="nav-link" href="/buyer/bids">My Bids</NavLink>
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView Roles="Seller">
+                    <Authorized>
+                        <NavLink class="nav-link" href="/seller/listings">My Listings</NavLink>
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView Roles="Platform,ComplianceAdmin,Admin">
+                    <Authorized>
+                        <NavLink class="nav-link" href="/platform/compliance">Compliance Queue</NavLink>
+                    </Authorized>
+                </AuthorizeView>
             </div>
 
             <div class="navbar-nav ms-auto">
