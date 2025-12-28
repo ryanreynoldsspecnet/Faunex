@@ -23,6 +23,7 @@ else
                 <th>Title</th>
                 <th>Price</th>
                 <th>Type</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -30,10 +31,18 @@ else
             {
                 <tr>
                     <td>
-                        <a href="/listings/@item.Id">@item.Title</a>
+                        @* Use NavLink for internal navigation (do not use raw <a href> for app routes). *@
+                        <NavLink href="/listings/@item.Id">@item.Title</NavLink>
                     </td>
                     <td>@FormatPrice(item)</td>
                     <td>@GetSaleType(item)</td>
+                    <td>
+                        @if (!item.BuyNowPrice.HasValue)
+                        {
+                            @* Use NavLink for internal navigation (do not use raw <a href> for app routes). *@
+                            <NavLink class="btn btn-outline-primary btn-sm" href="/auctions/@item.Id">View auction</NavLink>
+                        }
+                    </td>
                 </tr>
             }
         </tbody>
