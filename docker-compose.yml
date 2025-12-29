@@ -10,7 +10,11 @@ services:
       - "5000:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=faunex;Username=faunex;Password=faunex
+      ConnectionStrings__DefaultConnection: ${FAUNEX_CONNECTIONSTRING}
+      FAUNEX_JWT_ISSUER: ${FAUNEX_JWT_ISSUER}
+      FAUNEX_JWT_AUDIENCE: ${FAUNEX_JWT_AUDIENCE}
+      FAUNEX_JWT_SIGNING_KEY: ${FAUNEX_JWT_SIGNING_KEY}
+      FAUNEX_SUPERADMIN_PASSWORD: ${FAUNEX_SUPERADMIN_PASSWORD}
     depends_on:
       - db
 
@@ -36,9 +40,9 @@ services:
     image: postgres:16
     container_name: faunex-db
     environment:
-      POSTGRES_DB: faunex
-      POSTGRES_USER: faunex
-      POSTGRES_PASSWORD: faunex
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     expose:

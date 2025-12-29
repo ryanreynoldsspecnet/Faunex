@@ -28,4 +28,8 @@
     <ProjectReference Include="..\Faunex.Shared\Faunex.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Auth\Migrations\_temp\" />
+  </ItemGroup>
+
 </Project>
