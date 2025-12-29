@@ -88,13 +88,14 @@ builder.Services.AddAuthorization(options =>
 
     options.AddPolicy("PlatformSuperAdminOnly", policy =>
         policy.RequireAuthenticatedUser()
-              .RequireRole(FaunexRoles.PlatformSuperAdmin));
+              .RequireRole(FaunexRoles.PlatformAdmin, FaunexRoles.PlatformSuperAdmin));
 
     options.AddPolicy("PlatformCompliance", policy =>
     {
         policy.RequireAuthenticatedUser();
         policy.RequireAssertion(ctx =>
-            ctx.User.IsInRole(FaunexRoles.PlatformSuperAdmin)
+            ctx.User.IsInRole(FaunexRoles.PlatformAdmin)
+            || ctx.User.IsInRole(FaunexRoles.PlatformSuperAdmin)
             || ctx.User.IsInRole(FaunexRoles.PlatformComplianceAdmin)
             || string.Equals(ctx.User.FindFirst(FaunexClaimTypes.IsPlatformAdmin)?.Value, "true", StringComparison.OrdinalIgnoreCase));
     });

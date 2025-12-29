@@ -30,7 +30,8 @@ public sealed class AuthController(
             UserName = request.Email,
             Email = request.Email,
             TenantId = null,
-            IsPlatformAdmin = false
+            IsPlatformAdmin = false,
+            DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName
         };
 
         var result = await users.CreateAsync(user, request.Password);

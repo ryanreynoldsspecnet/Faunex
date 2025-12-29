@@ -6,4 +6,6 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 {
     public Guid? TenantId { get; set; }
     public bool IsPlatformAdmin { get; set; }
+
+    public string? DisplayName { get; set; }
 }

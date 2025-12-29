@@ -8,16 +8,6 @@
 
 <h3>Register</h3>
 
-@* .NET 10 Blazor Web App (InteractiveServer) requirement:
-   Do not declare EditForm models as nested/private types inside .razor files.
-   Component-scoped types can break circuit state serialization and crash during input binding.
-   Use a top-level public model type in a shared namespace instead. *@
-
-@* EditForm uses an EditContext created from the single _model instance.
-   All inputs must bind to that same _model instance (do not reassign _model after creating _editContext).
-
-   Note: Do not set FormName here. FormName participates in Blazor's enhanced form handling and can cause the browser
-   to take over submission (bypassing EditForm's OnValidSubmit) depending on render mode/configuration. *@
 <EditForm EditContext="_editContext" OnValidSubmit="RegisterAsync">
     <DataAnnotationsValidator />
     <ValidationSummary />
@@ -34,7 +24,6 @@
 
     <div class="mb-3">
         <label class="form-label">Email</label>
-        @* For InputText, use @bind-Value only. Do not set @bind-Value:event (can crash circuits in InteractiveServer). *@
         <InputText class="form-control" @bind-Value="_model.Email" disabled="@_isSubmitting" />
     </div>
 
@@ -49,7 +38,6 @@
         <ValidationMessage For="() => _model.ConfirmPassword" />
     </div>
 
-    @* Validation/submission is driven only by OnValidSubmit; the button must be type="submit" and have no @onclick handler. *@
     <button class="btn btn-primary" type="submit" disabled="@_isSubmitting">
         @(_isSubmitting ? "Registering..." : "Register")
     </button>
@@ -60,10 +48,8 @@
     private string? _error;
     private string? _success;
 
-    // Single model instance for the lifetime of the component instance.
     private readonly RegisterFormModel _model = new();
 
-    // Single EditContext bound to _model; do not recreate it after the form is rendered.
     private EditContext _editContext = default!;
 
     protected override void OnInitialized()
@@ -72,9 +58,8 @@
     }
 
     // Match backend DTO contract exactly (Faunex.Api.Auth.RegisterRequest).
-    private sealed record RegisterRequest(string Email, string Password);
+    private sealed record RegisterRequest(string Email, string Password, string? DisplayName);
 
-    // Match backend DTO contract (Faunex.Api.Auth.AuthResponse) but only bind what we need.
     private sealed record AuthResponse(string AccessToken);
 
     private async Task RegisterAsync()
@@ -92,7 +77,7 @@
         {
             var response = await Api.PostAsync<RegisterRequest, AuthResponse>(
                 "/api/auth/register",
-                new RegisterRequest(_model.Email, _model.Password));
+                new RegisterRequest(_model.Email, _model.Password, DisplayName: null));
 
             if (response is null || string.IsNullOrWhiteSpace(response.AccessToken))
             {
