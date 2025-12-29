@@ -29,13 +29,14 @@
             </div>
 
             <div class="navbar-nav ms-auto">
-                <AuthorizeView>
+                <AuthorizeView Context="auth">
                     <NotAuthorized>
                         <NavLink class="nav-link" href="/login">Login</NavLink>
                         <NavLink class="nav-link" href="/register">Register</NavLink>
                     </NotAuthorized>
                     <Authorized>
-                        <NavLink class="nav-link" href="/account">My Account</NavLink>
+                        <span class="navbar-text text-light me-2">Hi, @(auth.User.Identity?.Name ?? auth.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value)
+                        </span>
                         <NavLink class="nav-link" href="/logout">Logout</NavLink>
                     </Authorized>
                 </AuthorizeView>
