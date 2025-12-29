@@ -6,10 +6,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Faunex.Application.Auth;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddFaunexApiControllers();
+
+// Share Data Protection keys across containers (Web + API)
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/root/.aspnet/DataProtection-Keys"))
+    .SetApplicationName("Faunex");
 
 builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
 {
