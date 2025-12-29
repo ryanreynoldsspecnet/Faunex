@@ -1,4 +1,4 @@
-@page "/seller/listings"
+@page "/seller/my-listings"
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @inject Faunex.Web.Api.FaunexApiClient Api
@@ -48,10 +48,10 @@
                             </td>
                             <td>@FormatPrice(item)</td>
                             <td>@GetStatus(item)</td>
-                            <td>@(item.IsActive ? "Yes" : "No")</td>
+                            <td>@GetActiveDisplay(item)</td>
                             <td>@GetCreated(item)</td>
                             <td>
-                                @if (!item.IsActive)
+                                @if (item.IsActive != true)
                                 {
                                     <button class="btn btn-sm btn-outline-primary"
                                             disabled="@(state.IsSubmitting)"
@@ -187,9 +187,13 @@
     private static string GetStatus(Faunex.Application.DTOs.ListingDto item)
     {
         // Do not guess compliance status fields.
-        // Treat inactive as Draft/Pending and active as Approved.
-        return item.IsActive ? "Approved" : "Draft / Pending";
+        // Treat active as Approved, inactive as Draft/Pending.
+        // Null means draft/seed/pending state.
+        return item.IsActive == true ? "Approved" : "Draft / Pending";
     }
+
+    private static string GetActiveDisplay(Faunex.Application.DTOs.ListingDto item)
+        => item.IsActive == true ? "Yes" : item.IsActive == false ? "No" : "Pending / Draft";
 
     private static string GetCreated(Faunex.Application.DTOs.ListingDto item)
     {

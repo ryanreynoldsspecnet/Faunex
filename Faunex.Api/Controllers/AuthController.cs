@@ -19,6 +19,11 @@ public sealed class AuthController(
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new { error = "Email and password are required." });
+        }
+
         var user = new ApplicationUser
         {
             Id = Guid.NewGuid(),
@@ -68,6 +73,11 @@ public sealed class AuthController(
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new { error = "Invalid credentials." });
+        }
+
         var user = await users.FindByEmailAsync(request.Email);
         if (user is null)
         {

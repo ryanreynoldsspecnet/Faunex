@@ -48,7 +48,7 @@ else
                     <td>@item.Title</td>
                     <td>@item.AnimalClass</td>
                     <td>@item.SellerId</td>
-                    <td>@(item.IsActive ? "Yes" : "No")</td>
+                    <td>@GetActiveDisplay(item)</td>
                 </tr>
             }
         </tbody>
@@ -102,4 +102,7 @@ else
         _skip += _take;
         await ReloadAsync();
     }
+
+    private static string GetActiveDisplay(Faunex.Application.DTOs.ListingDto item)
+        => item.IsActive == true ? "Yes" : item.IsActive == false ? "No" : "Pending / Draft";
 }

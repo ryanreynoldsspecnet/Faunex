@@ -44,7 +44,7 @@ else
         <dd class="col-sm-9"><code>@_listing.SellerId</code></dd>
     </dl>
 
-    @if (!_listing.IsActive)
+    @if (_listing.IsActive != true)
     {
         <button class="btn btn-primary" disabled="@_isSubmitting" @onclick="SubmitForReviewAsync">
             @(_isSubmitting ? "Submitting..." : "Submit for Compliance Review")
@@ -181,6 +181,6 @@ else
     private static string GetStatus(Faunex.Application.DTOs.ListingDto item)
     {
         // Best-effort using existing data only.
-        return item.IsActive ? "Approved" : "Draft / Pending Review";
+        return item.IsActive == true ? "Approved" : item.IsActive == false ? "Inactive" : "Pending / Draft";
     }
 }

@@ -9,53 +9,59 @@ public sealed class ListingBrowseService(IApplicationDbContext dbContext) : ILis
 {
     public async Task<IReadOnlyList<ListingDto>> BrowseApprovedListingsAsync(CancellationToken cancellationToken)
     {
-        // IMPORTANT:
-        // Tenant scoping is enforced by global query filters in ApplicationDbContext.
-        // The ListingCompliance entity is tenant-scoped separately, and when those filters exclude rows
-        // the Listing.Compliance navigation can be null at query time. Avoid depending on the navigation
-        // for filtering/ordering to prevent NullReferenceExceptions translating to 500.
+        var approvedComplianceByListingId = dbContext.ListingCompliances
+            .Where(c => c.Status != null && c.Status == ListingComplianceStatus.Approved)
+            .GroupBy(c => c.ListingId)
+            .Select(g => new
+            {
+                ListingId = g.Key,
+                ReviewedAt = g.Max(x => (DateTimeOffset?)x.ReviewedAt)
+            });
 
-        var listings = await dbContext.Listings
+        return await dbContext.Listings
             .AsNoTracking()
-            .Where(x => x.IsActive)
-            .Where(x => dbContext.ListingCompliances.Any(c => c.ListingId == x.Id && c.Status == ListingComplianceStatus.Approved))
-            .OrderByDescending(x => dbContext.ListingCompliances
-                .Where(c => c.ListingId == x.Id)
-                .Select(c => c.ReviewedAt)
-                .FirstOrDefault() ?? x.CreatedAt)
+            .Where(l => l.IsActive == true)
+            .Join(
+                approvedComplianceByListingId,
+                l => l.Id,
+                c => c.ListingId,
+                (l, c) => new
+                {
+                    Listing = l,
+                    SortAt = c.ReviewedAt ?? (DateTimeOffset?)l.CreatedAt
+                })
+            .OrderByDescending(x => x.SortAt)
             .Select(x => new ListingDto(
-                x.Id,
-                x.TenantId,
-                x.SellerId,
-                x.BirdDetails != null
+                x.Listing.Id,
+                x.Listing.TenantId,
+                x.Listing.SellerId,
+                x.Listing.BirdDetails != null
                     ? "bird"
-                    : x.LivestockDetails != null
+                    : x.Listing.LivestockDetails != null
                         ? "livestock"
-                        : x.GameAnimalDetails != null
+                        : x.Listing.GameAnimalDetails != null
                             ? "game"
-                            : x.PoultryDetails != null
+                            : x.Listing.PoultryDetails != null
                                 ? "poultry"
                                 : "unknown",
-                x.BirdDetails != null ? x.BirdDetails.SpeciesId : null,
-                x.Title,
-                x.Description,
-                x.StartingPrice,
-                x.BuyNowPrice,
-                x.CurrencyCode,
-                x.Quantity,
-                x.Location,
-                x.IsActive))
+                x.Listing.BirdDetails != null ? x.Listing.BirdDetails.SpeciesId : null,
+                x.Listing.Title,
+                x.Listing.Description,
+                x.Listing.StartingPrice,
+                x.Listing.BuyNowPrice,
+                x.Listing.CurrencyCode,
+                x.Listing.Quantity,
+                x.Listing.Location,
+                x.Listing.IsActive))
             .ToListAsync(cancellationToken);
-
-        return listings;
     }
 
     public async Task<ListingDto?> GetApprovedListingByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         var listing = await dbContext.Listings
             .AsNoTracking()
-            .Where(x => x.Id == id && x.IsActive)
-            .Where(x => dbContext.ListingCompliances.Any(c => c.ListingId == x.Id && c.Status == ListingComplianceStatus.Approved))
+            .Where(x => x.Id == id && x.IsActive == true)
+            .Where(x => dbContext.ListingCompliances.Any(c => c.ListingId == x.Id && c.Status != null && c.Status == ListingComplianceStatus.Approved))
             .Select(x => new ListingDto(
                 x.Id,
                 x.TenantId,

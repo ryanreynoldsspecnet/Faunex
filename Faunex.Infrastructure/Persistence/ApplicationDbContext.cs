@@ -87,55 +87,39 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
         // - Platform admin (TenantId == null) can query across tenants.
         // - Non-admin must have a TenantId; otherwise queries return empty.
         // TODO: Replace StubTenantContext with an auth-backed implementation.
+
+        var tenantId = _tenantContext.TenantId; // Guid?
+        var isAdmin = _tenantContext.IsPlatformAdmin;
+
         modelBuilder.Entity<Listing>().HasQueryFilter(x =>
-            _tenantContext.IsPlatformAdmin
-                ? true
-                : _tenantContext.TenantId.HasValue && x.TenantId == _tenantContext.TenantId.Value);
+            isAdmin || (tenantId != null && x.TenantId == tenantId));
 
         modelBuilder.Entity<Auction>().HasQueryFilter(x =>
-            _tenantContext.IsPlatformAdmin
-                ? true
-                : _tenantContext.TenantId.HasValue && x.TenantId == _tenantContext.TenantId.Value);
+            isAdmin || (tenantId != null && x.TenantId == tenantId));
 
         modelBuilder.Entity<Bid>().HasQueryFilter(x =>
-            _tenantContext.IsPlatformAdmin
-                ? true
-                : _tenantContext.TenantId.HasValue && x.TenantId == _tenantContext.TenantId.Value);
+            isAdmin || (tenantId != null && x.TenantId == tenantId));
 
         modelBuilder.Entity<Document>().HasQueryFilter(x =>
-            _tenantContext.IsPlatformAdmin
-                ? true
-                : _tenantContext.TenantId.HasValue && x.TenantId == _tenantContext.TenantId.Value);
+            isAdmin || (tenantId != null && x.TenantId == tenantId));
 
         modelBuilder.Entity<BirdDetails>().HasQueryFilter(x =>
-            _tenantContext.IsPlatformAdmin
-                ? true
-                : _tenantContext.TenantId.HasValue && x.Listing != null && x.Listing.TenantId == _tenantContext.TenantId.Value);
+            isAdmin || (tenantId != null && x.Listing != null && x.Listing.TenantId == tenantId));
 
         modelBuilder.Entity<LivestockDetails>().HasQueryFilter(x =>
-            _tenantContext.IsPlatformAdmin
-                ? true
-                : _tenantContext.TenantId.HasValue && x.Listing != null && x.Listing.TenantId == _tenantContext.TenantId.Value);
+            isAdmin || (tenantId != null && x.Listing != null && x.Listing.TenantId == tenantId));
 
         modelBuilder.Entity<GameAnimalDetails>().HasQueryFilter(x =>
-            _tenantContext.IsPlatformAdmin
-                ? true
-                : _tenantContext.TenantId.HasValue && x.Listing != null && x.Listing.TenantId == _tenantContext.TenantId.Value);
+            isAdmin || (tenantId != null && x.Listing != null && x.Listing.TenantId == tenantId));
 
         modelBuilder.Entity<PoultryDetails>().HasQueryFilter(x =>
-            _tenantContext.IsPlatformAdmin
-                ? true
-                : _tenantContext.TenantId.HasValue && x.Listing != null && x.Listing.TenantId == _tenantContext.TenantId.Value);
+            isAdmin || (tenantId != null && x.Listing != null && x.Listing.TenantId == tenantId));
 
         modelBuilder.Entity<ListingCompliance>().HasQueryFilter(x =>
-            _tenantContext.IsPlatformAdmin
-                ? true
-                : _tenantContext.TenantId.HasValue && x.TenantId == _tenantContext.TenantId.Value);
+            isAdmin || (tenantId != null && x.TenantId == tenantId));
 
         modelBuilder.Entity<ListingDocument>().HasQueryFilter(x =>
-            _tenantContext.IsPlatformAdmin
-                ? true
-                : _tenantContext.TenantId.HasValue && x.TenantId == _tenantContext.TenantId.Value);
+            isAdmin || (tenantId != null && x.TenantId == tenantId));
 
         var seededAt = new DateTimeOffset(2025, 01, 01, 0, 0, 0, TimeSpan.Zero);
 

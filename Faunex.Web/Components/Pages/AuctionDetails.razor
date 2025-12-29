@@ -431,6 +431,6 @@ else
         return FormatMoney(price, item.CurrencyCode);
     }
 
-    private static string FormatMoney(decimal amount, string currencyCode)
+    private static string FormatMoney(decimal? amount, string currencyCode)
         => $"{amount:0.##} {currencyCode}";
 }

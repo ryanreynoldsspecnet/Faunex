@@ -122,6 +122,30 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
+
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            var exceptionHandlerPathFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+            var ex = exceptionHandlerPathFeature?.Error;
+
+            if (ex != null)
+            {
+                app.Logger.LogError(ex, "Unhandled exception processing {Method} {Path}", context.Request.Method, context.Request.Path);
+            }
+
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/problem+json";
+
+            await Results.Problem(
+                    title: "Unhandled exception",
+                    detail: app.Environment.IsDevelopment() ? ex?.ToString() : null,
+                    statusCode: StatusCodes.Status500InternalServerError,
+                    instance: context.Request.Path)
+                .ExecuteAsync(context);
+        });
+    });
 }
 else
 {

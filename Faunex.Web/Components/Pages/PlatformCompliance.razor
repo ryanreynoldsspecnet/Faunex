@@ -43,7 +43,7 @@
                         <tr>
                             <td>@item.Title</td>
                             <td>@item.SellerId</td>
-                            <td>@(item.IsActive ? "Yes" : "No")</td>
+                            <td>@GetActiveDisplay(item)</td>
                             <td style="width: 20rem;">
                                 <div class="d-flex gap-2">
                                     <button class="btn btn-sm btn-success" disabled="@state.IsProcessing" @onclick="(() => ApproveAsync(item.Id))">
@@ -204,4 +204,7 @@
             StateHasChanged();
         }
     }
+
+    private static string GetActiveDisplay(Faunex.Application.DTOs.ListingDto item)
+        => item.IsActive == true ? "Yes" : item.IsActive == false ? "No" : "Pending / Draft";
 }

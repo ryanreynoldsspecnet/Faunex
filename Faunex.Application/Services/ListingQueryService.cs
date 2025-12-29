@@ -16,26 +16,56 @@ public sealed class ListingQueryService(IApplicationDbContext dbContext, ITenant
 
         var (skip, take, activeOnly) = NormalizePaging(query, defaultActiveOnly: true);
 
-        var q = ApplyFilters(dbContext.Listings.AsNoTracking(), query);
-
-        q = q.Where(x => x.IsActive)
-            .Where(x => dbContext.ListingCompliances.Any(c => c.ListingId == x.Id && c.Status == ListingComplianceStatus.Approved));
+        var listings = ApplyFilters(dbContext.Listings.AsNoTracking(), query);
 
         if (activeOnly)
         {
-            q = q.Where(x => x.IsActive);
+            listings = listings.Where(x => x.IsActive);
         }
+
+        var approvedCompliances = dbContext.ListingCompliances
+            .Where(c => c.Status == ListingComplianceStatus.Approved);
+
+        var q = listings
+            .GroupJoin(
+                approvedCompliances,
+                l => l.Id,
+                c => c.ListingId,
+                (l, cg) => new
+                {
+                    Listing = l,
+                    ApprovedReviewedAt = cg.Max(c => (DateTimeOffset?)c.ReviewedAt)
+                })
+            .Where(x => x.ApprovedReviewedAt != null);
 
         var total = await q.CountAsync(cancellationToken);
 
         var items = await q
-            .OrderByDescending(x => dbContext.ListingCompliances
-                .Where(c => c.ListingId == x.Id && c.Status == ListingComplianceStatus.Approved)
-                .Select(c => c.ReviewedAt)
-                .FirstOrDefault() ?? x.CreatedAt)
+            .OrderByDescending(x => x.ApprovedReviewedAt ?? x.Listing.CreatedAt)
             .Skip(skip)
             .Take(take)
-            .Select(MapToDtoExpression())
+            .Select(x => new ListingDto(
+                x.Listing.Id,
+                x.Listing.TenantId,
+                x.Listing.SellerId,
+                x.Listing.BirdDetails != null
+                    ? "bird"
+                    : x.Listing.LivestockDetails != null
+                        ? "livestock"
+                        : x.Listing.GameAnimalDetails != null
+                            ? "game"
+                            : x.Listing.PoultryDetails != null
+                                ? "poultry"
+                                : "unknown",
+                x.Listing.BirdDetails != null ? x.Listing.BirdDetails.SpeciesId : null,
+                x.Listing.Title,
+                x.Listing.Description,
+                x.Listing.StartingPrice,
+                x.Listing.BuyNowPrice,
+                x.Listing.CurrencyCode,
+                x.Listing.Quantity,
+                x.Listing.Location,
+                x.Listing.IsActive))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<ListingDto>(items, total);
