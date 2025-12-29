@@ -29,6 +29,7 @@ public static class ControllersRegistrationExtensions
         services.AddScoped<ISpeciesLookupService, SpeciesLookupService>();
 
         services.AddScoped<JwtTokenIssuer>();
+        services.AddScoped<IdentitySeeder>();
 
         services.AddDbContext<ApplicationIdentityDbContext>((sp, options) =>
         {

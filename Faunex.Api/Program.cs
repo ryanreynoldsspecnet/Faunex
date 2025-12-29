@@ -29,8 +29,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(audience) || string.IsNullOrWhiteSpace(signingKey))
         {
-            // DEV ONLY fallback.
-            // IMPORTANT: Set FAUNEX_JWT_ISSUER / FAUNEX_JWT_AUDIENCE / FAUNEX_JWT_SIGNING_KEY in production.
             issuer = issuer ?? "faunex-dev";
             audience = audience ?? "faunex-dev";
             signingKey = signingKey ?? "DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME";
@@ -114,12 +112,13 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     await db.Database.MigrateAsync();
 
-    // Add Identity tables (additive only)
     var identityDb = scope.ServiceProvider.GetRequiredService<Faunex.Api.Auth.ApplicationIdentityDbContext>();
     await identityDb.Database.MigrateAsync();
+
+    var seeder = scope.ServiceProvider.GetRequiredService<Faunex.Api.Auth.IdentitySeeder>();
+    await seeder.SeedAsync();
 }
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
