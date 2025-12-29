@@ -9,10 +9,20 @@ public sealed class ListingBrowseService(IApplicationDbContext dbContext) : ILis
 {
     public async Task<IReadOnlyList<ListingDto>> BrowseApprovedListingsAsync(CancellationToken cancellationToken)
     {
+        // IMPORTANT:
+        // Tenant scoping is enforced by global query filters in ApplicationDbContext.
+        // The ListingCompliance entity is tenant-scoped separately, and when those filters exclude rows
+        // the Listing.Compliance navigation can be null at query time. Avoid depending on the navigation
+        // for filtering/ordering to prevent NullReferenceExceptions translating to 500.
+
         var listings = await dbContext.Listings
             .AsNoTracking()
-            .Where(x => x.IsActive && x.Compliance != null && x.Compliance.Status == ListingComplianceStatus.Approved)
-            .OrderByDescending(x => x.Compliance!.ReviewedAt ?? x.CreatedAt)
+            .Where(x => x.IsActive)
+            .Where(x => dbContext.ListingCompliances.Any(c => c.ListingId == x.Id && c.Status == ListingComplianceStatus.Approved))
+            .OrderByDescending(x => dbContext.ListingCompliances
+                .Where(c => c.ListingId == x.Id)
+                .Select(c => c.ReviewedAt)
+                .FirstOrDefault() ?? x.CreatedAt)
             .Select(x => new ListingDto(
                 x.Id,
                 x.TenantId,
@@ -44,7 +54,8 @@ public sealed class ListingBrowseService(IApplicationDbContext dbContext) : ILis
     {
         var listing = await dbContext.Listings
             .AsNoTracking()
-            .Where(x => x.Id == id && x.IsActive && x.Compliance != null && x.Compliance.Status == ListingComplianceStatus.Approved)
+            .Where(x => x.Id == id && x.IsActive)
+            .Where(x => dbContext.ListingCompliances.Any(c => c.ListingId == x.Id && c.Status == ListingComplianceStatus.Approved))
             .Select(x => new ListingDto(
                 x.Id,
                 x.TenantId,
