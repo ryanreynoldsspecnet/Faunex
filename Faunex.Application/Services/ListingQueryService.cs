@@ -19,7 +19,7 @@ public sealed class ListingQueryService(IApplicationDbContext dbContext, ITenant
         var q = ApplyFilters(dbContext.Listings.AsNoTracking(), query);
 
         q = q.Where(x => x.IsActive)
-            .Where(x => x.Compliance != null && x.Compliance.Status == ListingComplianceStatus.Approved);
+            .Where(x => dbContext.ListingCompliances.Any(c => c.ListingId == x.Id && c.Status == ListingComplianceStatus.Approved));
 
         if (activeOnly)
         {
@@ -29,7 +29,10 @@ public sealed class ListingQueryService(IApplicationDbContext dbContext, ITenant
         var total = await q.CountAsync(cancellationToken);
 
         var items = await q
-            .OrderByDescending(x => x.CreatedAt)
+            .OrderByDescending(x => dbContext.ListingCompliances
+                .Where(c => c.ListingId == x.Id && c.Status == ListingComplianceStatus.Approved)
+                .Select(c => c.ReviewedAt)
+                .FirstOrDefault() ?? x.CreatedAt)
             .Skip(skip)
             .Take(take)
             .Select(MapToDtoExpression())
