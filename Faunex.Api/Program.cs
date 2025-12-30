@@ -91,9 +91,14 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser()
               .RequireRole(FaunexRoles.Seller));
 
-    options.AddPolicy("PlatformSuperAdminOnly", policy =>
+    // Platform admin policies (used by api/platform/* endpoints)
+    options.AddPolicy("PlatformAdminOnly", policy =>
         policy.RequireAuthenticatedUser()
               .RequireRole(FaunexRoles.PlatformAdmin, FaunexRoles.PlatformSuperAdmin));
+
+    options.AddPolicy("PlatformSuperAdminOnly", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole(FaunexRoles.PlatformSuperAdmin));
 
     options.AddPolicy("PlatformCompliance", policy =>
     {
