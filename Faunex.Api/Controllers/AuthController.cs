@@ -3,6 +3,7 @@ using Faunex.Application.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using System.Security.Claims;
 
 namespace Faunex.Api.Controllers;
@@ -16,6 +17,7 @@ public sealed class AuthController(
     IWebHostEnvironment environment,
     ILogger<AuthController> logger) : ControllerBase
 {
+    [IgnoreAntiforgeryToken]
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {
@@ -71,6 +73,7 @@ public sealed class AuthController(
             Roles: assignedRoles));
     }
 
+    [IgnoreAntiforgeryToken]
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
