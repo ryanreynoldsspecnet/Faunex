@@ -1,4 +1,6 @@
 html, body {
+    min-height: 100%;
+    margin: 0;
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background: #f6f8f4;
     color: #18221d;
@@ -29,6 +31,12 @@ a, .btn-link {
     padding-top: 1.1rem;
 }
 
+.page {
+    min-height: 100vh;
+    overflow-x: hidden;
+    background: #f6f8f4;
+}
+
 .navbar.bg-dark {
     background: #141b1b !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -42,9 +50,10 @@ a, .btn-link {
 }
 
 .navbar-brand__logo {
-    width: 132px;
-    height: auto;
+    width: 150px;
+    height: 38px;
     display: block;
+    object-fit: contain;
 }
 
 .navbar-dark .navbar-nav .nav-link {
@@ -60,7 +69,7 @@ a, .btn-link {
 .home-hero {
     min-height: calc(100vh - 56px);
     min-height: calc(100svh - 56px);
-    margin: -1.1rem -1.5rem 0;
+    margin: -1.1rem calc(50% - 50vw) 0;
     padding: clamp(3rem, 7vw, 6.5rem) clamp(1.5rem, 6vw, 5rem);
     display: flex;
     align-items: center;
@@ -163,7 +172,7 @@ a, .btn-link {
 }
 
 .home-section {
-    margin-inline: -1.5rem;
+    margin-inline: calc(50% - 50vw);
     padding: clamp(3rem, 6vw, 5rem) clamp(1.5rem, 6vw, 5rem);
 }
 
@@ -302,6 +311,8 @@ a, .btn-link {
         align-items: center;
         flex-wrap: wrap;
         gap: 0.15rem 0.35rem;
+        padding-right: 0.75rem !important;
+        padding-left: 0.75rem !important;
     }
 
     .navbar-brand {
@@ -309,12 +320,14 @@ a, .btn-link {
     }
 
     .navbar-brand__logo {
-        width: 96px;
+        width: 92px;
+        height: 25px;
     }
 
     .navbar-dark .navbar-nav .nav-link {
-        padding-right: 0.35rem;
-        padding-left: 0.35rem;
+        padding-right: 0.25rem;
+        padding-left: 0.25rem;
+        font-size: 0.9rem;
     }
 
     .navbar-nav {
