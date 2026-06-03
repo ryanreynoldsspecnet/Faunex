@@ -1,0 +1,7 @@
+<svg width="176" height="48" viewBox="0 0 176 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="faunexLogoTitle">
+  <title id="faunexLogoTitle">Faunex</title>
+  <circle cx="24" cy="24" r="22" fill="#1F6F4A" stroke="#D3AA57" stroke-width="4"/>
+  <path d="M14.5 33.5C21.2 33.5 27.8 28.1 31.3 18C23.5 18 17.3 22.2 14.5 29V33.5Z" fill="#F8F5EA" opacity="0.95"/>
+  <path d="M15.5 34V14.5H34V20H22.2V23.6H32.1V28.7H22.2V34H15.5Z" fill="#F8F5EA"/>
+  <text x="58" y="32" fill="#F8F5EA" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="800" letter-spacing="0">Faunex</text>
+</svg>
