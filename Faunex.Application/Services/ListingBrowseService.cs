@@ -10,7 +10,7 @@ public sealed class ListingBrowseService(IApplicationDbContext dbContext) : ILis
     public async Task<IReadOnlyList<ListingDto>> BrowseApprovedListingsAsync(CancellationToken cancellationToken)
     {
         var approvedComplianceByListingId = dbContext.ListingCompliances
-            .Where(c => c.Status != null && c.Status == ListingComplianceStatus.Approved)
+            .Where(c => c.Status == ListingComplianceStatus.Approved)
             .GroupBy(c => c.ListingId)
             .Select(g => new
             {
@@ -61,7 +61,7 @@ public sealed class ListingBrowseService(IApplicationDbContext dbContext) : ILis
         var listing = await dbContext.Listings
             .AsNoTracking()
             .Where(x => x.Id == id && x.IsActive == true)
-            .Where(x => dbContext.ListingCompliances.Any(c => c.ListingId == x.Id && c.Status != null && c.Status == ListingComplianceStatus.Approved))
+            .Where(x => dbContext.ListingCompliances.Any(c => c.ListingId == x.Id && c.Status == ListingComplianceStatus.Approved))
             .Select(x => new ListingDto(
                 x.Id,
                 x.TenantId,

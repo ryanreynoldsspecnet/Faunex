@@ -1,13 +1,11 @@
-using System.Text;
 using Faunex.Api.Controllers;
 using Faunex.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Faunex.Application.Auth;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
-using System.IO;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,7 +19,8 @@ builder.Services.AddDataProtection()
 builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
-    var connectionString = cfg["ConnectionStrings:DefaultConnection"];
+    var env = sp.GetRequiredService<IWebHostEnvironment>();
+    var connectionString = GetRequiredConfiguration(cfg, env, "ConnectionStrings:DefaultConnection");
     options.UseNpgsql(connectionString);
 });
 
@@ -30,16 +29,9 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        var issuer = builder.Configuration["FAUNEX_JWT_ISSUER"];
-        var audience = builder.Configuration["FAUNEX_JWT_AUDIENCE"];
-        var signingKey = builder.Configuration["FAUNEX_JWT_SIGNING_KEY"];
-
-        if (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(audience) || string.IsNullOrWhiteSpace(signingKey))
-        {
-            issuer = issuer ?? "faunex-dev";
-            audience = audience ?? "faunex-dev";
-            signingKey = signingKey ?? "DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME";
-        }
+        var issuer = GetRequiredConfiguration(builder.Configuration, builder.Environment, "FAUNEX_JWT_ISSUER", "faunex-dev");
+        var audience = GetRequiredConfiguration(builder.Configuration, builder.Environment, "FAUNEX_JWT_AUDIENCE", "faunex-dev");
+        var signingKey = GetRequiredConfiguration(builder.Configuration, builder.Environment, "FAUNEX_JWT_SIGNING_KEY", "DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME");
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -173,3 +165,23 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static string GetRequiredConfiguration(
+    IConfiguration configuration,
+    IWebHostEnvironment environment,
+    string key,
+    string? developmentFallback = null)
+{
+    var value = configuration[key];
+    if (!string.IsNullOrWhiteSpace(value))
+    {
+        return value;
+    }
+
+    if (environment.IsDevelopment() && developmentFallback is not null)
+    {
+        return developmentFallback;
+    }
+
+    throw new InvalidOperationException($"Missing required configuration value '{key}'.");
+}

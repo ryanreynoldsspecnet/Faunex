@@ -178,6 +178,11 @@ DocProject/Help/html
 
 # Click-Once directory
 publish/
+_audit_publish_web/
+_audit_publish_web2/
+_verify_publish_api/
+_verify_publish_web/
+artifacts/
 
 # Publish Web Output
 *.[Pp]ublish.xml

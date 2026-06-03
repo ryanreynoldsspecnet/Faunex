@@ -7,12 +7,15 @@ using System.Text;
 
 namespace Faunex.Api.Auth;
 
-public sealed class JwtTokenIssuer(IConfiguration configuration, UserManager<ApplicationUser> users)
+public sealed class JwtTokenIssuer(
+    IConfiguration configuration,
+    IWebHostEnvironment environment,
+    UserManager<ApplicationUser> users)
 {
     public async Task<(string token, DateTimeOffset expiresAt, IReadOnlyList<string> roles)> IssueAsync(ApplicationUser user, CancellationToken cancellationToken = default)
     {
-        var issuer = GetValueOrDevDefault("FAUNEX_JWT_ISSUER", "faunex-dev");
-        var audience = GetValueOrDevDefault("FAUNEX_JWT_AUDIENCE", "faunex-dev");
+        var issuer = GetRequiredConfiguration("FAUNEX_JWT_ISSUER", "faunex-dev");
+        var audience = GetRequiredConfiguration("FAUNEX_JWT_AUDIENCE", "faunex-dev");
         var signingKey = GetSigningKey();
 
         var roles = (await users.GetRolesAsync(user)).ToArray();
@@ -53,19 +56,11 @@ public sealed class JwtTokenIssuer(IConfiguration configuration, UserManager<App
 
     private SymmetricSecurityKey GetSigningKey()
     {
-        var raw = configuration["FAUNEX_JWT_SIGNING_KEY"];
-
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            // DEV ONLY fallback.
-            // IMPORTANT: Set FAUNEX_JWT_SIGNING_KEY in production environments.
-            raw = "DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME";
-        }
-
+        var raw = GetRequiredConfiguration("FAUNEX_JWT_SIGNING_KEY", "DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME");
         return new SymmetricSecurityKey(Encoding.UTF8.GetBytes(raw));
     }
 
-    private string GetValueOrDevDefault(string key, string devDefault)
+    private string GetRequiredConfiguration(string key, string developmentFallback)
     {
         var value = configuration[key];
         if (!string.IsNullOrWhiteSpace(value))
@@ -73,7 +68,11 @@ public sealed class JwtTokenIssuer(IConfiguration configuration, UserManager<App
             return value;
         }
 
-        // DEV ONLY fallback.
-        return devDefault;
+        if (environment.IsDevelopment())
+        {
+            return developmentFallback;
+        }
+
+        throw new InvalidOperationException($"Missing required configuration value '{key}'.");
     }
 }

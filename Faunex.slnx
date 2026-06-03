@@ -6,4 +6,5 @@
   <Project Path="Faunex.Infrastructure/Faunex.Infrastructure.csproj" />
   <Project Path="Faunex.Shared/Faunex.Shared.csproj" />
   <Project Path="Faunex.Web/Faunex.Web.csproj" />
+  <Project Path="tests/Faunex.Tests/Faunex.Tests.csproj" />
 </Solution>
