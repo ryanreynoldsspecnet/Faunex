@@ -1,7 +1,103 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Faunex</PageTitle>
 
-<h1>Hello, world!</h1>
+<section class="home-hero" aria-labelledby="home-title">
+    <div class="home-hero__content">
+        <p class="home-kicker">Multi-tenant auction infrastructure</p>
+        <h1 id="home-title">Faunex</h1>
+        <p class="home-lede">
+            A regulated marketplace platform for specialist auctions, compliance-driven listings,
+            and future tenant marketplaces across South Africa and Africa.
+        </p>
 
-Welcome to your new app.
+        <div class="home-actions" aria-label="Primary actions">
+            <a class="btn btn-primary btn-lg" href="/browse">Browse Listings</a>
+            <a class="btn btn-outline-light btn-lg" href="/register">Create Account</a>
+        </div>
+
+        <dl class="home-snapshot" aria-label="Platform snapshot">
+            <div>
+                <dt>Tenant 1</dt>
+                <dd>Storm Bird Auctions</dd>
+            </div>
+            <div>
+                <dt>Model</dt>
+                <dd>Auctions, listings, compliance</dd>
+            </div>
+            <div>
+                <dt>Built For</dt>
+                <dd>Birds, livestock, poultry, game</dd>
+            </div>
+        </dl>
+    </div>
+</section>
+
+<section class="home-section home-section--intro" aria-labelledby="platform-heading">
+    <div class="home-section__inner">
+        <div class="home-section__copy">
+            <p class="home-kicker home-kicker--dark">Platform first</p>
+            <h2 id="platform-heading">One auction engine, many specialist marketplaces.</h2>
+            <p>
+                Faunex is designed as reusable marketplace infrastructure. Storm Bird Auctions is the first tenant,
+                but the same foundation will support breeders, associations, conservation networks, livestock exchanges,
+                poultry markets, and other regulated trading communities.
+            </p>
+        </div>
+
+        <div class="home-capabilities" aria-label="Core platform capabilities">
+            <article>
+                <h3>Tenant Marketplaces</h3>
+                <p>Independent branding, roles, categories, compliance rules, and future subscription plans per tenant.</p>
+            </article>
+            <article>
+                <h3>Compliance Workflow</h3>
+                <p>Permit, identity, health, ownership, and CITES-style review flows built into the listing lifecycle.</p>
+            </article>
+            <article>
+                <h3>Mobile-Ready API</h3>
+                <p>API-first architecture keeps web, Android, and iOS clients aligned around the same platform rules.</p>
+            </article>
+            <article>
+                <h3>Realtime Auctions</h3>
+                <p>Timed bidding, buy-now, sealed-bid, and live updates are planned as reusable auction capabilities.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="home-section home-section--workflow" aria-labelledby="workflow-heading">
+    <div class="home-section__inner home-section__inner--split">
+        <div>
+            <p class="home-kicker home-kicker--dark">Launch workflow</p>
+            <h2 id="workflow-heading">The first usable slice is already clear.</h2>
+            <p>
+                The next build focus is a complete end-to-end path: sellers create compliant listings,
+                admins review them, buyers browse approved listings, and auctions can run through the validated deployment pipeline.
+            </p>
+        </div>
+
+        <ol class="home-roadmap">
+            <li>
+                <span>01</span>
+                <strong>Seller listing creation</strong>
+                <p>Animal details, category data, pricing, images, and supporting documents.</p>
+            </li>
+            <li>
+                <span>02</span>
+                <strong>Compliance review</strong>
+                <p>Platform and tenant administrators approve, reject, or request supporting information.</p>
+            </li>
+            <li>
+                <span>03</span>
+                <strong>Buyer marketplace</strong>
+                <p>Approved listings become discoverable through search, filters, and listing detail pages.</p>
+            </li>
+            <li>
+                <span>04</span>
+                <strong>Auction activity</strong>
+                <p>Timed auctions, bidding rules, and buyer notifications turn listings into transactions.</p>
+            </li>
+        </ol>
+    </div>
+</section>
