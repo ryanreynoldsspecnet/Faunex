@@ -3,7 +3,6 @@ using Faunex.Application.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using System.Security.Claims;
 
 namespace Faunex.Api.Controllers;
@@ -14,7 +13,6 @@ public sealed class AuthController(
     UserManager<ApplicationUser> users,
     RoleManager<IdentityRole<Guid>> roles,
     JwtTokenIssuer tokenIssuer,
-    IWebHostEnvironment environment,
     ILogger<AuthController> logger) : ControllerBase
 {
     [IgnoreAntiforgeryToken]

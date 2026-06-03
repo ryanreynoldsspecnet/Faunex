@@ -33,6 +33,10 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<ListingCompliance> ListingCompliances { get; set; } = null!;
     public DbSet<ListingDocument> ListingDocuments { get; set; } = null!;
 
+    private Guid? CurrentTenantId => _tenantContext.TenantId;
+
+    private bool IsPlatformAdmin => _tenantContext.IsPlatformAdmin;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -88,38 +92,35 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
         // - Non-admin must have a TenantId; otherwise queries return empty.
         // TODO: Replace StubTenantContext with an auth-backed implementation.
 
-        var tenantId = _tenantContext.TenantId; // Guid?
-        var isAdmin = _tenantContext.IsPlatformAdmin;
-
         modelBuilder.Entity<Listing>().HasQueryFilter(x =>
-            isAdmin || (tenantId != null && x.TenantId == tenantId));
+            IsPlatformAdmin || (CurrentTenantId != null && x.TenantId == CurrentTenantId));
 
         modelBuilder.Entity<Auction>().HasQueryFilter(x =>
-            isAdmin || (tenantId != null && x.TenantId == tenantId));
+            IsPlatformAdmin || (CurrentTenantId != null && x.TenantId == CurrentTenantId));
 
         modelBuilder.Entity<Bid>().HasQueryFilter(x =>
-            isAdmin || (tenantId != null && x.TenantId == tenantId));
+            IsPlatformAdmin || (CurrentTenantId != null && x.TenantId == CurrentTenantId));
 
         modelBuilder.Entity<Document>().HasQueryFilter(x =>
-            isAdmin || (tenantId != null && x.TenantId == tenantId));
+            IsPlatformAdmin || (CurrentTenantId != null && x.TenantId == CurrentTenantId));
 
         modelBuilder.Entity<BirdDetails>().HasQueryFilter(x =>
-            isAdmin || (tenantId != null && x.Listing != null && x.Listing.TenantId == tenantId));
+            IsPlatformAdmin || (CurrentTenantId != null && x.Listing != null && x.Listing.TenantId == CurrentTenantId));
 
         modelBuilder.Entity<LivestockDetails>().HasQueryFilter(x =>
-            isAdmin || (tenantId != null && x.Listing != null && x.Listing.TenantId == tenantId));
+            IsPlatformAdmin || (CurrentTenantId != null && x.Listing != null && x.Listing.TenantId == CurrentTenantId));
 
         modelBuilder.Entity<GameAnimalDetails>().HasQueryFilter(x =>
-            isAdmin || (tenantId != null && x.Listing != null && x.Listing.TenantId == tenantId));
+            IsPlatformAdmin || (CurrentTenantId != null && x.Listing != null && x.Listing.TenantId == CurrentTenantId));
 
         modelBuilder.Entity<PoultryDetails>().HasQueryFilter(x =>
-            isAdmin || (tenantId != null && x.Listing != null && x.Listing.TenantId == tenantId));
+            IsPlatformAdmin || (CurrentTenantId != null && x.Listing != null && x.Listing.TenantId == CurrentTenantId));
 
         modelBuilder.Entity<ListingCompliance>().HasQueryFilter(x =>
-            isAdmin || (tenantId != null && x.TenantId == tenantId));
+            IsPlatformAdmin || (CurrentTenantId != null && x.TenantId == CurrentTenantId));
 
         modelBuilder.Entity<ListingDocument>().HasQueryFilter(x =>
-            isAdmin || (tenantId != null && x.TenantId == tenantId));
+            IsPlatformAdmin || (CurrentTenantId != null && x.TenantId == CurrentTenantId));
 
         var seededAt = new DateTimeOffset(2025, 01, 01, 0, 0, 0, TimeSpan.Zero);
 
