@@ -15,6 +15,7 @@ public sealed class AuthController(
     RoleManager<IdentityRole<Guid>> roles,
     JwtTokenIssuer tokenIssuer,
     TenantDomainResolver tenantDomainResolver,
+    IWebHostEnvironment environment,
     ILogger<AuthController> logger) : ControllerBase
 {
     [IgnoreAntiforgeryToken]
@@ -108,6 +109,63 @@ public sealed class AuthController(
             TenantId: user.TenantId,
             IsPlatformAdmin: user.IsPlatformAdmin,
             Roles: assignedRoles));
+    }
+
+    [IgnoreAntiforgeryToken]
+    [HttpPost("forgot-password")]
+    public async Task<ActionResult<ForgotPasswordResponse>> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new { error = "Email is required." });
+        }
+
+        var genericMessage = "If that account exists, password reset instructions will be sent.";
+        var user = await users.FindByEmailAsync(request.Email.Trim());
+        if (user is null)
+        {
+            logger.LogInformation("Password reset requested for unknown email. email={Email}", request.Email);
+            return Ok(new ForgotPasswordResponse(genericMessage));
+        }
+
+        var token = await users.GeneratePasswordResetTokenAsync(user);
+
+        // TODO: Send this token through an email provider once email infrastructure is configured.
+        logger.LogWarning("Password reset token generated but email delivery is not configured. actor_id={ActorId} email={Email}", user.Id, user.Email);
+
+        if (environment.IsDevelopment())
+        {
+            return Ok(new ForgotPasswordResponse(genericMessage, ResetToken: token));
+        }
+
+        return Ok(new ForgotPasswordResponse(genericMessage));
+    }
+
+    [IgnoreAntiforgeryToken]
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email)
+            || string.IsNullOrWhiteSpace(request.ResetToken)
+            || string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return BadRequest(new { error = "Email, reset token, and new password are required." });
+        }
+
+        var user = await users.FindByEmailAsync(request.Email.Trim());
+        if (user is null)
+        {
+            return BadRequest(new { error = "The reset details are invalid or expired." });
+        }
+
+        var result = await users.ResetPasswordAsync(user, request.ResetToken, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            return BadRequest(new { errors = result.Errors.Select(e => e.Description).ToArray() });
+        }
+
+        logger.LogInformation("Password reset completed. actor_id={ActorId} email={Email}", user.Id, user.Email);
+        return NoContent();
     }
 
     [Authorize]
