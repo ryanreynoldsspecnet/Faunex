@@ -20,6 +20,8 @@ public static class RoleNavigation
         }
 
         return PlatformRoles.Any(role => user.IsInRole(role))
+            || user.FindAll("role").Any(c => PlatformRoles.Contains(c.Value, StringComparer.OrdinalIgnoreCase))
+            || user.FindAll(ClaimTypes.Role).Any(c => PlatformRoles.Contains(c.Value, StringComparer.OrdinalIgnoreCase))
             || user.HasClaim(c =>
                 string.Equals(c.Type, "IsPlatformAdmin", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(c.Value, "true", StringComparison.OrdinalIgnoreCase))

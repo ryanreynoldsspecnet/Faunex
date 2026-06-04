@@ -19,8 +19,25 @@ public sealed class JwtAuthStateProvider(TokenStore tokenStore) : Authentication
         {
             var handler = new JwtSecurityTokenHandler();
             var jwt = handler.ReadJwtToken(token);
+            var claims = jwt.Claims.ToList();
 
-            var identity = new ClaimsIdentity(jwt.Claims, authenticationType: "jwt");
+            foreach (var role in jwt.Claims.Where(x => x.Type == "role"))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role.Value));
+            }
+
+            var email = jwt.Claims.FirstOrDefault(x => x.Type == "email")?.Value;
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                claims.Add(new Claim(ClaimTypes.Email, email));
+            }
+
+            var identity = new ClaimsIdentity(
+                claims,
+                authenticationType: "jwt",
+                nameType: ClaimTypes.Email,
+                roleType: ClaimTypes.Role);
+
             return new AuthenticationState(new ClaimsPrincipal(identity));
         }
         catch

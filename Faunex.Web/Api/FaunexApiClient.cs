@@ -1,6 +1,7 @@
 using Faunex.Web.Auth;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace Faunex.Web.Api;
 
@@ -14,7 +15,7 @@ public sealed class FaunexApiClient(IHttpClientFactory httpClientFactory, TokenS
         await ApplyAuthAsync(request);
 
         using var response = await client.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
 
         return await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
     }
@@ -31,7 +32,7 @@ public sealed class FaunexApiClient(IHttpClientFactory httpClientFactory, TokenS
         await ApplyAuthAsync(request);
 
         using var response = await client.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
 
         return await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken: cancellationToken);
     }
@@ -48,7 +49,68 @@ public sealed class FaunexApiClient(IHttpClientFactory httpClientFactory, TokenS
         await ApplyAuthAsync(request);
 
         using var response = await client.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
+    private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        var message = ExtractErrorMessage(body);
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            message = response.StatusCode switch
+            {
+                System.Net.HttpStatusCode.BadRequest => "The request could not be completed. Please check the details and try again.",
+                System.Net.HttpStatusCode.Unauthorized => "Invalid login details or your session has expired.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to perform this action.",
+                System.Net.HttpStatusCode.Conflict => "This record already exists or conflicts with existing data.",
+                _ => $"Request failed with status {(int)response.StatusCode}."
+            };
+        }
+
+        throw new InvalidOperationException(message);
+    }
+
+    private static string? ExtractErrorMessage(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String)
+            {
+                return error.GetString();
+            }
+
+            if (root.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Array)
+            {
+                var messages = errors
+                    .EnumerateArray()
+                    .Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() : null)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .ToArray();
+
+                return messages.Length == 0 ? null : string.Join(" ", messages);
+            }
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        return null;
     }
 
     private async Task ApplyAuthAsync(HttpRequestMessage request)
