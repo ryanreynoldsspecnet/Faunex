@@ -1,9 +1,11 @@
 using Faunex.Api.Auth;
+using Faunex.Api.Email;
 using Faunex.Api.Tenancy;
 using Faunex.Application.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
 namespace Faunex.Api.Controllers;
@@ -15,6 +17,8 @@ public sealed class AuthController(
     RoleManager<IdentityRole<Guid>> roles,
     JwtTokenIssuer tokenIssuer,
     TenantDomainResolver tenantDomainResolver,
+    IEmailSender emailSender,
+    IOptions<SmtpEmailOptions> emailOptions,
     IWebHostEnvironment environment,
     ILogger<AuthController> logger) : ControllerBase
 {
@@ -113,7 +117,9 @@ public sealed class AuthController(
 
     [IgnoreAntiforgeryToken]
     [HttpPost("forgot-password")]
-    public async Task<ActionResult<ForgotPasswordResponse>> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    public async Task<ActionResult<ForgotPasswordResponse>> ForgotPassword(
+        [FromBody] ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Email))
         {
@@ -129,9 +135,16 @@ public sealed class AuthController(
         }
 
         var token = await users.GeneratePasswordResetTokenAsync(user);
+        var resetLink = BuildResetLink(request.Email.Trim(), token, emailOptions.Value.PublicBaseUrl);
 
-        // TODO: Send this token through an email provider once email infrastructure is configured.
-        logger.LogWarning("Password reset token generated but email delivery is not configured. actor_id={ActorId} email={Email}", user.Id, user.Email);
+        try
+        {
+            await emailSender.SendPasswordResetAsync(user.Email ?? request.Email.Trim(), resetLink, cancellationToken);
+        }
+        catch (EmailDeliveryException ex)
+        {
+            logger.LogError(ex, "Password reset email delivery failed. actor_id={ActorId} email={Email}", user.Id, user.Email);
+        }
 
         if (environment.IsDevelopment())
         {
@@ -184,5 +197,17 @@ public sealed class AuthController(
         logger.LogInformation("/me resolved from claims. actor_id={ActorId} tenant_id={TenantId} is_platform_admin={IsPlatformAdmin} roles={Roles}", actorId, tenantId, isPlatformAdmin, string.Join(',', roles));
 
         return Ok(new MeResponse(actorId, email, tenantId, isPlatformAdmin, roles));
+    }
+
+    private static string BuildResetLink(string email, string token, string? publicBaseUrl)
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(publicBaseUrl)
+            ? "https://faunex.co.za"
+            : publicBaseUrl.Trim().TrimEnd('/');
+
+        var encodedEmail = Uri.EscapeDataString(email);
+        var encodedToken = Uri.EscapeDataString(token);
+
+        return $"{baseUrl}/reset-password?email={encodedEmail}&token={encodedToken}";
     }
 }

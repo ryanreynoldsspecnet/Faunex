@@ -6,10 +6,23 @@ using Microsoft.IdentityModel.Tokens;
 using Faunex.Application.Auth;
 using Microsoft.AspNetCore.DataProtection;
 using System.Text;
+using Faunex.Api.Email;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddFaunexApiControllers();
+
+builder.Services.Configure<SmtpEmailOptions>(options =>
+{
+    options.Host = builder.Configuration["FAUNEX_EMAIL_SMTP_HOST"];
+    options.Port = int.TryParse(builder.Configuration["FAUNEX_EMAIL_SMTP_PORT"], out var port) ? port : 587;
+    options.Username = builder.Configuration["FAUNEX_EMAIL_SMTP_USERNAME"];
+    options.Password = builder.Configuration["FAUNEX_EMAIL_SMTP_PASSWORD"];
+    options.EnableSsl = !bool.TryParse(builder.Configuration["FAUNEX_EMAIL_SMTP_ENABLE_SSL"], out var enableSsl) || enableSsl;
+    options.FromEmail = builder.Configuration["FAUNEX_EMAIL_FROM_EMAIL"];
+    options.FromName = builder.Configuration["FAUNEX_EMAIL_FROM_NAME"] ?? "Faunex";
+    options.PublicBaseUrl = builder.Configuration["FAUNEX_PUBLIC_BASE_URL"] ?? "https://faunex.co.za";
+});
 
 // Share Data Protection keys across containers (Web + API)
 builder.Services.AddDataProtection()
