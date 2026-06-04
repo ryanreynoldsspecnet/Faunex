@@ -1,9 +1,18 @@
 @page "/browse"
 @inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
 
 <h3>Browse Listings</h3>
 
-@if (_isLoading)
+@if (_isPlatformHost)
+{
+    <div class="alert alert-info" role="status">
+        Listings are shown on tenant marketplace domains. Faunex is the platform workspace for tenant setup and administration.
+    </div>
+
+    <a class="btn btn-primary" href="/login">Platform Login</a>
+}
+else if (_isLoading)
 {
     <p>Loading listings...</p>
 }
@@ -49,6 +58,7 @@ else
 
 @code {
     private bool _isLoading;
+    private bool _isPlatformHost;
     private string? _error;
     private IReadOnlyList<Faunex.Application.DTOs.ListingDto>? _items;
 
@@ -56,6 +66,12 @@ else
 
     private async Task ReloadAsync()
     {
+        _isPlatformHost = PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host);
+        if (_isPlatformHost)
+        {
+            return;
+        }
+
         _isLoading = true;
         _error = null;
         _items = null;

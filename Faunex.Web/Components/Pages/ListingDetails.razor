@@ -7,7 +7,15 @@
 
 <h3>Listing Details</h3>
 
-@if (_isLoading)
+@if (_isPlatformHost)
+{
+    <div class="alert alert-info" role="status">
+        Listing details are shown on tenant marketplace domains. Faunex is the platform workspace for tenant setup and administration.
+    </div>
+
+    <a class="btn btn-primary" href="/login">Platform Login</a>
+}
+else if (_isLoading)
 {
     <p>Loading...</p>
 }
@@ -71,6 +79,7 @@ else
     [Parameter] public Guid ListingId { get; set; }
 
     private bool _isLoading;
+    private bool _isPlatformHost;
     private string? _error;
     private Faunex.Application.DTOs.ListingDto? _item;
 
@@ -89,6 +98,13 @@ else
         _error = null;
         _item = null;
         _isBuyer = false;
+        _isPlatformHost = PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host);
+
+        if (_isPlatformHost)
+        {
+            _isLoading = false;
+            return;
+        }
 
         try
         {
