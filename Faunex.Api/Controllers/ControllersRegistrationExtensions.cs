@@ -1,4 +1,5 @@
 using Faunex.Api.Auth;
+using Faunex.Api.Email;
 using Faunex.Api.Tenancy;
 using Faunex.Application.Interfaces;
 using Faunex.Application.Services;
@@ -30,6 +31,7 @@ public static class ControllersRegistrationExtensions
 
         services.AddScoped<JwtTokenIssuer>();
         services.AddScoped<TenantDomainResolver>();
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IdentitySeeder>();
 
         services.AddDbContext<ApplicationIdentityDbContext>((sp, options) =>
