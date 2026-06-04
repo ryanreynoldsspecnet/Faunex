@@ -1,0 +1,208 @@
+@page "/platform/tenants/{TenantId:guid}/edit"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Edit Tenant - Faunex</PageTitle>
+
+<AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin">
+    <Authorized Context="tenantEditAuth">
+        <section class="platform-shell" aria-labelledby="edit-tenant-title">
+            <div class="platform-header platform-header--compact">
+                <div>
+                    <p class="platform-kicker">Tenant registry</p>
+                    <h1 id="edit-tenant-title">Edit Tenant</h1>
+                    <p>Update the tenant profile, contact details, and active status.</p>
+                </div>
+
+                <a class="btn btn-outline-secondary" href="/platform">Back to tenants</a>
+            </div>
+
+            <section class="platform-panel">
+                @if (_isLoading)
+                {
+                    <p>Loading tenant...</p>
+                }
+                else if (_loadError is not null)
+                {
+                    <div class="alert alert-danger" role="alert">@_loadError</div>
+                }
+                else
+                {
+                    <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        @if (_saveError is not null)
+                        {
+                            <div class="alert alert-danger" role="alert">@_saveError</div>
+                        }
+
+                        <div class="platform-form-grid">
+                            <div class="mb-3">
+                                <label class="form-label">Tenant name</label>
+                                <InputText class="form-control" @bind-Value="_model.Name" disabled="@_isSaving" />
+                                <ValidationMessage For="() => _model.Name" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Company name</label>
+                                <InputText class="form-control" @bind-Value="_model.CompanyName" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Registration number</label>
+                                <InputText class="form-control" @bind-Value="_model.RegistrationNumber" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">VAT number</label>
+                                <InputText class="form-control" @bind-Value="_model.VatNumber" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Contact first name</label>
+                                <InputText class="form-control" @bind-Value="_model.ContactFirstName" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Contact last name</label>
+                                <InputText class="form-control" @bind-Value="_model.ContactLastName" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Contact email</label>
+                                <InputText class="form-control" @bind-Value="_model.ContactEmail" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Contact phone</label>
+                                <InputText class="form-control" @bind-Value="_model.ContactPhone" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3 platform-checkbox">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.IsActive" disabled="@_isSaving" />
+                                <label class="form-check-label">Tenant active</label>
+                            </div>
+
+                            <div class="mb-3 platform-form-grid__wide">
+                                <label class="form-label">Physical address</label>
+                                <InputTextArea class="form-control" @bind-Value="_model.PhysicalAddress" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3 platform-form-grid__wide">
+                                <label class="form-label">Postal address</label>
+                                <InputTextArea class="form-control" @bind-Value="_model.PostalAddress" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3 platform-form-grid__wide">
+                                <label class="form-label">Shipping address</label>
+                                <InputTextArea class="form-control" @bind-Value="_model.ShippingAddress" disabled="@_isSaving" />
+                            </div>
+                        </div>
+
+                        <div class="platform-form-actions">
+                            <button class="btn btn-primary" type="submit" disabled="@_isSaving">
+                                @(_isSaving ? "Saving..." : "Save Tenant")
+                            </button>
+                            <a class="btn btn-outline-secondary" href="/platform">Cancel</a>
+                        </div>
+                    </EditForm>
+                }
+            </section>
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Platform Access Required</h1>
+            <p>Please log in with a Faunex platform administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public Guid TenantId { get; set; }
+
+    private bool _isLoading;
+    private bool _isSaving;
+    private string? _loadError;
+    private string? _saveError;
+    private PlatformTenantEditFormModel _model = new();
+    private EditContext _editContext = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _editContext = new EditContext(_model);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            var tenant = await Api.GetAsync<TenantDto>($"/api/platform/tenants/{TenantId}");
+            if (tenant is null)
+            {
+                _loadError = "Tenant not found.";
+                return;
+            }
+
+            _model = PlatformTenantEditFormModel.FromTenant(tenant);
+            _editContext = new EditContext(_model);
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _saveError = null;
+
+        try
+        {
+            await Api.PutAsync<UpdateTenantRequest, TenantDto>(
+                $"/api/platform/tenants/{TenantId}",
+                new UpdateTenantRequest(
+                    _model.Name,
+                    Slug: null,
+                    _model.CompanyName,
+                    _model.RegistrationNumber,
+                    _model.VatNumber,
+                    _model.ContactFirstName,
+                    _model.ContactLastName,
+                    _model.ContactEmail,
+                    _model.ContactPhone,
+                    _model.PhysicalAddress,
+                    _model.PostalAddress,
+                    _model.ShippingAddress,
+                    _model.IsActive));
+
+            Nav.NavigateTo("/platform?updated=tenant");
+        }
+        catch (Exception ex)
+        {
+            _saveError = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

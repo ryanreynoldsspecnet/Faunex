@@ -96,6 +96,33 @@
                         </div>
                     </div>
 
+                    <hr class="platform-form-divider" />
+
+                    <div class="platform-form-grid">
+                        <div class="platform-form-grid__wide">
+                            <p class="platform-kicker">Tenant access</p>
+                            <h2 class="platform-form-section-title">First Tenant Admin</h2>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Admin email</label>
+                            <InputText class="form-control" @bind-Value="_model.TenantAdminEmail" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.TenantAdminEmail" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Admin display name</label>
+                            <InputText class="form-control" @bind-Value="_model.TenantAdminDisplayName" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.TenantAdminDisplayName" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Temporary password</label>
+                            <InputText type="password" class="form-control" @bind-Value="_model.TenantAdminPassword" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.TenantAdminPassword" />
+                        </div>
+                    </div>
+
                     <div class="platform-form-actions">
                         <button class="btn btn-primary" type="submit" disabled="@_isCreating">
                             @(_isCreating ? "Creating..." : "Create Tenant")
@@ -153,7 +180,10 @@
                     PhysicalAddress: _model.PhysicalAddress,
                     PostalAddress: _model.PostalAddress,
                     ShippingAddress: _model.ShippingAddress,
-                    IsActive: _model.IsActive));
+                    IsActive: _model.IsActive,
+                    FirstAdminEmail: _model.TenantAdminEmail,
+                    FirstAdminDisplayName: _model.TenantAdminDisplayName,
+                    FirstAdminPassword: _model.TenantAdminPassword));
 
             if (tenant is null)
             {

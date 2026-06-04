@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Faunex.Web.Platform;
 
-public sealed class PlatformTenantFormModel
+public sealed class PlatformTenantEditFormModel
 {
     [Required]
     [StringLength(160)]
@@ -39,20 +39,22 @@ public sealed class PlatformTenantFormModel
     [StringLength(500)]
     public string? ShippingAddress { get; set; }
 
-    [StringLength(160)]
-    public string? PrimaryDomain { get; set; }
-
     public bool IsActive { get; set; } = true;
 
-    [Required]
-    [EmailAddress]
-    [StringLength(160)]
-    public string TenantAdminEmail { get; set; } = string.Empty;
-
-    [StringLength(160)]
-    public string? TenantAdminDisplayName { get; set; }
-
-    [Required]
-    [StringLength(128, MinimumLength = 8)]
-    public string TenantAdminPassword { get; set; } = string.Empty;
+    public static PlatformTenantEditFormModel FromTenant(TenantDto tenant) =>
+        new()
+        {
+            Name = tenant.Name,
+            CompanyName = tenant.CompanyName,
+            RegistrationNumber = tenant.RegistrationNumber,
+            VatNumber = tenant.VatNumber,
+            ContactFirstName = tenant.ContactFirstName,
+            ContactLastName = tenant.ContactLastName,
+            ContactEmail = tenant.ContactEmail,
+            ContactPhone = tenant.ContactPhone,
+            PhysicalAddress = tenant.PhysicalAddress,
+            PostalAddress = tenant.PostalAddress,
+            ShippingAddress = tenant.ShippingAddress,
+            IsActive = tenant.IsActive
+        };
 }

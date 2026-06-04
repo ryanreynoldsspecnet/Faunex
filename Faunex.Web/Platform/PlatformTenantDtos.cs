@@ -13,6 +13,24 @@ public sealed record CreateTenantRequest(
     string? PhysicalAddress,
     string? PostalAddress,
     string? ShippingAddress,
+    bool IsActive,
+    string? FirstAdminEmail,
+    string? FirstAdminDisplayName,
+    string? FirstAdminPassword);
+
+public sealed record UpdateTenantRequest(
+    string Name,
+    string? Slug,
+    string? CompanyName,
+    string? RegistrationNumber,
+    string? VatNumber,
+    string? ContactFirstName,
+    string? ContactLastName,
+    string? ContactEmail,
+    string? ContactPhone,
+    string? PhysicalAddress,
+    string? PostalAddress,
+    string? ShippingAddress,
     bool IsActive);
 
 public sealed record TenantDto(

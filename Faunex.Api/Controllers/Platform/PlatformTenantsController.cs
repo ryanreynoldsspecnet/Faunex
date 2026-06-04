@@ -1,7 +1,10 @@
 using Faunex.Api.Tenancy;
+using Faunex.Api.Auth;
+using Faunex.Application.Auth;
 using Faunex.Domain.Entities;
 using Faunex.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,7 +13,10 @@ namespace Faunex.Api.Controllers.Platform;
 [ApiController]
 [Route("api/platform")]
 [Authorize(Policy = "PlatformAdminOnly")]
-public sealed class PlatformTenantsController(ApplicationDbContext db) : ControllerBase
+public sealed class PlatformTenantsController(
+    ApplicationDbContext db,
+    UserManager<ApplicationUser> users,
+    RoleManager<IdentityRole<Guid>> roles) : ControllerBase
 {
     [HttpPost("tenants")]
     public async Task<ActionResult<TenantDto>> CreateTenant([FromBody] CreateTenantRequest request, CancellationToken cancellationToken)
@@ -25,6 +31,18 @@ public sealed class PlatformTenantsController(ApplicationDbContext db) : Control
         if (exists)
         {
             return Conflict(new { error = "A tenant with this name already exists." });
+        }
+
+        var firstAdminEmail = Clean(request.FirstAdminEmail);
+        if (string.IsNullOrWhiteSpace(firstAdminEmail) || string.IsNullOrWhiteSpace(request.FirstAdminPassword))
+        {
+            return BadRequest(new { error = "First tenant admin email and password are required." });
+        }
+
+        var existingAdmin = await users.FindByEmailAsync(firstAdminEmail);
+        if (existingAdmin is not null)
+        {
+            return Conflict(new { error = "A user with the first tenant admin email already exists." });
         }
 
         var tenant = new Tenant
@@ -48,6 +66,41 @@ public sealed class PlatformTenantsController(ApplicationDbContext db) : Control
 
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync(cancellationToken);
+
+        var roleResult = await EnsureRoleAsync(FaunexRoles.TenantAdmin);
+        if (!roleResult.Succeeded)
+        {
+            db.Tenants.Remove(tenant);
+            await db.SaveChangesAsync(cancellationToken);
+            return BadRequest(new { errors = roleResult.Errors.Select(e => e.Description).ToArray() });
+        }
+
+        var admin = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = firstAdminEmail,
+            Email = firstAdminEmail,
+            DisplayName = Clean(request.FirstAdminDisplayName),
+            TenantId = tenant.Id,
+            IsPlatformAdmin = false
+        };
+
+        var createdAdmin = await users.CreateAsync(admin, request.FirstAdminPassword);
+        if (!createdAdmin.Succeeded)
+        {
+            db.Tenants.Remove(tenant);
+            await db.SaveChangesAsync(cancellationToken);
+            return BadRequest(new { errors = createdAdmin.Errors.Select(e => e.Description).ToArray() });
+        }
+
+        var assignedRole = await users.AddToRoleAsync(admin, FaunexRoles.TenantAdmin);
+        if (!assignedRole.Succeeded)
+        {
+            await users.DeleteAsync(admin);
+            db.Tenants.Remove(tenant);
+            await db.SaveChangesAsync(cancellationToken);
+            return BadRequest(new { errors = assignedRole.Errors.Select(e => e.Description).ToArray() });
+        }
 
         return CreatedAtAction(nameof(GetTenants), new { id = tenant.Id }, ToDto(tenant));
     }
@@ -81,6 +134,112 @@ public sealed class PlatformTenantsController(ApplicationDbContext db) : Control
             .ToListAsync(cancellationToken);
 
         return Ok(tenants);
+    }
+
+    [HttpGet("tenants/{tenantId:guid}")]
+    public async Task<ActionResult<TenantDto>> GetTenant(Guid tenantId, CancellationToken cancellationToken)
+    {
+        var tenant = await db.Tenants
+            .Where(x => x.Id == tenantId)
+            .Select(x => new TenantDto(
+                x.Id,
+                x.Name,
+                null,
+                x.CompanyName,
+                x.RegistrationNumber,
+                x.VatNumber,
+                x.ContactFirstName,
+                x.ContactLastName,
+                x.ContactEmail,
+                x.ContactPhone,
+                x.PhysicalAddress,
+                x.PostalAddress,
+                x.ShippingAddress,
+                x.Domains
+                    .Where(d => d.IsPrimary && d.IsActive)
+                    .Select(d => d.Hostname)
+                    .FirstOrDefault(),
+                x.Domains.Count(d => d.IsActive),
+                x.IsActive,
+                x.CreatedAt))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (tenant is null)
+        {
+            return NotFound(new { error = "Tenant not found." });
+        }
+
+        return Ok(tenant);
+    }
+
+    [HttpPut("tenants/{tenantId:guid}")]
+    public async Task<ActionResult<TenantDto>> UpdateTenant(Guid tenantId, [FromBody] UpdateTenantRequest request, CancellationToken cancellationToken)
+    {
+        var tenant = await db.Tenants
+            .Include(x => x.Domains)
+            .FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
+
+        if (tenant is null)
+        {
+            return NotFound(new { error = "Tenant not found." });
+        }
+
+        var name = request.Name.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return BadRequest(new { error = "Tenant name is required." });
+        }
+
+        var exists = await db.Tenants.AnyAsync(x => x.Id != tenantId && x.Name == name, cancellationToken);
+        if (exists)
+        {
+            return Conflict(new { error = "A tenant with this name already exists." });
+        }
+
+        tenant.Name = name;
+        tenant.CompanyName = Clean(request.CompanyName);
+        tenant.RegistrationNumber = Clean(request.RegistrationNumber);
+        tenant.VatNumber = Clean(request.VatNumber);
+        tenant.ContactFirstName = Clean(request.ContactFirstName);
+        tenant.ContactLastName = Clean(request.ContactLastName);
+        tenant.ContactEmail = Clean(request.ContactEmail);
+        tenant.ContactPhone = Clean(request.ContactPhone);
+        tenant.PhysicalAddress = Clean(request.PhysicalAddress);
+        tenant.PostalAddress = Clean(request.PostalAddress);
+        tenant.ShippingAddress = Clean(request.ShippingAddress);
+        tenant.IsActive = request.IsActive;
+        tenant.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Ok(ToDto(tenant));
+    }
+
+    [HttpDelete("tenants/{tenantId:guid}")]
+    public async Task<IActionResult> DeleteTenant(Guid tenantId, CancellationToken cancellationToken)
+    {
+        var tenant = await db.Tenants.FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
+        if (tenant is null)
+        {
+            return NotFound(new { error = "Tenant not found." });
+        }
+
+        var hasUsers = await users.Users.AnyAsync(x => x.TenantId == tenantId, cancellationToken);
+        if (hasUsers)
+        {
+            return Conflict(new { error = "Delete or reassign tenant users before deleting this tenant." });
+        }
+
+        var hasListings = await db.Listings.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenantId, cancellationToken);
+        if (hasListings)
+        {
+            return Conflict(new { error = "This tenant has listing activity and cannot be deleted." });
+        }
+
+        db.Tenants.Remove(tenant);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
     }
 
     [HttpGet("tenants/{tenantId:guid}/domains")]
@@ -194,13 +353,26 @@ public sealed class PlatformTenantsController(ApplicationDbContext db) : Control
             tenant.PhysicalAddress,
             tenant.PostalAddress,
             tenant.ShippingAddress,
-            PrimaryDomain: null,
-            DomainCount: 0,
+            tenant.Domains
+                .Where(x => x.IsPrimary && x.IsActive)
+                .Select(x => x.Hostname)
+                .FirstOrDefault(),
+            tenant.Domains.Count(x => x.IsActive),
             tenant.IsActive,
             tenant.CreatedAt);
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private async Task<IdentityResult> EnsureRoleAsync(string role)
+    {
+        if (await roles.RoleExistsAsync(role))
+        {
+            return IdentityResult.Success;
+        }
+
+        return await roles.CreateAsync(new IdentityRole<Guid>(role));
+    }
 
     private static TenantDomainDto ToDomainDto(TenantDomain domain) =>
         new(
@@ -213,6 +385,24 @@ public sealed class PlatformTenantsController(ApplicationDbContext db) : Control
 }
 
 public sealed record CreateTenantRequest(
+    string Name,
+    string? Slug = null,
+    string? CompanyName = null,
+    string? RegistrationNumber = null,
+    string? VatNumber = null,
+    string? ContactFirstName = null,
+    string? ContactLastName = null,
+    string? ContactEmail = null,
+    string? ContactPhone = null,
+    string? PhysicalAddress = null,
+    string? PostalAddress = null,
+    string? ShippingAddress = null,
+    bool IsActive = true,
+    string? FirstAdminEmail = null,
+    string? FirstAdminDisplayName = null,
+    string? FirstAdminPassword = null);
+
+public sealed record UpdateTenantRequest(
     string Name,
     string? Slug = null,
     string? CompanyName = null,
