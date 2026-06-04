@@ -31,6 +31,16 @@ public sealed class PlatformTenantsController(ApplicationDbContext db) : Control
         {
             Id = Guid.NewGuid(),
             Name = name,
+            CompanyName = Clean(request.CompanyName),
+            RegistrationNumber = Clean(request.RegistrationNumber),
+            VatNumber = Clean(request.VatNumber),
+            ContactFirstName = Clean(request.ContactFirstName),
+            ContactLastName = Clean(request.ContactLastName),
+            ContactEmail = Clean(request.ContactEmail),
+            ContactPhone = Clean(request.ContactPhone),
+            PhysicalAddress = Clean(request.PhysicalAddress),
+            PostalAddress = Clean(request.PostalAddress),
+            ShippingAddress = Clean(request.ShippingAddress),
             IsActive = request.IsActive,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
@@ -51,6 +61,21 @@ public sealed class PlatformTenantsController(ApplicationDbContext db) : Control
                 x.Id,
                 x.Name,
                 null,
+                x.CompanyName,
+                x.RegistrationNumber,
+                x.VatNumber,
+                x.ContactFirstName,
+                x.ContactLastName,
+                x.ContactEmail,
+                x.ContactPhone,
+                x.PhysicalAddress,
+                x.PostalAddress,
+                x.ShippingAddress,
+                x.Domains
+                    .Where(d => d.IsPrimary && d.IsActive)
+                    .Select(d => d.Hostname)
+                    .FirstOrDefault(),
+                x.Domains.Count(d => d.IsActive),
                 x.IsActive,
                 x.CreatedAt))
             .ToListAsync(cancellationToken);
@@ -159,8 +184,23 @@ public sealed class PlatformTenantsController(ApplicationDbContext db) : Control
             tenant.Id,
             tenant.Name,
             Slug: null,
+            tenant.CompanyName,
+            tenant.RegistrationNumber,
+            tenant.VatNumber,
+            tenant.ContactFirstName,
+            tenant.ContactLastName,
+            tenant.ContactEmail,
+            tenant.ContactPhone,
+            tenant.PhysicalAddress,
+            tenant.PostalAddress,
+            tenant.ShippingAddress,
+            PrimaryDomain: null,
+            DomainCount: 0,
             tenant.IsActive,
             tenant.CreatedAt);
+
+    private static string? Clean(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static TenantDomainDto ToDomainDto(TenantDomain domain) =>
         new(
@@ -175,12 +215,34 @@ public sealed class PlatformTenantsController(ApplicationDbContext db) : Control
 public sealed record CreateTenantRequest(
     string Name,
     string? Slug = null,
+    string? CompanyName = null,
+    string? RegistrationNumber = null,
+    string? VatNumber = null,
+    string? ContactFirstName = null,
+    string? ContactLastName = null,
+    string? ContactEmail = null,
+    string? ContactPhone = null,
+    string? PhysicalAddress = null,
+    string? PostalAddress = null,
+    string? ShippingAddress = null,
     bool IsActive = true);
 
 public sealed record TenantDto(
     Guid Id,
     string Name,
     string? Slug,
+    string? CompanyName,
+    string? RegistrationNumber,
+    string? VatNumber,
+    string? ContactFirstName,
+    string? ContactLastName,
+    string? ContactEmail,
+    string? ContactPhone,
+    string? PhysicalAddress,
+    string? PostalAddress,
+    string? ShippingAddress,
+    string? PrimaryDomain,
+    int DomainCount,
     bool IsActive,
     DateTimeOffset CreatedUtc);
 

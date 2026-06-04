@@ -8,6 +8,16 @@
 
 <h3>Register</h3>
 
+@if (IsPlatformHost())
+{
+    <div class="alert alert-info" role="status">
+        Faunex platform accounts are created by platform administrators. Buyer registration opens from a tenant marketplace domain.
+    </div>
+
+    <a class="btn btn-primary" href="/login">Login</a>
+}
+else
+{
 <EditForm EditContext="_editContext" OnValidSubmit="RegisterAsync">
     <DataAnnotationsValidator />
     <ValidationSummary />
@@ -42,6 +52,7 @@
         @(_isSubmitting ? "Registering..." : "Register")
     </button>
 </EditForm>
+}
 
 @code {
     private bool _isSubmitting;
@@ -61,6 +72,8 @@
     private sealed record RegisterRequest(string Email, string Password, string? DisplayName, string? RegistrationHost);
 
     private sealed record AuthResponse(string AccessToken);
+
+    private bool IsPlatformHost() => PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host);
 
     private async Task RegisterAsync()
     {

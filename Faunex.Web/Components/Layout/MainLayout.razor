@@ -23,8 +23,9 @@
                     </Authorized>
                 </AuthorizeView>
 
-                <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin">
+                <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport">
                     <Authorized>
+                        <NavLink class="nav-link" href="/platform">Platform</NavLink>
                         <NavLink class="nav-link" href="/platform/compliance">Compliance Queue</NavLink>
                     </Authorized>
                 </AuthorizeView>
@@ -34,7 +35,10 @@
                 <AuthorizeView Context="auth">
                     <NotAuthorized>
                         <NavLink class="nav-link" href="/login">Login</NavLink>
-                        <NavLink class="nav-link" href="/register">Register</NavLink>
+                        @if (!IsPlatformHost())
+                        {
+                            <NavLink class="nav-link" href="/register">Register</NavLink>
+                        }
                     </NotAuthorized>
                     <Authorized>
                         <span class="navbar-text text-light me-2">Hi, @(auth.User.Identity?.Name ?? auth.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value)
@@ -56,3 +60,9 @@
     <NavLink href="." class="reload">Reload</NavLink>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    private bool IsPlatformHost() => PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host);
+}
