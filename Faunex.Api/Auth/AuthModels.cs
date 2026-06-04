@@ -3,7 +3,8 @@ namespace Faunex.Api.Auth;
 public sealed record RegisterRequest(
     string Email,
     string Password,
-    string? DisplayName
+    string? DisplayName,
+    string? RegistrationHost = null
 );
 
 public sealed record LoginRequest(string Email, string Password);

@@ -1,4 +1,5 @@
 using Faunex.Api.Auth;
+using Faunex.Api.Tenancy;
 using Faunex.Application.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -13,6 +14,7 @@ public sealed class AuthController(
     UserManager<ApplicationUser> users,
     RoleManager<IdentityRole<Guid>> roles,
     JwtTokenIssuer tokenIssuer,
+    TenantDomainResolver tenantDomainResolver,
     ILogger<AuthController> logger) : ControllerBase
 {
     [IgnoreAntiforgeryToken]
@@ -24,12 +26,14 @@ public sealed class AuthController(
             return BadRequest(new { error = "Email and password are required." });
         }
 
+        var tenantId = await tenantDomainResolver.ResolveTenantIdAsync(request.RegistrationHost, cancellationToken);
+
         var user = new ApplicationUser
         {
             Id = Guid.NewGuid(),
             UserName = request.Email,
             Email = request.Email,
-            TenantId = null,
+            TenantId = tenantId,
             IsPlatformAdmin = false,
             DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName
         };
