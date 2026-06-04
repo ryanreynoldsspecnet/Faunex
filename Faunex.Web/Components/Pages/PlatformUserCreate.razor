@@ -1,0 +1,132 @@
+@page "/platform/users/new"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Add Platform User - Faunex</PageTitle>
+
+<AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin">
+    <Authorized Context="userCreateAuth">
+        <section class="platform-shell" aria-labelledby="create-user-title">
+            <div class="platform-header platform-header--compact">
+                <div>
+                    <p class="platform-kicker">Access control</p>
+                    <h1 id="create-user-title">Add Platform User</h1>
+                    <p>Create a login for someone helping build, administer, or review the Faunex platform.</p>
+                </div>
+
+                <a class="btn btn-outline-secondary" href="/platform/users">Back to users</a>
+            </div>
+
+            <section class="platform-panel">
+                <EditForm EditContext="_editContext" OnValidSubmit="CreateUserAsync">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    @if (_createError is not null)
+                    {
+                        <div class="alert alert-danger" role="alert">@_createError</div>
+                    }
+
+                    <div class="platform-form-grid">
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" @bind-Value="_model.Email" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.Email" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Display name</label>
+                            <InputText class="form-control" @bind-Value="_model.DisplayName" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.DisplayName" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Temporary password</label>
+                            <InputText type="password" class="form-control" @bind-Value="_model.Password" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.Password" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Role</label>
+                            <InputSelect class="form-select" @bind-Value="_model.Role" disabled="@_isCreating">
+                                @foreach (var role in PlatformRoles.Assignable)
+                                {
+                                    <option value="@role">@GetRoleLabel(role)</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => _model.Role" />
+                        </div>
+                    </div>
+
+                    <div class="platform-form-actions">
+                        <button class="btn btn-primary" type="submit" disabled="@_isCreating">
+                            @(_isCreating ? "Creating..." : "Create User")
+                        </button>
+                        <a class="btn btn-outline-secondary" href="/platform/users">Cancel</a>
+                    </div>
+                </EditForm>
+            </section>
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Platform Access Required</h1>
+            <p>Please log in with a Faunex platform administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isCreating;
+    private string? _createError;
+    private readonly PlatformUserFormModel _model = new();
+    private EditContext _editContext = default!;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_model);
+    }
+
+    private async Task CreateUserAsync()
+    {
+        if (_isCreating)
+        {
+            return;
+        }
+
+        _isCreating = true;
+        _createError = null;
+
+        try
+        {
+            await Api.PostAsync<CreatePlatformUserRequest, PlatformUserDto>(
+                "/api/platform/users",
+                new CreatePlatformUserRequest(
+                    _model.Email,
+                    _model.Password,
+                    _model.DisplayName,
+                    TenantId: null,
+                    Roles: [_model.Role]));
+
+            Nav.NavigateTo("/platform/users?created=user");
+        }
+        catch (Exception ex)
+        {
+            _createError = ex.Message;
+        }
+        finally
+        {
+            _isCreating = false;
+        }
+    }
+
+    private static string GetRoleLabel(string role) => role switch
+    {
+        PlatformRoles.PlatformSuperAdmin => "Platform super admin",
+        PlatformRoles.PlatformComplianceAdmin => "Compliance admin",
+        PlatformRoles.PlatformSupport => "Support",
+        _ => "Platform admin"
+    };
+}

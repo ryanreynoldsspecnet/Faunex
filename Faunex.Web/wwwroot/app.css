@@ -302,6 +302,10 @@ a, .btn-link {
     margin-bottom: 1.25rem;
 }
 
+.platform-header--compact {
+    margin-bottom: 1rem;
+}
+
 .platform-header h1,
 .platform-panel h2 {
     margin: 0;
@@ -374,6 +378,21 @@ a, .btn-link {
     margin-bottom: 1rem;
 }
 
+.platform-list-toolbar {
+    display: grid;
+    grid-template-columns: minmax(280px, 460px) auto;
+    gap: 0.85rem;
+    align-items: end;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.platform-list-toolbar .form-label {
+    color: #52615a;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
 .platform-form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -419,6 +438,11 @@ a, .btn-link {
     text-transform: uppercase;
 }
 
+.platform-table__actions {
+    width: 170px;
+    text-align: right;
+}
+
 .platform-table td strong,
 .platform-table td span {
     display: block;
@@ -428,6 +452,15 @@ a, .btn-link {
     margin-top: 0.2rem;
     color: #66746d;
     font-size: 0.82rem;
+}
+
+.platform-row-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.platform-row-actions .btn {
+    min-width: 64px;
 }
 
 .platform-status {
@@ -551,9 +584,14 @@ a, .btn-link {
 
     .platform-header,
     .platform-panel__header,
+    .platform-list-toolbar,
     .platform-form-actions {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .platform-list-toolbar {
+        display: flex;
     }
 
     .platform-metrics,
