@@ -23,6 +23,13 @@
                     </Authorized>
                 </AuthorizeView>
 
+                <AuthorizeView Roles="TenantAdmin">
+                    <Authorized>
+                        <NavLink class="nav-link" href="/tenant" Match="NavLinkMatch.All">Tenant</NavLink>
+                        <NavLink class="nav-link" href="/tenant/users">Tenant Users</NavLink>
+                    </Authorized>
+                </AuthorizeView>
+
                 <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport">
                     <Authorized>
                         <NavLink class="nav-link" href="/platform" Match="NavLinkMatch.All">Platform</NavLink>

@@ -1,0 +1,107 @@
+@page "/tenant"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+
+<PageTitle>Tenant Admin - Faunex</PageTitle>
+
+<AuthorizeView Roles="TenantAdmin">
+    <Authorized Context="tenantAuth">
+        <section class="platform-shell" aria-labelledby="tenant-title">
+            <div class="platform-header">
+                <div>
+                    <p class="platform-kicker">Tenant workspace</p>
+                    <h1 id="tenant-title">@(_dashboard?.TenantName ?? "Tenant Admin")</h1>
+                    <p>Manage your tenant users, listings, and compliance preparation from one place.</p>
+                </div>
+
+                <a class="btn btn-primary" href="/tenant/users/new">Add User</a>
+            </div>
+
+            @if (_isLoading)
+            {
+                <p>Loading tenant workspace...</p>
+            }
+            else if (_loadError is not null)
+            {
+                <div class="alert alert-danger" role="alert">@_loadError</div>
+            }
+            else if (_dashboard is not null)
+            {
+                <div class="platform-metrics" aria-label="Tenant metrics">
+                    <article>
+                        <span>Users</span>
+                        <strong>@_dashboard.UserCount</strong>
+                    </article>
+                    <article>
+                        <span>Listings</span>
+                        <strong>@_dashboard.ListingCount</strong>
+                    </article>
+                    <article>
+                        <span>Compliance</span>
+                        <strong>@_dashboard.ComplianceQueueCount</strong>
+                    </article>
+                </div>
+
+                <section class="platform-panel">
+                    <div class="platform-panel__header">
+                        <div>
+                            <p class="platform-kicker">Marketplace profile</p>
+                            <h2>@_dashboard.TenantName</h2>
+                        </div>
+                        <span class="platform-status @(_dashboard.IsActive ? "platform-status--active" : "platform-status--inactive")">
+                            @(_dashboard.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </div>
+
+                    <dl class="tenant-summary">
+                        <div>
+                            <dt>Company</dt>
+                            <dd>@(_dashboard.CompanyName ?? "-")</dd>
+                        </div>
+                        <div>
+                            <dt>Primary domain</dt>
+                            <dd>@(_dashboard.PrimaryDomain ?? "-")</dd>
+                        </div>
+                    </dl>
+
+                    <div class="platform-form-actions">
+                        <a class="btn btn-primary" href="/tenant/users">Manage Users</a>
+                        <a class="btn btn-outline-secondary" href="/admin/tenant-listings">View Listings</a>
+                    </div>
+                </section>
+            }
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Tenant Access Required</h1>
+            <p>Please log in with a tenant administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isLoading;
+    private string? _loadError;
+    private TenantDashboardDto? _dashboard;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            _dashboard = await Api.GetAsync<TenantDashboardDto>("/api/tenant/dashboard");
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

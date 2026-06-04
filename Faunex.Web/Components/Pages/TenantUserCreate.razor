@@ -1,0 +1,130 @@
+@page "/tenant/users/new"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Add Tenant User - Faunex</PageTitle>
+
+<AuthorizeView Roles="TenantAdmin">
+    <Authorized Context="tenantUserCreateAuth">
+        <section class="platform-shell" aria-labelledby="create-tenant-user-title">
+            <div class="platform-header platform-header--compact">
+                <div>
+                    <p class="platform-kicker">Tenant access</p>
+                    <h1 id="create-tenant-user-title">Add User</h1>
+                    <p>Create a tenant-scoped login for a seller, buyer, or administrator.</p>
+                </div>
+
+                <a class="btn btn-outline-secondary" href="/tenant/users">Back to users</a>
+            </div>
+
+            <section class="platform-panel">
+                <EditForm EditContext="_editContext" OnValidSubmit="CreateAsync">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    @if (_createError is not null)
+                    {
+                        <div class="alert alert-danger" role="alert">@_createError</div>
+                    }
+
+                    <div class="platform-form-grid">
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" @bind-Value="_model.Email" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.Email" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Display name</label>
+                            <InputText class="form-control" @bind-Value="_model.DisplayName" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.DisplayName" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Temporary password</label>
+                            <InputText type="password" class="form-control" @bind-Value="_model.Password" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.Password" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Role</label>
+                            <InputSelect class="form-select" @bind-Value="_model.Role" disabled="@_isCreating">
+                                @foreach (var role in TenantRoles.Assignable)
+                                {
+                                    <option value="@role">@GetRoleLabel(role)</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => _model.Role" />
+                        </div>
+                    </div>
+
+                    <div class="platform-form-actions">
+                        <button class="btn btn-primary" type="submit" disabled="@_isCreating">
+                            @(_isCreating ? "Creating..." : "Create User")
+                        </button>
+                        <a class="btn btn-outline-secondary" href="/tenant/users">Cancel</a>
+                    </div>
+                </EditForm>
+            </section>
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Tenant Access Required</h1>
+            <p>Please log in with a tenant administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isCreating;
+    private string? _createError;
+    private readonly TenantUserFormModel _model = new();
+    private EditContext _editContext = default!;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_model);
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_isCreating)
+        {
+            return;
+        }
+
+        _isCreating = true;
+        _createError = null;
+
+        try
+        {
+            await Api.PostAsync<CreateTenantUserRequest, TenantUserDto>(
+                "/api/tenant/users",
+                new CreateTenantUserRequest(
+                    _model.Email,
+                    _model.Password,
+                    _model.DisplayName,
+                    [_model.Role]));
+
+            Nav.NavigateTo("/tenant/users?created=user");
+        }
+        catch (Exception ex)
+        {
+            _createError = ex.Message;
+        }
+        finally
+        {
+            _isCreating = false;
+        }
+    }
+
+    private static string GetRoleLabel(string role) => role switch
+    {
+        TenantRoles.TenantAdmin => "Tenant admin",
+        TenantRoles.Buyer => "Buyer",
+        _ => "Seller"
+    };
+}

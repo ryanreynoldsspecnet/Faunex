@@ -45,7 +45,7 @@ public sealed class PlatformTenantsController(
             return Conflict(new { error = "A user with the first tenant admin email already exists." });
         }
 
-        var tenant = new Tenant
+        var tenant = new Faunex.Domain.Entities.Tenant
         {
             Id = Guid.NewGuid(),
             Name = name,
@@ -338,7 +338,7 @@ public sealed class PlatformTenantsController(
         return NoContent();
     }
 
-    private static TenantDto ToDto(Tenant tenant) =>
+    private static TenantDto ToDto(Faunex.Domain.Entities.Tenant tenant) =>
         new(
             tenant.Id,
             tenant.Name,
