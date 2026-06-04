@@ -1,4 +1,19 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: faunex-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - faunex-web
+
   faunex-api:
     build:
       context: .
@@ -6,8 +21,6 @@ services:
     container_name: faunex-api
     expose:
       - "8080"
-    ports:
-      - "5000:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: ${FAUNEX_CONNECTIONSTRING}
@@ -27,8 +40,6 @@ services:
     container_name: faunex-web
     expose:
       - "8080"
-    ports:
-      - "5001:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
@@ -53,3 +64,5 @@ services:
 volumes:
   postgres_data:
   dataprotection_keys:
+  caddy_data:
+  caddy_config:

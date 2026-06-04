@@ -1,0 +1,12 @@
+faunex.co.za {
+    encode zstd gzip
+    reverse_proxy faunex-web:8080
+}
+
+www.faunex.co.za {
+    redir https://faunex.co.za{uri} permanent
+}
+
+http://154.65.98.94 {
+    redir https://faunex.co.za{uri} permanent
+}

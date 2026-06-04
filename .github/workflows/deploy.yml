@@ -104,5 +104,4 @@ jobs:
             ubuntu@${{ secrets.FAUNEX_SERVER_IP }} \
             'cd /home/ubuntu/faunex &&
              git pull origin master &&
-             docker compose down &&
-             docker compose up -d --build'
+             docker compose up -d --build --remove-orphans'
