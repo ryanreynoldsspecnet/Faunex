@@ -1,0 +1,169 @@
+@page "/platform/users"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+
+<PageTitle>Platform Users - Faunex</PageTitle>
+
+<AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin">
+    <Authorized Context="platformUsersAuth">
+        <section class="platform-shell" aria-labelledby="platform-users-title">
+            <div class="platform-header platform-header--compact">
+                <div>
+                    <p class="platform-kicker">Access control</p>
+                    <h1 id="platform-users-title">Platform Users</h1>
+                    <p>Add internal Faunex users and control who can access the platform administration tools.</p>
+                </div>
+
+                <a class="btn btn-primary" href="/platform/users/new">Add User</a>
+            </div>
+
+            <section class="platform-panel" aria-labelledby="users-list-title">
+                <div class="platform-list-toolbar">
+                    <div>
+                        <label class="form-label" for="user-search">Search users</label>
+                        <InputText id="user-search" class="form-control" placeholder="Search name, email, role..." @bind-Value="_search" @bind-Value:event="oninput" />
+                    </div>
+
+                    <button class="btn btn-outline-secondary" type="button" @onclick="LoadAsync" disabled="@_isLoading">
+                        @(_isLoading ? "Refreshing..." : "Refresh")
+                    </button>
+                </div>
+
+                @if (_isLoading)
+                {
+                    <p>Loading users...</p>
+                }
+                else if (_loadError is not null)
+                {
+                    <div class="alert alert-danger" role="alert">@_loadError</div>
+                }
+                else if (FilteredUsers.Count == 0)
+                {
+                    <div class="platform-empty">
+                        <strong>No users found.</strong>
+                        <p>Add the first project user or adjust the search.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="platform-table-wrap">
+                        <table class="table platform-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Role</th>
+                                    <th>Tenant</th>
+                                    <th>Status</th>
+                                    <th class="platform-table__actions">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var user in FilteredUsers)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@(user.DisplayName ?? user.Email)</strong>
+                                            <span>@user.Email</span>
+                                        </td>
+                                        <td>@string.Join(", ", user.Roles)</td>
+                                        <td>@GetTenantName(user.TenantId)</td>
+                                        <td>
+                                            <span class="platform-status @(user.IsActive ? "platform-status--active" : "platform-status--inactive")">
+                                                @(user.IsActive ? "Active" : "Inactive")
+                                            </span>
+                                        </td>
+                                        <td class="platform-row-actions">
+                                            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>View</button>
+                                            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Edit</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Platform Access Required</h1>
+            <p>Please log in with a Faunex platform administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [SupplyParameterFromQuery(Name = "tenantId")]
+    public Guid? TenantFilter { get; set; }
+
+    private bool _isLoading;
+    private string? _loadError;
+    private string? _search;
+    private List<PlatformUserDto> _users = [];
+    private List<TenantDto> _tenants = [];
+
+    private IReadOnlyList<PlatformUserDto> FilteredUsers
+    {
+        get
+        {
+            var query = _users.AsEnumerable();
+
+            if (TenantFilter.HasValue)
+            {
+                query = query.Where(x => x.TenantId == TenantFilter.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(_search))
+            {
+                var term = _search.Trim();
+                query = query.Where(x =>
+                    Contains(x.Email, term)
+                    || Contains(x.DisplayName, term)
+                    || x.Roles.Any(role => Contains(role, term))
+                    || Contains(GetTenantName(x.TenantId), term));
+            }
+
+            return query.ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            _tenants = await Api.GetAsync<List<TenantDto>>("/api/platform/tenants") ?? [];
+            _users = await Api.GetAsync<List<PlatformUserDto>>("/api/platform/users") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private string GetTenantName(Guid? tenantId)
+    {
+        if (!tenantId.HasValue)
+        {
+            return "Platform";
+        }
+
+        return _tenants.FirstOrDefault(x => x.Id == tenantId.Value)?.Name ?? tenantId.Value.ToString();
+    }
+
+    private static bool Contains(string? value, string term) =>
+        value?.Contains(term, StringComparison.OrdinalIgnoreCase) == true;
+}

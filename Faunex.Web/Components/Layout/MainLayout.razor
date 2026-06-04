@@ -25,7 +25,8 @@
 
                 <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport">
                     <Authorized>
-                        <NavLink class="nav-link" href="/platform">Platform</NavLink>
+                        <NavLink class="nav-link" href="/platform" Match="NavLinkMatch.All">Platform</NavLink>
+                        <NavLink class="nav-link" href="/platform/users">Users</NavLink>
                         <NavLink class="nav-link" href="/platform/compliance">Compliance Queue</NavLink>
                     </Authorized>
                 </AuthorizeView>
