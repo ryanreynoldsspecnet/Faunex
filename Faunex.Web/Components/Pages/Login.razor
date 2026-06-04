@@ -69,7 +69,10 @@
     private sealed record LoginRequest(string Email, string Password);
 
     // Match backend DTO contract (Faunex.Api.Auth.AuthResponse) but only bind what we need.
-    private sealed record AuthResponse(string AccessToken);
+    private sealed record AuthResponse(
+        string AccessToken,
+        bool IsPlatformAdmin,
+        IReadOnlyList<string> Roles);
 
     private async Task LoginAsync()
     {
@@ -98,7 +101,11 @@
             AuthStateProvider.NotifyUserAuthenticationStateChanged();
 
             _success = "Logged in successfully.";
-            Nav.NavigateTo("/browse", forceLoad: true);
+            var destination = RoleNavigation.IsPlatformUser(response.IsPlatformAdmin, response.Roles)
+                ? "/platform"
+                : "/browse";
+
+            Nav.NavigateTo(destination, forceLoad: true);
         }
         catch (Exception ex)
         {

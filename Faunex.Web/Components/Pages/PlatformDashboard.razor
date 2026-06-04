@@ -1,0 +1,343 @@
+@page "/platform"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+
+<PageTitle>Platform Admin - Faunex</PageTitle>
+
+<AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin">
+    <Authorized Context="platformAuth">
+<section class="platform-shell" aria-labelledby="platform-title">
+    <div class="platform-header">
+        <div>
+            <p class="platform-kicker">Faunex control centre</p>
+            <h1 id="platform-title">Platform Admin</h1>
+            <p>Onboard tenants, attach domains, and prepare each marketplace for launch.</p>
+        </div>
+
+        <button class="btn btn-primary" type="button" @onclick="ToggleCreateTenant">
+            @(_showCreateTenant ? "Close" : "Add Tenant")
+        </button>
+    </div>
+
+    <div class="platform-metrics" aria-label="Platform metrics">
+        <article>
+            <span>Tenants</span>
+            <strong>@(_tenants?.Count ?? 0)</strong>
+        </article>
+        <article>
+            <span>Active</span>
+            <strong>@(_tenants?.Count(x => x.IsActive) ?? 0)</strong>
+        </article>
+        <article>
+            <span>Domains</span>
+            <strong>@(_tenants?.Sum(x => x.DomainCount) ?? 0)</strong>
+        </article>
+    </div>
+
+    @if (_showCreateTenant)
+    {
+        <section class="platform-panel" aria-labelledby="create-tenant-title">
+            <div class="platform-panel__header">
+                <div>
+                    <p class="platform-kicker">Tenant onboarding</p>
+                    <h2 id="create-tenant-title">Create Tenant</h2>
+                </div>
+            </div>
+
+            <EditForm EditContext="_editContext" OnValidSubmit="CreateTenantAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                @if (_createError is not null)
+                {
+                    <div class="alert alert-danger" role="alert">@_createError</div>
+                }
+
+                @if (_createSuccess is not null)
+                {
+                    <div class="alert alert-success" role="status">@_createSuccess</div>
+                }
+
+                <div class="platform-form-grid">
+                    <div class="mb-3">
+                        <label class="form-label">Tenant name</label>
+                        <InputText class="form-control" @bind-Value="_model.Name" disabled="@_isCreating" />
+                        <ValidationMessage For="() => _model.Name" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Company name</label>
+                        <InputText class="form-control" @bind-Value="_model.CompanyName" disabled="@_isCreating" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Registration number</label>
+                        <InputText class="form-control" @bind-Value="_model.RegistrationNumber" disabled="@_isCreating" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">VAT number</label>
+                        <InputText class="form-control" @bind-Value="_model.VatNumber" disabled="@_isCreating" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Contact first name</label>
+                        <InputText class="form-control" @bind-Value="_model.ContactFirstName" disabled="@_isCreating" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Contact last name</label>
+                        <InputText class="form-control" @bind-Value="_model.ContactLastName" disabled="@_isCreating" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Contact email</label>
+                        <InputText class="form-control" @bind-Value="_model.ContactEmail" disabled="@_isCreating" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Contact phone</label>
+                        <InputText class="form-control" @bind-Value="_model.ContactPhone" disabled="@_isCreating" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Primary domain</label>
+                        <InputText class="form-control" @bind-Value="_model.PrimaryDomain" disabled="@_isCreating" />
+                    </div>
+
+                    <div class="mb-3 platform-checkbox">
+                        <InputCheckbox class="form-check-input" @bind-Value="_model.IsActive" disabled="@_isCreating" />
+                        <label class="form-check-label">Tenant active</label>
+                    </div>
+
+                    <div class="mb-3 platform-form-grid__wide">
+                        <label class="form-label">Physical address</label>
+                        <InputTextArea class="form-control" @bind-Value="_model.PhysicalAddress" disabled="@_isCreating" />
+                    </div>
+
+                    <div class="mb-3 platform-form-grid__wide">
+                        <label class="form-label">Postal address</label>
+                        <InputTextArea class="form-control" @bind-Value="_model.PostalAddress" disabled="@_isCreating" />
+                    </div>
+
+                    <div class="mb-3 platform-form-grid__wide">
+                        <label class="form-label">Shipping address</label>
+                        <InputTextArea class="form-control" @bind-Value="_model.ShippingAddress" disabled="@_isCreating" />
+                    </div>
+                </div>
+
+                <div class="platform-form-actions">
+                    <button class="btn btn-primary" type="submit" disabled="@_isCreating">
+                        @(_isCreating ? "Creating..." : "Create Tenant")
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="ResetForm" disabled="@_isCreating">
+                        Clear
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+    }
+
+    <section class="platform-panel" aria-labelledby="tenants-title">
+        <div class="platform-panel__header">
+            <div>
+                <p class="platform-kicker">Tenant registry</p>
+                <h2 id="tenants-title">Tenants</h2>
+            </div>
+
+            <button class="btn btn-outline-secondary" type="button" @onclick="LoadTenantsAsync" disabled="@_isLoading">
+                @(_isLoading ? "Refreshing..." : "Refresh")
+            </button>
+        </div>
+
+        @if (_isLoading)
+        {
+            <p>Loading tenants...</p>
+        }
+        else if (_loadError is not null)
+        {
+            <div class="alert alert-danger" role="alert">@_loadError</div>
+        }
+        else if (_tenants is null || _tenants.Count == 0)
+        {
+            <div class="platform-empty">
+                <strong>No tenants yet.</strong>
+                <p>Create the first tenant to begin shaping the white-label marketplace flow.</p>
+            </div>
+        }
+        else
+        {
+            <div class="platform-table-wrap">
+                <table class="table platform-table">
+                    <thead>
+                        <tr>
+                            <th>Tenant</th>
+                            <th>Company</th>
+                            <th>Contact</th>
+                            <th>Primary domain</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tenant in _tenants)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@tenant.Name</strong>
+                                    <span>@tenant.Id</span>
+                                </td>
+                                <td>
+                                    @(tenant.CompanyName ?? "-")
+                                    @if (!string.IsNullOrWhiteSpace(tenant.VatNumber))
+                                    {
+                                        <span>VAT @tenant.VatNumber</span>
+                                    }
+                                </td>
+                                <td>
+                                    @GetContactName(tenant)
+                                    @if (!string.IsNullOrWhiteSpace(tenant.ContactEmail))
+                                    {
+                                        <span>@tenant.ContactEmail</span>
+                                    }
+                                </td>
+                                <td>
+                                    @(tenant.PrimaryDomain ?? "-")
+                                    <span>@tenant.DomainCount active domain@(tenant.DomainCount == 1 ? string.Empty : "s")</span>
+                                </td>
+                                <td>
+                                    <span class="platform-status @(tenant.IsActive ? "platform-status--active" : "platform-status--inactive")">
+                                        @(tenant.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Platform Access Required</h1>
+            <p>Please log in with a Faunex platform administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isLoading;
+    private bool _isCreating;
+    private bool _showCreateTenant;
+    private string? _loadError;
+    private string? _createError;
+    private string? _createSuccess;
+
+    private List<TenantDto>? _tenants;
+    private PlatformTenantFormModel _model = new();
+    private EditContext _editContext = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _editContext = new EditContext(_model);
+        await LoadTenantsAsync();
+    }
+
+    private void ToggleCreateTenant()
+    {
+        _showCreateTenant = !_showCreateTenant;
+        _createError = null;
+        _createSuccess = null;
+    }
+
+    private async Task LoadTenantsAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            _tenants = await Api.GetAsync<List<TenantDto>>("/api/platform/tenants") ?? [];
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateTenantAsync()
+    {
+        if (_isCreating)
+        {
+            return;
+        }
+
+        _isCreating = true;
+        _createError = null;
+        _createSuccess = null;
+
+        try
+        {
+            var tenant = await Api.PostAsync<CreateTenantRequest, TenantDto>(
+                "/api/platform/tenants",
+                new CreateTenantRequest(
+                    Name: _model.Name,
+                    Slug: null,
+                    CompanyName: _model.CompanyName,
+                    RegistrationNumber: _model.RegistrationNumber,
+                    VatNumber: _model.VatNumber,
+                    ContactFirstName: _model.ContactFirstName,
+                    ContactLastName: _model.ContactLastName,
+                    ContactEmail: _model.ContactEmail,
+                    ContactPhone: _model.ContactPhone,
+                    PhysicalAddress: _model.PhysicalAddress,
+                    PostalAddress: _model.PostalAddress,
+                    ShippingAddress: _model.ShippingAddress,
+                    IsActive: _model.IsActive));
+
+            if (tenant is null)
+            {
+                _createError = "Tenant creation failed.";
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_model.PrimaryDomain))
+            {
+                await Api.PostAsync<CreateTenantDomainRequest, TenantDomainDto>(
+                    $"/api/platform/tenants/{tenant.Id}/domains",
+                    new CreateTenantDomainRequest(_model.PrimaryDomain, IsPrimary: true, IsActive: true));
+            }
+
+            _createSuccess = "Tenant created.";
+            ResetForm();
+            _showCreateTenant = false;
+            await LoadTenantsAsync();
+        }
+        catch (Exception ex)
+        {
+            _createError = ex.Message;
+        }
+        finally
+        {
+            _isCreating = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        _model = new PlatformTenantFormModel();
+        _editContext = new EditContext(_model);
+    }
+
+    private static string GetContactName(TenantDto tenant)
+    {
+        var name = string.Join(" ", new[] { tenant.ContactFirstName, tenant.ContactLastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        return string.IsNullOrWhiteSpace(name) ? "-" : name;
+    }
+}
