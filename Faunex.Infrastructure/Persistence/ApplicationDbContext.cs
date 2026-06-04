@@ -20,6 +20,7 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<BirdSpecies> BirdSpeciesSet { get; set; } = null!;
 
     public DbSet<Tenant> Tenants { get; set; } = null!;
+    public DbSet<TenantDomain> TenantDomains { get; set; } = null!;
     public DbSet<Listing> Listings { get; set; } = null!;
     public DbSet<Auction> Auctions { get; set; } = null!;
     public DbSet<Bid> Bids { get; set; } = null!;
@@ -85,6 +86,16 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
             .HasOne(x => x.Listing)
             .WithMany(x => x.ComplianceDocuments)
             .HasForeignKey(x => x.ListingId);
+
+        modelBuilder.Entity<TenantDomain>()
+            .HasOne(x => x.Tenant)
+            .WithMany(x => x.Domains)
+            .HasForeignKey(x => x.TenantId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TenantDomain>()
+            .HasIndex(x => x.Hostname)
+            .IsUnique();
 
         // Tenant scoping
         // Rules:
