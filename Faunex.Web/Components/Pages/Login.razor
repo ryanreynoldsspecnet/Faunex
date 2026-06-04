@@ -122,7 +122,9 @@
             _success = "Logged in successfully.";
             var destination = RoleNavigation.IsPlatformUser(response.IsPlatformAdmin, response.Roles)
                 ? "/platform"
-                : "/browse";
+                : RoleNavigation.IsTenantAdmin(response.Roles)
+                    ? "/tenant"
+                    : "/browse";
 
             _pendingRedirectTo = destination;
         }

@@ -32,4 +32,7 @@ public static class RoleNavigation
 
     public static bool IsPlatformUser(bool isPlatformAdmin, IReadOnlyCollection<string>? roles) =>
         isPlatformAdmin || (roles?.Any(role => PlatformRoles.Contains(role, StringComparer.OrdinalIgnoreCase)) ?? false);
+
+    public static bool IsTenantAdmin(IReadOnlyCollection<string>? roles) =>
+        roles?.Any(role => string.Equals(role, "TenantAdmin", StringComparison.OrdinalIgnoreCase)) ?? false;
 }

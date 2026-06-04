@@ -1,0 +1,202 @@
+@page "/tenant/users"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+
+<PageTitle>Tenant Users - Faunex</PageTitle>
+
+<AuthorizeView Roles="TenantAdmin">
+    <Authorized Context="tenantUsersAuth">
+        <section class="platform-shell" aria-labelledby="tenant-users-title">
+            <div class="platform-header platform-header--compact">
+                <div>
+                    <p class="platform-kicker">Tenant access</p>
+                    <h1 id="tenant-users-title">Tenant Users</h1>
+                    <p>Manage the administrators, sellers, and buyers attached to this tenant.</p>
+                </div>
+
+                <a class="btn btn-primary" href="/tenant/users/new">Add User</a>
+            </div>
+
+            <section class="platform-panel">
+                <div class="platform-list-toolbar">
+                    <div>
+                        <label class="form-label" for="tenant-user-search">Search users</label>
+                        <InputText id="tenant-user-search" class="form-control" placeholder="Search name, email, role..." @bind-Value="_search" @bind-Value:event="oninput" />
+                    </div>
+
+                    <button class="btn btn-outline-secondary" type="button" @onclick="LoadAsync" disabled="@_isLoading">
+                        @(_isLoading ? "Refreshing..." : "Refresh")
+                    </button>
+                </div>
+
+                @if (_isLoading)
+                {
+                    <p>Loading users...</p>
+                }
+                else if (_loadError is not null)
+                {
+                    <div class="alert alert-danger" role="alert">@_loadError</div>
+                }
+                else if (_deleteError is not null)
+                {
+                    <div class="alert alert-danger" role="alert">@_deleteError</div>
+                }
+                else if (FilteredUsers.Count == 0)
+                {
+                    <div class="platform-empty">
+                        <strong>No users found.</strong>
+                        <p>Add the first seller or adjust the search.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="platform-table-wrap">
+                        <table class="table platform-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th class="platform-table__actions">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var user in FilteredUsers)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@(user.DisplayName ?? user.Email)</strong>
+                                            <span>@user.Email</span>
+                                        </td>
+                                        <td>@string.Join(", ", user.Roles)</td>
+                                        <td>
+                                            <span class="platform-status @(user.IsActive ? "platform-status--active" : "platform-status--inactive")">
+                                                @(user.IsActive ? "Active" : "Inactive")
+                                            </span>
+                                        </td>
+                                        <td class="platform-row-actions">
+                                            <a class="btn btn-sm btn-outline-secondary" href="@($"/tenant/users/{user.Id}/edit")">Edit</a>
+                                            @if (_confirmDeleteUserId == user.Id)
+                                            {
+                                                <button class="btn btn-sm btn-danger" type="button" @onclick="() => DeleteUserAsync(user.Id)" disabled="@(_deletingUserId == user.Id)">
+                                                    @(_deletingUserId == user.Id ? "Deleting..." : "Confirm")
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="CancelDeleteUser" disabled="@(_deletingUserId == user.Id)">Cancel</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => AskDeleteUser(user.Id)">Delete</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Tenant Access Required</h1>
+            <p>Please log in with a tenant administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isLoading;
+    private string? _loadError;
+    private string? _deleteError;
+    private string? _search;
+    private Guid? _confirmDeleteUserId;
+    private Guid? _deletingUserId;
+    private List<TenantUserDto> _users = [];
+
+    private IReadOnlyList<TenantUserDto> FilteredUsers
+    {
+        get
+        {
+            var query = _users.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(_search))
+            {
+                var term = _search.Trim();
+                query = query.Where(x =>
+                    Contains(x.Email, term)
+                    || Contains(x.DisplayName, term)
+                    || x.Roles.Any(role => Contains(role, term)));
+            }
+
+            return query.ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            _users = await Api.GetAsync<List<TenantUserDto>>("/api/tenant/users") ?? [];
+            _deleteError = null;
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void AskDeleteUser(Guid userId)
+    {
+        _confirmDeleteUserId = userId;
+        _deleteError = null;
+    }
+
+    private void CancelDeleteUser()
+    {
+        _confirmDeleteUserId = null;
+        _deleteError = null;
+    }
+
+    private async Task DeleteUserAsync(Guid userId)
+    {
+        if (_deletingUserId.HasValue)
+        {
+            return;
+        }
+
+        _deletingUserId = userId;
+        _deleteError = null;
+
+        try
+        {
+            await Api.DeleteAsync($"/api/tenant/users/{userId}");
+            _confirmDeleteUserId = null;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _deleteError = ex.Message;
+        }
+        finally
+        {
+            _deletingUserId = null;
+        }
+    }
+
+    private static bool Contains(string? value, string term) =>
+        value?.Contains(term, StringComparison.OrdinalIgnoreCase) == true;
+}

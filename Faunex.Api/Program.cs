@@ -96,6 +96,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser()
               .RequireRole(FaunexRoles.Seller));
 
+    options.AddPolicy("TenantAdminOnly", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole(FaunexRoles.TenantAdmin));
+
     // Platform admin policies (used by api/platform/* endpoints)
     options.AddPolicy("PlatformAdminOnly", policy =>
         policy.RequireAuthenticatedUser()
