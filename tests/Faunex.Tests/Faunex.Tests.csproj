@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Faunex.Api\Faunex.Api.csproj" />
     <ProjectReference Include="..\..\Faunex.Application\Faunex.Application.csproj" />
     <ProjectReference Include="..\..\Faunex.Domain\Faunex.Domain.csproj" />
     <ProjectReference Include="..\..\Faunex.Infrastructure\Faunex.Infrastructure.csproj" />
