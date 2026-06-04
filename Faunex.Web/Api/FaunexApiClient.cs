@@ -52,6 +52,49 @@ public sealed class FaunexApiClient(IHttpClientFactory httpClientFactory, TokenS
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
+    public async Task<TResponse?> PutAsync<TBody, TResponse>(string path, TBody body, CancellationToken cancellationToken = default)
+    {
+        var client = httpClientFactory.CreateClient("FaunexApi");
+
+        using var request = new HttpRequestMessage(HttpMethod.Put, path)
+        {
+            Content = JsonContent.Create(body)
+        };
+
+        await ApplyAuthAsync(request);
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+
+        return await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken: cancellationToken);
+    }
+
+    public async Task PutAsync<TBody>(string path, TBody body, CancellationToken cancellationToken = default)
+    {
+        var client = httpClientFactory.CreateClient("FaunexApi");
+
+        using var request = new HttpRequestMessage(HttpMethod.Put, path)
+        {
+            Content = JsonContent.Create(body)
+        };
+
+        await ApplyAuthAsync(request);
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
+    public async Task DeleteAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var client = httpClientFactory.CreateClient("FaunexApi");
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, path);
+        await ApplyAuthAsync(request);
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)

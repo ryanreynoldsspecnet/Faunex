@@ -403,6 +403,19 @@ a, .btn-link {
     grid-column: 1 / -1;
 }
 
+.platform-form-divider {
+    margin: 1.25rem 0;
+    border-color: #dfe6dd;
+    opacity: 1;
+}
+
+.platform-form-section-title {
+    margin: 0 0 0.85rem;
+    color: #17231e;
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+
 .platform-form-grid textarea {
     min-height: 92px;
     resize: vertical;

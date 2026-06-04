@@ -1,0 +1,208 @@
+@page "/platform/users/{UserId:guid}/edit"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Edit User - Faunex</PageTitle>
+
+<AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin">
+    <Authorized Context="userEditAuth">
+        <section class="platform-shell" aria-labelledby="edit-user-title">
+            <div class="platform-header platform-header--compact">
+                <div>
+                    <p class="platform-kicker">Access control</p>
+                    <h1 id="edit-user-title">Edit User</h1>
+                    <p>Update the user profile, role, tenant assignment, and active status.</p>
+                </div>
+
+                <a class="btn btn-outline-secondary" href="/platform/users">Back to users</a>
+            </div>
+
+            <section class="platform-panel">
+                @if (_isLoading)
+                {
+                    <p>Loading user...</p>
+                }
+                else if (_loadError is not null)
+                {
+                    <div class="alert alert-danger" role="alert">@_loadError</div>
+                }
+                else
+                {
+                    <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        @if (_saveError is not null)
+                        {
+                            <div class="alert alert-danger" role="alert">@_saveError</div>
+                        }
+
+                        <div class="platform-form-grid">
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <InputText class="form-control" @bind-Value="_model.Email" disabled="@_isSaving" />
+                                <ValidationMessage For="() => _model.Email" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Display name</label>
+                                <InputText class="form-control" @bind-Value="_model.DisplayName" disabled="@_isSaving" />
+                                <ValidationMessage For="() => _model.DisplayName" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Role</label>
+                                <InputSelect class="form-select" @bind-Value="_model.Role" disabled="@_isSaving">
+                                    @foreach (var role in PlatformRoles.AllAssignable)
+                                    {
+                                        <option value="@role">@GetRoleLabel(role)</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="() => _model.Role" />
+                            </div>
+
+                            @if (!PlatformRoles.IsPlatformRole(_model.Role))
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">Tenant</label>
+                                    <InputSelect class="form-select" @bind-Value="_model.TenantId" disabled="@_isSaving">
+                                        <option value="">Select tenant</option>
+                                        @foreach (var tenant in _tenants)
+                                        {
+                                            <option value="@tenant.Id">@tenant.Name</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                            }
+
+                            <div class="mb-3 platform-checkbox">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.IsActive" disabled="@_isSaving" />
+                                <label class="form-check-label">User active</label>
+                            </div>
+                        </div>
+
+                        <div class="platform-form-actions">
+                            <button class="btn btn-primary" type="submit" disabled="@_isSaving">
+                                @(_isSaving ? "Saving..." : "Save User")
+                            </button>
+                            <a class="btn btn-outline-secondary" href="/platform/users">Cancel</a>
+                        </div>
+                    </EditForm>
+                }
+            </section>
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Platform Access Required</h1>
+            <p>Please log in with a Faunex platform administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public Guid UserId { get; set; }
+
+    private bool _isLoading;
+    private bool _isSaving;
+    private string? _loadError;
+    private string? _saveError;
+    private PlatformUserFormModel _model = new();
+    private EditContext _editContext = default!;
+    private List<TenantDto> _tenants = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _editContext = new EditContext(_model);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            _tenants = await Api.GetAsync<List<TenantDto>>("/api/platform/tenants") ?? [];
+            var user = await Api.GetAsync<PlatformUserDto>($"/api/platform/users/{UserId}");
+            if (user is null)
+            {
+                _loadError = "User not found.";
+                return;
+            }
+
+            _model = new PlatformUserFormModel
+            {
+                Email = user.Email,
+                DisplayName = user.DisplayName,
+                Role = user.Roles.FirstOrDefault() ?? PlatformRoles.Buyer,
+                TenantId = user.TenantId,
+                IsActive = user.IsActive,
+                Password = "Not-used-for-edit"
+            };
+            _editContext = new EditContext(_model);
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        if (!PlatformRoles.IsPlatformRole(_model.Role) && !_model.TenantId.HasValue)
+        {
+            _saveError = "Tenant is required for tenant users.";
+            return;
+        }
+
+        _isSaving = true;
+        _saveError = null;
+
+        try
+        {
+            await Api.PutAsync<UpdatePlatformUserRequest, PlatformUserDto>(
+                $"/api/platform/users/{UserId}",
+                new UpdatePlatformUserRequest(
+                    _model.Email,
+                    _model.DisplayName,
+                    PlatformRoles.IsPlatformRole(_model.Role) ? null : _model.TenantId,
+                    [_model.Role],
+                    _model.IsActive));
+
+            Nav.NavigateTo("/platform/users?updated=user");
+        }
+        catch (Exception ex)
+        {
+            _saveError = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private static string GetRoleLabel(string role) => role switch
+    {
+        PlatformRoles.PlatformSuperAdmin => "Platform super admin",
+        PlatformRoles.PlatformComplianceAdmin => "Compliance admin",
+        PlatformRoles.PlatformSupport => "Support",
+        PlatformRoles.TenantAdmin => "Tenant admin",
+        PlatformRoles.Seller => "Seller",
+        PlatformRoles.Buyer => "Buyer",
+        _ => "Platform admin"
+    };
+}

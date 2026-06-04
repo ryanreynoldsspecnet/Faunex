@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Faunex.Api.Controllers.Platform;
 
@@ -87,6 +88,92 @@ public sealed class PlatformUsersController(
         }
 
         return Ok(result);
+    }
+
+    [HttpGet("users/{userId:guid}")]
+    public async Task<ActionResult<PlatformUserDto>> GetUser(Guid userId)
+    {
+        var user = await users.FindByIdAsync(userId.ToString());
+        if (user is null)
+        {
+            return NotFound(new { error = "User not found." });
+        }
+
+        return Ok(await ToDtoAsync(user));
+    }
+
+    [HttpPut("users/{userId:guid}")]
+    public async Task<ActionResult<PlatformUserDto>> UpdateUser(Guid userId, [FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
+    {
+        var user = await users.FindByIdAsync(userId.ToString());
+        if (user is null)
+        {
+            return NotFound(new { error = "User not found." });
+        }
+
+        var email = request.Email.Trim();
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return BadRequest(new { error = "Email is required." });
+        }
+
+        var existing = await users.FindByEmailAsync(email);
+        if (existing is not null && existing.Id != userId)
+        {
+            return Conflict(new { error = "A user with this email already exists." });
+        }
+
+        var assignedRoles = UserAccessRules.NormalizeRoles(request.Roles);
+        var validation = await ValidateAssignmentAsync(request.TenantId, assignedRoles, cancellationToken);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        user.Email = email;
+        user.UserName = email;
+        user.DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName.Trim();
+        user.IsPlatformAdmin = UserAccessRules.IsPlatformRoleSet(assignedRoles);
+        user.TenantId = user.IsPlatformAdmin ? null : request.TenantId;
+        user.LockoutEnd = request.IsActive ? null : DateTimeOffset.MaxValue;
+
+        var roleResult = await SetRolesInternalAsync(user, assignedRoles);
+        if (!roleResult.Succeeded)
+        {
+            return BadRequest(new { errors = roleResult.Errors.Select(e => e.Description).ToArray() });
+        }
+
+        var updated = await users.UpdateAsync(user);
+        if (!updated.Succeeded)
+        {
+            return BadRequest(new { errors = updated.Errors.Select(e => e.Description).ToArray() });
+        }
+
+        return Ok(await ToDtoAsync(user));
+    }
+
+    [HttpDelete("users/{userId:guid}")]
+    public async Task<IActionResult> DeleteUser(Guid userId)
+    {
+        var currentActorRaw = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (Guid.TryParse(currentActorRaw, out var currentActorId) && currentActorId == userId)
+        {
+            return BadRequest(new { error = "You cannot delete your own account while logged in." });
+        }
+
+        var user = await users.FindByIdAsync(userId.ToString());
+        if (user is null)
+        {
+            return NotFound(new { error = "User not found." });
+        }
+
+        var deleted = await users.DeleteAsync(user);
+        if (!deleted.Succeeded)
+        {
+            return BadRequest(new { errors = deleted.Errors.Select(e => e.Description).ToArray() });
+        }
+
+        return NoContent();
     }
 
     [HttpPut("users/{userId:guid}/tenant")]
@@ -244,3 +331,10 @@ public sealed record PlatformUserDto(
 public sealed record SetUserTenantRequest(Guid? TenantId);
 
 public sealed record SetUserRolesRequest(IReadOnlyList<string> Roles);
+
+public sealed record UpdateUserRequest(
+    string Email,
+    string? DisplayName,
+    Guid? TenantId,
+    IReadOnlyList<string> Roles,
+    bool IsActive);
