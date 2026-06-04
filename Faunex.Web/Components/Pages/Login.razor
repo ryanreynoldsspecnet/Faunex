@@ -57,6 +57,7 @@
     private bool _isSubmitting;
     private string? _error;
     private string? _success;
+    private string? _pendingRedirectTo;
 
     // Single model instance for the lifetime of the component instance.
     private readonly LoginFormModel _model = new();
@@ -67,6 +68,20 @@
     protected override void OnInitialized()
     {
         _editContext = new EditContext(_model);
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_pendingRedirectTo is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var destination = _pendingRedirectTo;
+        _pendingRedirectTo = null;
+        Nav.NavigateTo(destination);
+
+        return Task.CompletedTask;
     }
 
     // Match backend DTO contract exactly (Faunex.Api.Auth.LoginRequest).
@@ -109,7 +124,7 @@
                 ? "/platform"
                 : "/browse";
 
-            Nav.NavigateTo(destination);
+            _pendingRedirectTo = destination;
         }
         catch (Exception ex)
         {
