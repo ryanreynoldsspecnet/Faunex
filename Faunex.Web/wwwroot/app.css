@@ -288,6 +288,81 @@ a, .btn-link {
     font-size: 0.96rem;
 }
 
+.marketplace-shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 2rem 0 3rem;
+}
+
+.marketplace-hero {
+    min-height: calc(78vh - 56px);
+    margin: -1.1rem calc(50% - 50vw) 0;
+    padding: clamp(3rem, 7vw, 6rem) clamp(1.5rem, 6vw, 5rem);
+    display: flex;
+    align-items: center;
+    color: #ffffff;
+    background:
+        linear-gradient(90deg, rgba(12, 17, 17, 0.94) 0%, rgba(12, 17, 17, 0.78) 42%, rgba(12, 17, 17, 0.3) 100%),
+        url('/images/auction-marketplace-hero.png') center right / cover no-repeat;
+}
+
+.marketplace-hero__content {
+    max-width: 760px;
+}
+
+.marketplace-hero h1 {
+    margin: 0;
+    color: #ffffff;
+    font-size: clamp(2.8rem, 7vw, 5.6rem);
+    font-weight: 800;
+    line-height: 0.98;
+}
+
+.marketplace-listing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.marketplace-listing-card {
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 1.15rem;
+    border: 1px solid #dfe6dd;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.marketplace-listing-card span {
+    width: fit-content;
+    border-radius: 999px;
+    padding: 0.2rem 0.65rem;
+    color: #15573a;
+    background: #dff3e9;
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.marketplace-listing-card h2 {
+    margin: 0;
+    color: #17231e;
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+.marketplace-listing-card p {
+    margin: 0;
+    color: #52615a;
+}
+
+.marketplace-listing-card strong {
+    margin-top: auto;
+    color: #17231e;
+    font-size: 1.15rem;
+}
+
 .platform-shell {
     max-width: 1260px;
     margin: 0 auto;
@@ -575,6 +650,10 @@ a, .btn-link {
 
     .home-capabilities article {
         min-height: 0;
+    }
+
+    .marketplace-listing-grid {
+        grid-template-columns: 1fr;
     }
 }
 
