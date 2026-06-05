@@ -85,6 +85,48 @@
                                 <label class="form-check-label">Tenant active</label>
                             </div>
 
+                            <div class="platform-form-grid__wide">
+                                <hr class="platform-form-divider" />
+                                <p class="platform-kicker">Marketplace branding</p>
+                                <h2 class="platform-form-section-title">Tenant Marketplace</h2>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Marketplace display name</label>
+                                <InputText class="form-control" @bind-Value="_model.MarketplaceDisplayName" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Primary brand colour</label>
+                                <div class="platform-colour-input">
+                                    <InputText class="form-control" @bind-Value="_model.BrandPrimaryColor" disabled="@_isSaving" />
+                                    <span style="@($"background:{_model.BrandPrimaryColor ?? "#1f6f4a"}")"></span>
+                                </div>
+                                <ValidationMessage For="() => _model.BrandPrimaryColor" />
+                            </div>
+
+                            <div class="mb-3 platform-form-grid__wide">
+                                <label class="form-label">Marketplace tagline</label>
+                                <InputText class="form-control" @bind-Value="_model.MarketplaceTagline" disabled="@_isSaving" />
+                            </div>
+
+                            <div class="mb-3 platform-form-grid__wide">
+                                <label class="form-label">Logo URL</label>
+                                <InputText class="form-control" @bind-Value="_model.LogoUrl" disabled="@_isSaving" />
+                                <ValidationMessage For="() => _model.LogoUrl" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Support email</label>
+                                <InputText class="form-control" @bind-Value="_model.SupportEmail" disabled="@_isSaving" />
+                                <ValidationMessage For="() => _model.SupportEmail" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Support phone</label>
+                                <InputText class="form-control" @bind-Value="_model.SupportPhone" disabled="@_isSaving" />
+                            </div>
+
                             <div class="mb-3 platform-form-grid__wide">
                                 <label class="form-label">Physical address</label>
                                 <InputTextArea class="form-control" @bind-Value="_model.PhysicalAddress" disabled="@_isSaving" />
@@ -192,6 +234,12 @@
                     _model.PhysicalAddress,
                     _model.PostalAddress,
                     _model.ShippingAddress,
+                    _model.MarketplaceDisplayName,
+                    _model.MarketplaceTagline,
+                    _model.LogoUrl,
+                    _model.BrandPrimaryColor,
+                    _model.SupportEmail,
+                    _model.SupportPhone,
                     _model.IsActive));
 
             Nav.NavigateTo("/platform?updated=tenant");

@@ -59,6 +59,12 @@ public sealed class PlatformTenantsController(
             PhysicalAddress = Clean(request.PhysicalAddress),
             PostalAddress = Clean(request.PostalAddress),
             ShippingAddress = Clean(request.ShippingAddress),
+            MarketplaceDisplayName = Clean(request.MarketplaceDisplayName),
+            MarketplaceTagline = Clean(request.MarketplaceTagline),
+            LogoUrl = Clean(request.LogoUrl),
+            BrandPrimaryColor = Clean(request.BrandPrimaryColor),
+            SupportEmail = Clean(request.SupportEmail),
+            SupportPhone = Clean(request.SupportPhone),
             IsActive = request.IsActive,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
@@ -124,6 +130,12 @@ public sealed class PlatformTenantsController(
                 x.PhysicalAddress,
                 x.PostalAddress,
                 x.ShippingAddress,
+                x.MarketplaceDisplayName,
+                x.MarketplaceTagline,
+                x.LogoUrl,
+                x.BrandPrimaryColor,
+                x.SupportEmail,
+                x.SupportPhone,
                 x.Domains
                     .Where(d => d.IsPrimary && d.IsActive)
                     .Select(d => d.Hostname)
@@ -155,6 +167,12 @@ public sealed class PlatformTenantsController(
                 x.PhysicalAddress,
                 x.PostalAddress,
                 x.ShippingAddress,
+                x.MarketplaceDisplayName,
+                x.MarketplaceTagline,
+                x.LogoUrl,
+                x.BrandPrimaryColor,
+                x.SupportEmail,
+                x.SupportPhone,
                 x.Domains
                     .Where(d => d.IsPrimary && d.IsActive)
                     .Select(d => d.Hostname)
@@ -207,6 +225,12 @@ public sealed class PlatformTenantsController(
         tenant.PhysicalAddress = Clean(request.PhysicalAddress);
         tenant.PostalAddress = Clean(request.PostalAddress);
         tenant.ShippingAddress = Clean(request.ShippingAddress);
+        tenant.MarketplaceDisplayName = Clean(request.MarketplaceDisplayName);
+        tenant.MarketplaceTagline = Clean(request.MarketplaceTagline);
+        tenant.LogoUrl = Clean(request.LogoUrl);
+        tenant.BrandPrimaryColor = Clean(request.BrandPrimaryColor);
+        tenant.SupportEmail = Clean(request.SupportEmail);
+        tenant.SupportPhone = Clean(request.SupportPhone);
         tenant.IsActive = request.IsActive;
         tenant.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -353,6 +377,12 @@ public sealed class PlatformTenantsController(
             tenant.PhysicalAddress,
             tenant.PostalAddress,
             tenant.ShippingAddress,
+            tenant.MarketplaceDisplayName,
+            tenant.MarketplaceTagline,
+            tenant.LogoUrl,
+            tenant.BrandPrimaryColor,
+            tenant.SupportEmail,
+            tenant.SupportPhone,
             tenant.Domains
                 .Where(x => x.IsPrimary && x.IsActive)
                 .Select(x => x.Hostname)
@@ -397,6 +427,12 @@ public sealed record CreateTenantRequest(
     string? PhysicalAddress = null,
     string? PostalAddress = null,
     string? ShippingAddress = null,
+    string? MarketplaceDisplayName = null,
+    string? MarketplaceTagline = null,
+    string? LogoUrl = null,
+    string? BrandPrimaryColor = null,
+    string? SupportEmail = null,
+    string? SupportPhone = null,
     bool IsActive = true,
     string? FirstAdminEmail = null,
     string? FirstAdminDisplayName = null,
@@ -415,6 +451,12 @@ public sealed record UpdateTenantRequest(
     string? PhysicalAddress = null,
     string? PostalAddress = null,
     string? ShippingAddress = null,
+    string? MarketplaceDisplayName = null,
+    string? MarketplaceTagline = null,
+    string? LogoUrl = null,
+    string? BrandPrimaryColor = null,
+    string? SupportEmail = null,
+    string? SupportPhone = null,
     bool IsActive = true);
 
 public sealed record TenantDto(
@@ -431,6 +473,12 @@ public sealed record TenantDto(
     string? PhysicalAddress,
     string? PostalAddress,
     string? ShippingAddress,
+    string? MarketplaceDisplayName,
+    string? MarketplaceTagline,
+    string? LogoUrl,
+    string? BrandPrimaryColor,
+    string? SupportEmail,
+    string? SupportPhone,
     string? PrimaryDomain,
     int DomainCount,
     bool IsActive,

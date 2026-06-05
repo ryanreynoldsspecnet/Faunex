@@ -123,12 +123,16 @@ else if (_marketplaceError is not null)
 }
 else if (_marketplace is not null)
 {
-    <section class="marketplace-hero" aria-labelledby="marketplace-title">
+    <section class="marketplace-hero" aria-labelledby="marketplace-title" style="@MarketplaceStyle">
         <div class="marketplace-hero__content">
+            @if (!string.IsNullOrWhiteSpace(_marketplace.LogoUrl))
+            {
+                <img class="marketplace-hero__logo" src="@_marketplace.LogoUrl" alt="@DisplayTenantName" />
+            }
             <p class="home-kicker">Tenant marketplace</p>
-            <h1 id="marketplace-title">@_marketplace.Name</h1>
+            <h1 id="marketplace-title">@DisplayTenantName</h1>
             <p class="home-lede">
-                Browse approved listings and auction opportunities from @DisplayTenantName.
+                @MarketplaceTagline
             </p>
 
             <div class="home-actions" aria-label="Marketplace actions">
@@ -146,14 +150,14 @@ else if (_marketplace is not null)
                     <dd>@FeaturedListingCountLabel</dd>
                 </div>
                 <div>
-                    <dt>Domain</dt>
-                    <dd>@(_marketplace.PrimaryDomain ?? _host)</dd>
+                    <dt>Support</dt>
+                    <dd>@MarketplaceSupport</dd>
                 </div>
             </dl>
         </div>
     </section>
 
-    <section class="home-section home-section--intro" aria-labelledby="featured-listings-heading">
+    <section class="home-section home-section--intro" aria-labelledby="featured-listings-heading" style="@MarketplaceStyle">
         <div class="home-section__inner">
             <div class="platform-header">
                 <div>
@@ -197,7 +201,10 @@ else if (_marketplace is not null)
     private MarketplaceContextDto? _marketplace;
     private IReadOnlyList<Faunex.Application.DTOs.ListingDto>? _featuredListings;
 
-    private string DisplayTenantName => _marketplace?.CompanyName ?? _marketplace?.Name ?? "this marketplace";
+    private string DisplayTenantName => _marketplace?.MarketplaceDisplayName ?? _marketplace?.CompanyName ?? _marketplace?.Name ?? "this marketplace";
+    private string MarketplaceTagline => _marketplace?.MarketplaceTagline ?? $"Browse approved listings and auction opportunities from {DisplayTenantName}.";
+    private string MarketplaceSupport => _marketplace?.SupportEmail ?? _marketplace?.ContactEmail ?? _marketplace?.SupportPhone ?? _marketplace?.ContactPhone ?? "Available from tenant admin";
+    private string MarketplaceStyle => string.IsNullOrWhiteSpace(_marketplace?.BrandPrimaryColor) ? string.Empty : $"--tenant-primary:{_marketplace.BrandPrimaryColor};";
     private string FeaturedListingCountLabel => (_featuredListings?.Count ?? 0) == 0 ? "Opening soon" : $"{_featuredListings!.Count} available";
 
     protected override async Task OnInitializedAsync()

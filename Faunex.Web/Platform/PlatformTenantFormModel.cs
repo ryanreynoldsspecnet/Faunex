@@ -40,6 +40,27 @@ public sealed class PlatformTenantFormModel
     public string? ShippingAddress { get; set; }
 
     [StringLength(160)]
+    public string? MarketplaceDisplayName { get; set; }
+
+    [StringLength(240)]
+    public string? MarketplaceTagline { get; set; }
+
+    [Url]
+    [StringLength(500)]
+    public string? LogoUrl { get; set; }
+
+    [RegularExpression("^#(?:[0-9a-fA-F]{3}){1,2}$", ErrorMessage = "Use a hex colour like #1f6f4a.")]
+    [StringLength(7)]
+    public string? BrandPrimaryColor { get; set; } = "#1f6f4a";
+
+    [EmailAddress]
+    [StringLength(160)]
+    public string? SupportEmail { get; set; }
+
+    [StringLength(80)]
+    public string? SupportPhone { get; set; }
+
+    [StringLength(160)]
     public string? PrimaryDomain { get; set; }
 
     public bool IsActive { get; set; } = true;
