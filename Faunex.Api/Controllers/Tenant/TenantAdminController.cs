@@ -63,6 +63,75 @@ public sealed class TenantAdminController(
             complianceQueueCount));
     }
 
+
+    [HttpGet("branding")]
+    public async Task<ActionResult<TenantBrandingDto>> GetBranding(CancellationToken cancellationToken)
+    {
+        var tenantId = CurrentTenantId();
+        if (tenantId is null)
+        {
+            return Forbid();
+        }
+
+        var tenant = await db.Tenants
+            .Where(x => x.Id == tenantId.Value)
+            .Select(x => new TenantBrandingDto(
+                x.Id,
+                x.Name,
+                x.CompanyName,
+                x.MarketplaceDisplayName,
+                x.MarketplaceTagline,
+                x.LogoUrl,
+                x.BrandPrimaryColor,
+                x.SupportEmail,
+                x.SupportPhone,
+                x.ContactEmail,
+                x.ContactPhone,
+                x.Domains
+                    .Where(d => d.IsPrimary && d.IsActive)
+                    .Select(d => d.Hostname)
+                    .FirstOrDefault(),
+                x.IsActive))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return tenant is null ? NotFound(new { error = "Tenant not found." }) : Ok(tenant);
+    }
+
+    [HttpPut("branding")]
+    public async Task<ActionResult<TenantBrandingDto>> UpdateBranding([FromBody] UpdateTenantBrandingRequest request, CancellationToken cancellationToken)
+    {
+        var tenantId = CurrentTenantId();
+        if (tenantId is null)
+        {
+            return Forbid();
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.BrandPrimaryColor) && !IsHexColour(request.BrandPrimaryColor))
+        {
+            return BadRequest(new { error = "Primary brand colour must be a hex value like #1f6f4a." });
+        }
+
+        var tenant = await db.Tenants
+            .Include(x => x.Domains)
+            .FirstOrDefaultAsync(x => x.Id == tenantId.Value, cancellationToken);
+
+        if (tenant is null)
+        {
+            return NotFound(new { error = "Tenant not found." });
+        }
+
+        tenant.MarketplaceDisplayName = Clean(request.MarketplaceDisplayName);
+        tenant.MarketplaceTagline = Clean(request.MarketplaceTagline);
+        tenant.LogoUrl = Clean(request.LogoUrl);
+        tenant.BrandPrimaryColor = Clean(request.BrandPrimaryColor);
+        tenant.SupportEmail = Clean(request.SupportEmail);
+        tenant.SupportPhone = Clean(request.SupportPhone);
+        tenant.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Ok(ToBrandingDto(tenant));
+    }
     [HttpGet("users")]
     public async Task<ActionResult<IReadOnlyList<TenantUserDto>>> GetUsers(CancellationToken cancellationToken)
     {
@@ -328,6 +397,35 @@ public sealed class TenantAdminController(
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static TenantBrandingDto ToBrandingDto(Faunex.Domain.Entities.Tenant tenant) =>
+        new(
+            tenant.Id,
+            tenant.Name,
+            tenant.CompanyName,
+            tenant.MarketplaceDisplayName,
+            tenant.MarketplaceTagline,
+            tenant.LogoUrl,
+            tenant.BrandPrimaryColor,
+            tenant.SupportEmail,
+            tenant.SupportPhone,
+            tenant.ContactEmail,
+            tenant.ContactPhone,
+            tenant.Domains
+                .Where(x => x.IsPrimary && x.IsActive)
+                .Select(x => x.Hostname)
+                .FirstOrDefault(),
+            tenant.IsActive);
+
+    private static bool IsHexColour(string value)
+    {
+        var candidate = value.Trim();
+        if (candidate.Length is not (4 or 7) || candidate[0] != '#')
+        {
+            return false;
+        }
+
+        return candidate.Skip(1).All(Uri.IsHexDigit);
+    }
 }
 
 public sealed record TenantDashboardDto(
@@ -340,6 +438,29 @@ public sealed record TenantDashboardDto(
     int ListingCount,
     int ComplianceQueueCount);
 
+
+public sealed record TenantBrandingDto(
+    Guid TenantId,
+    string TenantName,
+    string? CompanyName,
+    string? MarketplaceDisplayName,
+    string? MarketplaceTagline,
+    string? LogoUrl,
+    string? BrandPrimaryColor,
+    string? SupportEmail,
+    string? SupportPhone,
+    string? ContactEmail,
+    string? ContactPhone,
+    string? PrimaryDomain,
+    bool IsActive);
+
+public sealed record UpdateTenantBrandingRequest(
+    string? MarketplaceDisplayName,
+    string? MarketplaceTagline,
+    string? LogoUrl,
+    string? BrandPrimaryColor,
+    string? SupportEmail,
+    string? SupportPhone);
 public sealed record TenantUserDto(
     Guid Id,
     string Email,
