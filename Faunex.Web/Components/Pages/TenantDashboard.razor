@@ -14,7 +14,10 @@
                     <p>Manage your tenant users, listings, and compliance preparation from one place.</p>
                 </div>
 
-                <a class="btn btn-primary" href="/tenant/users/new">Add User</a>
+                <div class="platform-form-actions">
+                    <a class="btn btn-outline-secondary" href="/tenant/settings">Branding Settings</a>
+                    <a class="btn btn-primary" href="/tenant/users/new">Add User</a>
+                </div>
             </div>
 
             @if (_isLoading)
@@ -66,6 +69,7 @@
 
                     <div class="platform-form-actions">
                         <a class="btn btn-primary" href="/tenant/users">Manage Users</a>
+                        <a class="btn btn-outline-secondary" href="/tenant/settings">Branding Settings</a>
                         <a class="btn btn-outline-secondary" href="/admin/tenant-listings">View Listings</a>
                     </div>
                 </section>

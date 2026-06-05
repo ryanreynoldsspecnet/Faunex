@@ -1,0 +1,215 @@
+@page "/tenant/settings"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Tenant Settings - Faunex</PageTitle>
+
+<AuthorizeView Roles="TenantAdmin">
+    <Authorized Context="tenantSettingsAuth">
+        <section class="platform-shell" aria-labelledby="tenant-settings-title">
+            <div class="platform-header platform-header--compact">
+                <div>
+                    <p class="platform-kicker">Tenant settings</p>
+                    <h1 id="tenant-settings-title">Marketplace Branding</h1>
+                    <p>Update how your tenant marketplace appears to buyers and sellers.</p>
+                </div>
+
+                <a class="btn btn-outline-secondary" href="/tenant">Back to tenant</a>
+            </div>
+
+            @if (_isLoading)
+            {
+                <p>Loading branding settings...</p>
+            }
+            else if (_loadError is not null)
+            {
+                <div class="alert alert-danger" role="alert">@_loadError</div>
+            }
+            else
+            {
+                <div class="tenant-settings-grid">
+                    <section class="platform-panel">
+                        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+
+                            @if (_saveError is not null)
+                            {
+                                <div class="alert alert-danger" role="alert">@_saveError</div>
+                            }
+
+                            @if (_saveSuccess is not null)
+                            {
+                                <div class="alert alert-success" role="status">@_saveSuccess</div>
+                            }
+
+                            <div class="platform-form-grid">
+                                <div class="mb-3 platform-form-grid__wide">
+                                    <label class="form-label">Marketplace display name</label>
+                                    <InputText class="form-control" @bind-Value="_model.MarketplaceDisplayName" disabled="@_isSaving" />
+                                </div>
+
+                                <div class="mb-3 platform-form-grid__wide">
+                                    <label class="form-label">Marketplace tagline</label>
+                                    <InputText class="form-control" @bind-Value="_model.MarketplaceTagline" disabled="@_isSaving" />
+                                </div>
+
+                                <div class="mb-3 platform-form-grid__wide">
+                                    <label class="form-label">Logo URL</label>
+                                    <InputText class="form-control" @bind-Value="_model.LogoUrl" disabled="@_isSaving" />
+                                    <ValidationMessage For="() => _model.LogoUrl" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Primary brand colour</label>
+                                    <div class="platform-colour-input">
+                                        <InputText class="form-control" @bind-Value="_model.BrandPrimaryColor" disabled="@_isSaving" />
+                                        <span style="@($"background:{_model.BrandPrimaryColor ?? "#1f6f4a"}")"></span>
+                                    </div>
+                                    <ValidationMessage For="() => _model.BrandPrimaryColor" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Support email</label>
+                                    <InputText class="form-control" @bind-Value="_model.SupportEmail" disabled="@_isSaving" />
+                                    <ValidationMessage For="() => _model.SupportEmail" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Support phone</label>
+                                    <InputText class="form-control" @bind-Value="_model.SupportPhone" disabled="@_isSaving" />
+                                </div>
+                            </div>
+
+                            <div class="platform-form-actions">
+                                <button class="btn btn-primary" type="submit" disabled="@_isSaving">
+                                    @(_isSaving ? "Saving..." : "Save Branding")
+                                </button>
+                                <a class="btn btn-outline-secondary" href="/tenant">Cancel</a>
+                            </div>
+                        </EditForm>
+                    </section>
+
+                    <aside class="platform-panel tenant-brand-preview" style="@PreviewStyle" aria-labelledby="tenant-preview-title">
+                        @if (!string.IsNullOrWhiteSpace(_model.LogoUrl))
+                        {
+                            <img src="@_model.LogoUrl" alt="@PreviewName" />
+                        }
+                        <p class="platform-kicker">Marketplace preview</p>
+                        <h2 id="tenant-preview-title">@PreviewName</h2>
+                        <p>@PreviewTagline</p>
+                        <dl class="tenant-summary">
+                            <div>
+                                <dt>Primary domain</dt>
+                                <dd>@(_branding?.PrimaryDomain ?? "-")</dd>
+                            </div>
+                            <div>
+                                <dt>Support</dt>
+                                <dd>@PreviewSupport</dd>
+                            </div>
+                        </dl>
+                        <span class="tenant-brand-preview__accent">Primary action colour</span>
+                    </aside>
+                </div>
+            }
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Tenant Access Required</h1>
+            <p>Please log in with a tenant administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isLoading;
+    private bool _isSaving;
+    private string? _loadError;
+    private string? _saveError;
+    private string? _saveSuccess;
+    private TenantBrandingDto? _branding;
+    private TenantBrandingFormModel _model = new();
+    private EditContext _editContext = default!;
+
+    private string PreviewName => _model.MarketplaceDisplayName ?? _branding?.CompanyName ?? _branding?.TenantName ?? "Marketplace";
+    private string PreviewTagline => _model.MarketplaceTagline ?? $"Browse approved listings and auctions from {PreviewName}.";
+    private string PreviewSupport => _model.SupportEmail ?? _branding?.ContactEmail ?? _model.SupportPhone ?? _branding?.ContactPhone ?? "Available from tenant admin";
+    private string PreviewStyle => string.IsNullOrWhiteSpace(_model.BrandPrimaryColor) ? string.Empty : $"--tenant-primary:{_model.BrandPrimaryColor};";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _editContext = new EditContext(_model);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            _branding = await Api.GetAsync<TenantBrandingDto>("/api/tenant/branding");
+            if (_branding is null)
+            {
+                _loadError = "Branding settings could not be loaded.";
+                return;
+            }
+
+            _model = TenantBrandingFormModel.FromDto(_branding);
+            _editContext = new EditContext(_model);
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _saveError = null;
+        _saveSuccess = null;
+
+        try
+        {
+            _branding = await Api.PutAsync<UpdateTenantBrandingRequest, TenantBrandingDto>(
+                "/api/tenant/branding",
+                new UpdateTenantBrandingRequest(
+                    _model.MarketplaceDisplayName,
+                    _model.MarketplaceTagline,
+                    _model.LogoUrl,
+                    _model.BrandPrimaryColor,
+                    _model.SupportEmail,
+                    _model.SupportPhone));
+
+            if (_branding is not null)
+            {
+                _model = TenantBrandingFormModel.FromDto(_branding);
+                _editContext = new EditContext(_model);
+            }
+
+            _saveSuccess = "Marketplace branding saved.";
+        }
+        catch (Exception ex)
+        {
+            _saveError = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}
