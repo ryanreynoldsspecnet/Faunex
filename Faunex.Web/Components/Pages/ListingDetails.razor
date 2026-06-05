@@ -80,6 +80,7 @@ else
 
     private bool _isLoading;
     private bool _isPlatformHost;
+    private string _host = string.Empty;
     private string? _error;
     private Faunex.Application.DTOs.ListingDto? _item;
 
@@ -98,7 +99,8 @@ else
         _error = null;
         _item = null;
         _isBuyer = false;
-        _isPlatformHost = PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host);
+        _host = Nav.ToAbsoluteUri(Nav.Uri).Host;
+        _isPlatformHost = PlatformHostRules.IsPlatformHost(_host);
 
         if (_isPlatformHost)
         {
@@ -108,8 +110,8 @@ else
 
         try
         {
-            var items = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>("/api/browse/listings");
-            _item = items?.FirstOrDefault(x => x.Id == ListingId);
+            var host = MarketplaceRoutes.HostQuery(_host);
+            _item = await Api.GetAsync<Faunex.Application.DTOs.ListingDto>($"/api/marketplace/listings/{ListingId}?host={host}");
 
             var authState = AuthenticationStateTask is null ? null : await AuthenticationStateTask;
             var user = authState?.User;

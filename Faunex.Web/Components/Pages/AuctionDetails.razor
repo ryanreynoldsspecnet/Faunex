@@ -184,6 +184,7 @@ else
 
     private bool _isLoading;
     private bool _isPlatformHost;
+    private string _host = string.Empty;
     private string? _error;
     private Faunex.Application.DTOs.ListingDto? _item;
 
@@ -234,7 +235,8 @@ else
         _isSubmitting = false;
         _bidSuccess = null;
         _bidError = null;
-        _isPlatformHost = PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host);
+        _host = Nav.ToAbsoluteUri(Nav.Uri).Host;
+        _isPlatformHost = PlatformHostRules.IsPlatformHost(_host);
 
         if (_isPlatformHost)
         {
@@ -244,7 +246,8 @@ else
 
         try
         {
-            _item = await Api.GetAsync<Faunex.Application.DTOs.ListingDto>($"/api/listings/{ListingId}");
+            var host = MarketplaceRoutes.HostQuery(_host);
+            _item = await Api.GetAsync<Faunex.Application.DTOs.ListingDto>($"/api/marketplace/listings/{ListingId}?host={host}");
 
             var authState = AuthenticationStateTask is null ? null : await AuthenticationStateTask;
             var user = authState?.User;
@@ -284,7 +287,8 @@ else
 
         try
         {
-            var auctions = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.AuctionDto>>($"/api/auctions/by-listing/{_item.Id}");
+            var host = MarketplaceRoutes.HostQuery(_host);
+            var auctions = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.AuctionDto>>($"/api/marketplace/listings/{_item.Id}/auctions?host={host}");
             _auction = auctions?.FirstOrDefault();
             _auctionId = _auction?.Id;
 
@@ -310,7 +314,7 @@ else
 
     private sealed class CurrentPriceDto
     {
-        public decimal Price { get; set; }
+        public decimal? CurrentPrice { get; set; }
     }
 
     private static bool HasNext(Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto> page, int skip, int take)
@@ -335,12 +339,16 @@ else
 
     private async Task<decimal?> LoadCurrentPriceAsync(Guid auctionId)
     {
-        var dto = await Api.GetAsync<CurrentPriceDto>($"/api/auctions/{auctionId}/price");
-        return dto is null ? null : dto.Price;
+        var host = MarketplaceRoutes.HostQuery(_host);
+        var dto = await Api.GetAsync<CurrentPriceDto>($"/api/marketplace/auctions/{auctionId}/price?host={host}");
+        return dto?.CurrentPrice;
     }
 
     private Task<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>?> LoadBidsPageAsync(Guid auctionId, int skip, int take)
-        => Api.GetAsync<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>>($"/api/auctions/{auctionId}/bids?skip={skip}&take={take}");
+    {
+        var host = MarketplaceRoutes.HostQuery(_host);
+        return Api.GetAsync<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>>($"/api/marketplace/auctions/{auctionId}/bids?host={host}&skip={skip}&take={take}");
+    }
 
     private async Task PrevPageAsync()
     {

@@ -1,103 +1,240 @@
 @page "/"
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
 
 <PageTitle>Faunex</PageTitle>
 
-<section class="home-hero" aria-labelledby="home-title">
-    <div class="home-hero__content">
-        <p class="home-kicker">Multi-tenant auction infrastructure</p>
-        <h1 id="home-title">Faunex</h1>
-        <p class="home-lede">
-            A regulated marketplace platform for specialist auctions, compliance-driven listings,
-            and future tenant marketplaces across South Africa and Africa.
-        </p>
-
-        <div class="home-actions" aria-label="Primary actions">
-            <a class="btn btn-primary btn-lg" href="/login">Platform Login</a>
-            <a class="btn btn-outline-light btn-lg" href="/platform">Open Platform</a>
-        </div>
-
-        <dl class="home-snapshot" aria-label="Platform snapshot">
-            <div>
-                <dt>Tenant 1</dt>
-                <dd>Storm Bird Auctions</dd>
-            </div>
-            <div>
-                <dt>Model</dt>
-                <dd>Auctions, listings, compliance</dd>
-            </div>
-            <div>
-                <dt>Built For</dt>
-                <dd>Birds, livestock, poultry, game</dd>
-            </div>
-        </dl>
-    </div>
-</section>
-
-<section class="home-section home-section--intro" aria-labelledby="platform-heading">
-    <div class="home-section__inner">
-        <div class="home-section__copy">
-            <p class="home-kicker home-kicker--dark">Platform first</p>
-            <h2 id="platform-heading">One auction engine, many specialist marketplaces.</h2>
-            <p>
-                Faunex is designed as reusable marketplace infrastructure. Storm Bird Auctions is the first tenant,
-                but the same foundation will support breeders, associations, conservation networks, livestock exchanges,
-                poultry markets, and other regulated trading communities.
+@if (_isPlatformHost)
+{
+    <section class="home-hero" aria-labelledby="home-title">
+        <div class="home-hero__content">
+            <p class="home-kicker">Multi-tenant auction infrastructure</p>
+            <h1 id="home-title">Faunex</h1>
+            <p class="home-lede">
+                A regulated marketplace platform for specialist auctions, compliance-driven listings,
+                and future tenant marketplaces across South Africa and Africa.
             </p>
-        </div>
 
-        <div class="home-capabilities" aria-label="Core platform capabilities">
-            <article>
-                <h3>Tenant Marketplaces</h3>
-                <p>Independent branding, roles, categories, compliance rules, and future subscription plans per tenant.</p>
-            </article>
-            <article>
-                <h3>Compliance Workflow</h3>
-                <p>Permit, identity, health, ownership, and CITES-style review flows built into the listing lifecycle.</p>
-            </article>
-            <article>
-                <h3>Mobile-Ready API</h3>
-                <p>API-first architecture keeps web, Android, and iOS clients aligned around the same platform rules.</p>
-            </article>
-            <article>
-                <h3>Realtime Auctions</h3>
-                <p>Timed bidding, buy-now, sealed-bid, and live updates are planned as reusable auction capabilities.</p>
-            </article>
-        </div>
-    </div>
-</section>
+            <div class="home-actions" aria-label="Primary actions">
+                <a class="btn btn-primary btn-lg" href="/login">Platform Login</a>
+                <a class="btn btn-outline-light btn-lg" href="/platform">Open Platform</a>
+            </div>
 
-<section class="home-section home-section--workflow" aria-labelledby="workflow-heading">
-    <div class="home-section__inner home-section__inner--split">
-        <div>
-            <p class="home-kicker home-kicker--dark">Launch workflow</p>
-            <h2 id="workflow-heading">The first usable slice is already clear.</h2>
-            <p>
-                The next build focus is a complete end-to-end tenant path: sellers create compliant listings,
-                tenant admins review them, buyers browse approved listings on the tenant marketplace, and auctions can run through the validated deployment pipeline.
+            <dl class="home-snapshot" aria-label="Platform snapshot">
+                <div>
+                    <dt>Tenant 1</dt>
+                    <dd>Storm Bird Auctions</dd>
+                </div>
+                <div>
+                    <dt>Model</dt>
+                    <dd>Auctions, listings, compliance</dd>
+                </div>
+                <div>
+                    <dt>Built For</dt>
+                    <dd>Birds, livestock, poultry, game</dd>
+                </div>
+            </dl>
+        </div>
+    </section>
+
+    <section class="home-section home-section--intro" aria-labelledby="platform-heading">
+        <div class="home-section__inner">
+            <div class="home-section__copy">
+                <p class="home-kicker home-kicker--dark">Platform first</p>
+                <h2 id="platform-heading">One auction engine, many specialist marketplaces.</h2>
+                <p>
+                    Faunex is designed as reusable marketplace infrastructure. Storm Bird Auctions is the first tenant,
+                    but the same foundation will support breeders, associations, conservation networks, livestock exchanges,
+                    poultry markets, and other regulated trading communities.
+                </p>
+            </div>
+
+            <div class="home-capabilities" aria-label="Core platform capabilities">
+                <article>
+                    <h3>Tenant Marketplaces</h3>
+                    <p>Independent branding, roles, categories, compliance rules, and future subscription plans per tenant.</p>
+                </article>
+                <article>
+                    <h3>Compliance Workflow</h3>
+                    <p>Permit, identity, health, ownership, and CITES-style review flows built into the listing lifecycle.</p>
+                </article>
+                <article>
+                    <h3>Mobile-Ready API</h3>
+                    <p>API-first architecture keeps web, Android, and iOS clients aligned around the same platform rules.</p>
+                </article>
+                <article>
+                    <h3>Realtime Auctions</h3>
+                    <p>Timed bidding, buy-now, sealed-bid, and live updates are planned as reusable auction capabilities.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="home-section home-section--workflow" aria-labelledby="workflow-heading">
+        <div class="home-section__inner home-section__inner--split">
+            <div>
+                <p class="home-kicker home-kicker--dark">Launch workflow</p>
+                <h2 id="workflow-heading">The first usable slice is already clear.</h2>
+                <p>
+                    The next build focus is a complete end-to-end tenant path: sellers create compliant listings,
+                    tenant admins review them, buyers browse approved listings on the tenant marketplace, and auctions can run through the validated deployment pipeline.
+                </p>
+            </div>
+
+            <ol class="home-roadmap">
+                <li>
+                    <span>01</span>
+                    <strong>Seller listing creation</strong>
+                    <p>Animal details, category data, pricing, images, and supporting documents.</p>
+                </li>
+                <li>
+                    <span>02</span>
+                    <strong>Compliance review</strong>
+                    <p>Platform and tenant administrators approve, reject, or request supporting information.</p>
+                </li>
+                <li>
+                    <span>03</span>
+                    <strong>Buyer marketplace</strong>
+                    <p>Approved listings become discoverable through search, filters, and listing detail pages.</p>
+                </li>
+                <li>
+                    <span>04</span>
+                    <strong>Auction activity</strong>
+                    <p>Timed auctions, bidding rules, and buyer notifications turn listings into transactions.</p>
+                </li>
+            </ol>
+        </div>
+    </section>
+}
+else if (_isLoadingMarketplace)
+{
+    <section class="marketplace-shell">
+        <p>Loading marketplace...</p>
+    </section>
+}
+else if (_marketplaceError is not null)
+{
+    <section class="marketplace-shell">
+        <div class="platform-empty" role="status">
+            <h1>Marketplace not found</h1>
+            <p>@_marketplaceError</p>
+        </div>
+    </section>
+}
+else if (_marketplace is not null)
+{
+    <section class="marketplace-hero" aria-labelledby="marketplace-title">
+        <div class="marketplace-hero__content">
+            <p class="home-kicker">Tenant marketplace</p>
+            <h1 id="marketplace-title">@_marketplace.Name</h1>
+            <p class="home-lede">
+                Browse approved listings and auction opportunities from @DisplayTenantName.
             </p>
-        </div>
 
-        <ol class="home-roadmap">
-            <li>
-                <span>01</span>
-                <strong>Seller listing creation</strong>
-                <p>Animal details, category data, pricing, images, and supporting documents.</p>
-            </li>
-            <li>
-                <span>02</span>
-                <strong>Compliance review</strong>
-                <p>Platform and tenant administrators approve, reject, or request supporting information.</p>
-            </li>
-            <li>
-                <span>03</span>
-                <strong>Buyer marketplace</strong>
-                <p>Approved listings become discoverable through search, filters, and listing detail pages.</p>
-            </li>
-            <li>
-                <span>04</span>
-                <strong>Auction activity</strong>
-                <p>Timed auctions, bidding rules, and buyer notifications turn listings into transactions.</p>
-            </li>
-        </ol>
-    </div>
-</section>
+            <div class="home-actions" aria-label="Marketplace actions">
+                <a class="btn btn-primary btn-lg" href="/browse">Browse Listings</a>
+                <a class="btn btn-outline-light btn-lg" href="/login">Login</a>
+            </div>
+
+            <dl class="home-snapshot" aria-label="Marketplace snapshot">
+                <div>
+                    <dt>Marketplace</dt>
+                    <dd>@DisplayTenantName</dd>
+                </div>
+                <div>
+                    <dt>Listings</dt>
+                    <dd>@FeaturedListingCountLabel</dd>
+                </div>
+                <div>
+                    <dt>Domain</dt>
+                    <dd>@(_marketplace.PrimaryDomain ?? _host)</dd>
+                </div>
+            </dl>
+        </div>
+    </section>
+
+    <section class="home-section home-section--intro" aria-labelledby="featured-listings-heading">
+        <div class="home-section__inner">
+            <div class="platform-header">
+                <div>
+                    <p class="platform-kicker">Approved listings</p>
+                    <h1 id="featured-listings-heading">Featured marketplace listings</h1>
+                    <p>Only approved tenant listings are shown here. Auctions and buyer activity stay inside this tenant marketplace.</p>
+                </div>
+                <a class="btn btn-primary" href="/browse">View All</a>
+            </div>
+
+            @if (_featuredListings is null || _featuredListings.Count == 0)
+            {
+                <div class="platform-empty">
+                    <p>No approved listings are available yet.</p>
+                </div>
+            }
+            else
+            {
+                <div class="marketplace-listing-grid">
+                    @foreach (var item in _featuredListings.Take(3))
+                    {
+                        <article class="marketplace-listing-card">
+                            <span>@GetSaleType(item)</span>
+                            <h2>@item.Title</h2>
+                            <p>@(string.IsNullOrWhiteSpace(item.Location) ? DisplayTenantName : item.Location)</p>
+                            <strong>@FormatPrice(item)</strong>
+                            <a class="btn btn-outline-primary" href="@($"/listings/{item.Id}")">View Listing</a>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private bool _isPlatformHost;
+    private bool _isLoadingMarketplace;
+    private string _host = string.Empty;
+    private string? _marketplaceError;
+    private MarketplaceContextDto? _marketplace;
+    private IReadOnlyList<Faunex.Application.DTOs.ListingDto>? _featuredListings;
+
+    private string DisplayTenantName => _marketplace?.CompanyName ?? _marketplace?.Name ?? "this marketplace";
+    private string FeaturedListingCountLabel => (_featuredListings?.Count ?? 0) == 0 ? "Opening soon" : $"{_featuredListings!.Count} available";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _host = Nav.ToAbsoluteUri(Nav.Uri).Host;
+        _isPlatformHost = PlatformHostRules.IsPlatformHost(_host);
+
+        if (_isPlatformHost)
+        {
+            return;
+        }
+
+        _isLoadingMarketplace = true;
+        _marketplaceError = null;
+
+        try
+        {
+            var host = MarketplaceRoutes.HostQuery(_host);
+            _marketplace = await Api.GetAsync<MarketplaceContextDto>($"/api/marketplace/context?host={host}");
+            _featuredListings = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>($"/api/marketplace/listings?host={host}");
+        }
+        catch (Exception ex)
+        {
+            _marketplaceError = ex.Message;
+        }
+        finally
+        {
+            _isLoadingMarketplace = false;
+        }
+    }
+
+    private static string FormatPrice(Faunex.Application.DTOs.ListingDto item)
+    {
+        var price = item.BuyNowPrice ?? item.StartingPrice;
+        return $"{price:0.##} {item.CurrencyCode}";
+    }
+
+    private static string GetSaleType(Faunex.Application.DTOs.ListingDto item)
+        => item.BuyNowPrice.HasValue ? "Fixed price" : "Auction";
+}

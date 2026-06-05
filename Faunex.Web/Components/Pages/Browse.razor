@@ -59,6 +59,7 @@ else
 @code {
     private bool _isLoading;
     private bool _isPlatformHost;
+    private string _host = string.Empty;
     private string? _error;
     private IReadOnlyList<Faunex.Application.DTOs.ListingDto>? _items;
 
@@ -66,7 +67,8 @@ else
 
     private async Task ReloadAsync()
     {
-        _isPlatformHost = PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host);
+        _host = Nav.ToAbsoluteUri(Nav.Uri).Host;
+        _isPlatformHost = PlatformHostRules.IsPlatformHost(_host);
         if (_isPlatformHost)
         {
             return;
@@ -78,7 +80,8 @@ else
 
         try
         {
-            _items = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>("/api/browse/listings");
+            var host = MarketplaceRoutes.HostQuery(_host);
+            _items = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>($"/api/marketplace/listings?host={host}");
         }
         catch (Exception ex)
         {
