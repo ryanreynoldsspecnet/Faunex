@@ -304,8 +304,14 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
             tenant.Id,
             tenant.Name,
             tenant.CompanyName,
+            tenant.MarketplaceDisplayName,
+            tenant.MarketplaceTagline,
+            tenant.LogoUrl,
+            tenant.BrandPrimaryColor,
             tenant.ContactEmail,
             tenant.ContactPhone,
+            tenant.SupportEmail,
+            tenant.SupportPhone,
             primaryDomain,
             domains);
     }
@@ -330,7 +336,13 @@ public sealed record MarketplaceContextDto(
     Guid TenantId,
     string Name,
     string? CompanyName,
+    string? MarketplaceDisplayName,
+    string? MarketplaceTagline,
+    string? LogoUrl,
+    string? BrandPrimaryColor,
     string? ContactEmail,
     string? ContactPhone,
+    string? SupportEmail,
+    string? SupportPhone,
     string? PrimaryDomain,
     IReadOnlyList<string> Domains);

@@ -43,7 +43,12 @@
 
                         <div class="mb-3">
                             <label class="form-label">Temporary password</label>
-                            <InputText type="password" class="form-control" @bind-Value="_model.Password" disabled="@_isCreating" />
+                            <div class="password-field">
+                                <InputText type="@(_showPassword ? "text" : "password")" class="form-control" @bind-Value="_model.Password" disabled="@_isCreating" />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="() => _showPassword = !_showPassword" disabled="@_isCreating">
+                                    @(_showPassword ? "Hide" : "Show")
+                                </button>
+                            </div>
                             <ValidationMessage For="() => _model.Password" />
                         </div>
 
@@ -80,6 +85,7 @@
 
 @code {
     private bool _isCreating;
+    private bool _showPassword;
     private string? _createError;
     private readonly TenantUserFormModel _model = new();
     private EditContext _editContext = default!;

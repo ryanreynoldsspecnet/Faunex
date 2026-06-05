@@ -40,7 +40,12 @@
 
     <div class="mb-3">
         <label class="form-label">Password</label>
-        <InputText class="form-control" type="password" @bind-Value="_model.Password" disabled="@_isSubmitting" />
+        <div class="password-field">
+            <InputText class="form-control" type="@(_showPassword ? "text" : "password")" @bind-Value="_model.Password" disabled="@_isSubmitting" />
+            <button class="btn btn-outline-secondary" type="button" @onclick="() => _showPassword = !_showPassword" disabled="@_isSubmitting">
+                @(_showPassword ? "Hide" : "Show")
+            </button>
+        </div>
     </div>
 
     @* Validation/submission is driven only by OnValidSubmit; the button must be type="submit" and have no @onclick handler. *@
@@ -55,6 +60,7 @@
 
 @code {
     private bool _isSubmitting;
+    private bool _showPassword;
     private string? _error;
     private string? _success;
     private string? _pendingRedirectTo;

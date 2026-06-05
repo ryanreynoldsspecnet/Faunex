@@ -295,6 +295,7 @@ a, .btn-link {
 }
 
 .marketplace-hero {
+    --tenant-primary: #d3aa57;
     min-height: calc(78vh - 56px);
     margin: -1.1rem calc(50% - 50vw) 0;
     padding: clamp(3rem, 7vw, 6rem) clamp(1.5rem, 6vw, 5rem);
@@ -308,6 +309,14 @@ a, .btn-link {
 
 .marketplace-hero__content {
     max-width: 760px;
+}
+
+.marketplace-hero__logo {
+    max-width: min(260px, 68vw);
+    max-height: 96px;
+    display: block;
+    object-fit: contain;
+    margin-bottom: 1.25rem;
 }
 
 .marketplace-hero h1 {
@@ -339,8 +348,8 @@ a, .btn-link {
     width: fit-content;
     border-radius: 999px;
     padding: 0.2rem 0.65rem;
-    color: #15573a;
-    background: #dff3e9;
+    color: #17231e;
+    background: color-mix(in srgb, var(--tenant-primary, #d3aa57) 32%, #ffffff);
     font-size: 0.8rem;
     font-weight: 800;
 }
@@ -361,6 +370,11 @@ a, .btn-link {
     margin-top: auto;
     color: #17231e;
     font-size: 1.15rem;
+}
+
+.marketplace-hero .btn-primary {
+    background-color: var(--tenant-primary, #1f6f4a);
+    border-color: var(--tenant-primary, #1f6f4a);
 }
 
 .platform-shell {
@@ -502,6 +516,27 @@ a, .btn-link {
     gap: 0.5rem;
     align-items: center;
     padding-top: 1.9rem;
+}
+
+.platform-colour-input {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 42px;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.platform-colour-input span {
+    width: 42px;
+    height: 38px;
+    display: block;
+    border: 1px solid #cad5cf;
+    border-radius: 6px;
+}
+
+.password-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
 }
 
 .platform-form-actions {

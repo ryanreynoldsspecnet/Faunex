@@ -80,6 +80,48 @@
                             <label class="form-check-label">Tenant active</label>
                         </div>
 
+                        <div class="platform-form-grid__wide">
+                            <hr class="platform-form-divider" />
+                            <p class="platform-kicker">Marketplace branding</p>
+                            <h2 class="platform-form-section-title">Tenant Marketplace</h2>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Marketplace display name</label>
+                            <InputText class="form-control" @bind-Value="_model.MarketplaceDisplayName" disabled="@_isCreating" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Primary brand colour</label>
+                            <div class="platform-colour-input">
+                                <InputText class="form-control" @bind-Value="_model.BrandPrimaryColor" disabled="@_isCreating" />
+                                <span style="@($"background:{_model.BrandPrimaryColor ?? "#1f6f4a"}")"></span>
+                            </div>
+                            <ValidationMessage For="() => _model.BrandPrimaryColor" />
+                        </div>
+
+                        <div class="mb-3 platform-form-grid__wide">
+                            <label class="form-label">Marketplace tagline</label>
+                            <InputText class="form-control" @bind-Value="_model.MarketplaceTagline" disabled="@_isCreating" />
+                        </div>
+
+                        <div class="mb-3 platform-form-grid__wide">
+                            <label class="form-label">Logo URL</label>
+                            <InputText class="form-control" @bind-Value="_model.LogoUrl" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.LogoUrl" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Support email</label>
+                            <InputText class="form-control" @bind-Value="_model.SupportEmail" disabled="@_isCreating" />
+                            <ValidationMessage For="() => _model.SupportEmail" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Support phone</label>
+                            <InputText class="form-control" @bind-Value="_model.SupportPhone" disabled="@_isCreating" />
+                        </div>
+
                         <div class="mb-3 platform-form-grid__wide">
                             <label class="form-label">Physical address</label>
                             <InputTextArea class="form-control" @bind-Value="_model.PhysicalAddress" disabled="@_isCreating" />
@@ -118,7 +160,12 @@
 
                         <div class="mb-3">
                             <label class="form-label">Temporary password</label>
-                            <InputText type="password" class="form-control" @bind-Value="_model.TenantAdminPassword" disabled="@_isCreating" />
+                            <div class="password-field">
+                                <InputText type="@(_showTenantAdminPassword ? "text" : "password")" class="form-control" @bind-Value="_model.TenantAdminPassword" disabled="@_isCreating" />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="() => _showTenantAdminPassword = !_showTenantAdminPassword" disabled="@_isCreating">
+                                    @(_showTenantAdminPassword ? "Hide" : "Show")
+                                </button>
+                            </div>
                             <ValidationMessage For="() => _model.TenantAdminPassword" />
                         </div>
                     </div>
@@ -144,6 +191,7 @@
 
 @code {
     private bool _isCreating;
+    private bool _showTenantAdminPassword;
     private string? _createError;
     private PlatformTenantFormModel _model = new();
     private EditContext _editContext = default!;
@@ -180,6 +228,12 @@
                     PhysicalAddress: _model.PhysicalAddress,
                     PostalAddress: _model.PostalAddress,
                     ShippingAddress: _model.ShippingAddress,
+                    MarketplaceDisplayName: _model.MarketplaceDisplayName,
+                    MarketplaceTagline: _model.MarketplaceTagline,
+                    LogoUrl: _model.LogoUrl,
+                    BrandPrimaryColor: _model.BrandPrimaryColor,
+                    SupportEmail: _model.SupportEmail,
+                    SupportPhone: _model.SupportPhone,
                     IsActive: _model.IsActive,
                     FirstAdminEmail: _model.TenantAdminEmail,
                     FirstAdminDisplayName: _model.TenantAdminDisplayName,

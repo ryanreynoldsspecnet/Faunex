@@ -39,12 +39,22 @@ else
 
     <div class="mb-3">
         <label class="form-label">Password</label>
-        <InputText class="form-control" type="password" @bind-Value="_model.Password" disabled="@_isSubmitting" />
+        <div class="password-field">
+            <InputText class="form-control" type="@(_showPassword ? "text" : "password")" @bind-Value="_model.Password" disabled="@_isSubmitting" />
+            <button class="btn btn-outline-secondary" type="button" @onclick="() => _showPassword = !_showPassword" disabled="@_isSubmitting">
+                @(_showPassword ? "Hide" : "Show")
+            </button>
+        </div>
     </div>
 
     <div class="mb-3">
         <label class="form-label">Confirm Password</label>
-        <InputText class="form-control" type="password" @bind-Value="_model.ConfirmPassword" disabled="@_isSubmitting" />
+        <div class="password-field">
+            <InputText class="form-control" type="@(_showConfirmPassword ? "text" : "password")" @bind-Value="_model.ConfirmPassword" disabled="@_isSubmitting" />
+            <button class="btn btn-outline-secondary" type="button" @onclick="() => _showConfirmPassword = !_showConfirmPassword" disabled="@_isSubmitting">
+                @(_showConfirmPassword ? "Hide" : "Show")
+            </button>
+        </div>
         <ValidationMessage For="() => _model.ConfirmPassword" />
     </div>
 
@@ -56,6 +66,8 @@ else
 
 @code {
     private bool _isSubmitting;
+    private bool _showPassword;
+    private bool _showConfirmPassword;
     private string? _error;
     private string? _success;
 
