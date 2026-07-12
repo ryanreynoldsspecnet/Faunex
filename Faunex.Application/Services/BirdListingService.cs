@@ -134,16 +134,12 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         // TODO: Auction creation is not implemented in this slice.
         _ = request.IsAuction;
 
-        var speciesExists = await dbContext.BirdDetails
-            .IgnoreQueryFilters()
-            .Select(x => x.SpeciesId)
-            .Where(x => x.HasValue)
-            .AnyAsync(x => x == request.SpeciesId, cancellationToken);
+        var speciesExists = await dbContext.BirdSpeciesSet
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == request.SpeciesId, cancellationToken);
 
         if (!speciesExists)
         {
-            // Fallback validation using seeded ids if species table is not exposed via IApplicationDbContext.
-            // TODO: Add BirdSpecies DbSet to IApplicationDbContext to validate species properly.
             throw new ArgumentException("SpeciesId does not exist.");
         }
 

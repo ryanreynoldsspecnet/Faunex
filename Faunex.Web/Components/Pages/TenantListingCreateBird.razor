@@ -1,0 +1,254 @@
+@page "/tenant/listings/create/bird"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Nav
+
+<PageTitle>Add Bird Listing - Faunex</PageTitle>
+
+<AuthorizeView Roles="TenantAdmin">
+    <Authorized Context="tenantCreateListingAuth">
+        <section class="platform-shell" aria-labelledby="tenant-create-listing-title">
+            <div class="platform-header platform-header--compact">
+                <div>
+                    <p class="platform-kicker">Tenant operations</p>
+                    <h1 id="tenant-create-listing-title">Add Bird Listing</h1>
+                    <p>Create a draft listing for your tenant. Compliance submission and marketplace publishing happen after the draft has been checked.</p>
+                </div>
+
+                <a class="btn btn-outline-secondary" href="/tenant/listings">Back to listings</a>
+            </div>
+
+            <div class="tenant-listing-create-grid">
+                <section class="platform-panel">
+                    <div class="platform-panel__header">
+                        <div>
+                            <p class="platform-kicker">Listing details</p>
+                            <h2>Draft setup</h2>
+                        </div>
+                    </div>
+
+                    @if (_isLoadingSpecies)
+                    {
+                        <p>Loading bird species...</p>
+                    }
+                    else
+                    {
+                        <EditForm Model="_model" OnValidSubmit="SubmitAsync">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+
+                            @if (!string.IsNullOrWhiteSpace(_error))
+                            {
+                                <div class="alert alert-danger" role="alert">@_error</div>
+                            }
+
+                            <div class="platform-form-grid">
+                                <div>
+                                    <label class="form-label" for="listing-title">Title</label>
+                                    <InputText id="listing-title" class="form-control" @bind-Value="_model.Title" disabled="@_isSubmitting" />
+                                    <ValidationMessage For="() => _model.Title" />
+                                </div>
+
+                                <div>
+                                    <label class="form-label" for="listing-species">Species</label>
+                                    <InputSelect id="listing-species" class="form-select" @bind-Value="_model.SpeciesId" disabled="@(_isSubmitting || _species.Count == 0)">
+                                        <option value="">Select species</option>
+                                        @foreach (var species in _species)
+                                        {
+                                            <option value="@species.Id">@species.CommonName (@species.ScientificName)</option>
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For="() => _model.SpeciesId" />
+                                </div>
+
+                                <div>
+                                    <label class="form-label" for="listing-price">Price</label>
+                                    <InputNumber id="listing-price" class="form-control" @bind-Value="_model.Price" disabled="@_isSubmitting" />
+                                    <ValidationMessage For="() => _model.Price" />
+                                </div>
+
+                                <div>
+                                    <label class="form-label" for="listing-type">Sale type</label>
+                                    <InputSelect id="listing-type" class="form-select" @bind-Value="_model.SaleType" disabled="@_isSubmitting">
+                                        <option value="fixed">Fixed price draft</option>
+                                        <option value="auction">Auction draft</option>
+                                    </InputSelect>
+                                </div>
+
+                                <div class="platform-form-grid__full">
+                                    <label class="form-label" for="listing-description">Description</label>
+                                    <InputTextArea id="listing-description" class="form-control" rows="5" @bind-Value="_model.Description" disabled="@_isSubmitting" />
+                                    <ValidationMessage For="() => _model.Description" />
+                                </div>
+                            </div>
+
+                            <div class="platform-form-actions">
+                                <button class="btn btn-primary" type="submit" disabled="@(_isSubmitting || _species.Count == 0)">
+                                    @(_isSubmitting ? "Creating..." : "Create Draft")
+                                </button>
+                                <a class="btn btn-outline-secondary" href="/tenant/listings">Cancel</a>
+                            </div>
+                        </EditForm>
+                    }
+                </section>
+
+                <aside class="platform-panel tenant-listing-create-aside">
+                    <p class="platform-kicker">Workflow</p>
+                    <h2>What happens next</h2>
+                    <ol>
+                        <li>
+                            <strong>Draft created</strong>
+                            <span>The listing appears in the tenant listings workspace.</span>
+                        </li>
+                        <li>
+                            <strong>Review details</strong>
+                            <span>Open the listing detail page and check the seller, species, price, and compliance status.</span>
+                        </li>
+                        <li>
+                            <strong>Submit for compliance</strong>
+                            <span>The next slice will add the tenant-side submission action and compliance document workflow.</span>
+                        </li>
+                    </ol>
+                </aside>
+            </div>
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Tenant Access Required</h1>
+            <p>Please log in with a tenant administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private readonly CreateBirdListingFormModel _model = new();
+    private List<BirdSpeciesOptionDto> _species = [];
+    private bool _isLoadingSpecies = true;
+    private bool _isSubmitting;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var species = await Api.GetAsync<IReadOnlyList<BirdSpeciesOptionDto>>("/api/species");
+            _species = species?
+                .OrderBy(x => x.CommonName)
+                .ThenBy(x => x.ScientificName)
+                .ToList() ?? [];
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load bird species. {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingSpecies = false;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _isSubmitting = true;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated != true || !user.IsInRole("TenantAdmin"))
+            {
+                _error = "Please log in with a tenant administrator account.";
+                return;
+            }
+
+            var sellerIdRaw = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(sellerIdRaw, out var sellerId))
+            {
+                _error = "Could not determine your user id.";
+                return;
+            }
+
+            var payload = new CreateBirdListingRequestDto(
+                _model.SpeciesId!.Value,
+                _model.Title.Trim(),
+                string.IsNullOrWhiteSpace(_model.Description) ? null : _model.Description.Trim(),
+                _model.Price,
+                string.Equals(_model.SaleType, "auction", StringComparison.OrdinalIgnoreCase),
+                sellerId);
+
+            var created = await Api.PostAsync<CreateBirdListingRequestDto, CreatedListingDto>("/api/seller/listings/bird", payload);
+
+            if (created?.Id is Guid listingId && listingId != Guid.Empty)
+            {
+                Nav.NavigateTo($"/tenant/listings/{listingId}");
+                return;
+            }
+
+            Nav.NavigateTo("/tenant/listings");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private sealed class CreateBirdListingFormModel
+    {
+        [Required]
+        [StringLength(160, MinimumLength = 3)]
+        public string Title { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Select a bird species.")]
+        public Guid? SpeciesId { get; set; }
+
+        [StringLength(2000)]
+        public string? Description { get; set; }
+
+        [Range(0.01, 999999999, ErrorMessage = "Price must be greater than 0.")]
+        public decimal Price { get; set; } = 1;
+
+        public string SaleType { get; set; } = "fixed";
+    }
+
+    private sealed record BirdSpeciesOptionDto(
+        Guid Id,
+        string ScientificName,
+        string CommonName,
+        int CitesAppendix,
+        bool IsEndangered,
+        string? Notes);
+
+    private sealed record CreateBirdListingRequestDto(
+        Guid SpeciesId,
+        string Title,
+        string? Description,
+        decimal Price,
+        bool IsAuction,
+        Guid SellerId);
+
+    private sealed record CreatedListingDto(
+        Guid Id,
+        Guid? TenantId,
+        Guid? SellerId,
+        string AnimalClass,
+        Guid? SpeciesId,
+        string Title,
+        string? Description,
+        decimal? StartingPrice,
+        decimal? BuyNowPrice,
+        string? CurrencyCode,
+        int? Quantity,
+        string? Location,
+        bool? IsActive);
+}

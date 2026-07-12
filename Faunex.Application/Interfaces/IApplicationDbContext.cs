@@ -6,6 +6,7 @@ namespace Faunex.Application.Interfaces;
 public interface IApplicationDbContext
 {
     DbSet<Listing> Listings { get; }
+    DbSet<BirdSpecies> BirdSpeciesSet { get; }
     DbSet<Auction> Auctions { get; }
     DbSet<Bid> Bids { get; }
     DbSet<Document> Documents { get; }
