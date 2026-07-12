@@ -36,6 +36,54 @@ public sealed record TenantListingRowDto(
     string? ReviewNotes,
     int AuctionCount,
     int BidCount);
+public sealed record TenantListingDetailsDto(
+    Guid Id,
+    string Title,
+    string? Description,
+    Guid SellerId,
+    string? SellerEmail,
+    string? SellerDisplayName,
+    string AnimalClass,
+    string? AnimalDetails,
+    decimal StartingPrice,
+    decimal? BuyNowPrice,
+    string CurrencyCode,
+    int Quantity,
+    string? Location,
+    bool IsActive,
+    string ComplianceStatus,
+    DateTimeOffset? SubmittedAt,
+    DateTimeOffset? ReviewedAt,
+    DateTimeOffset? LastUpdatedAt,
+    string? ReviewNotes,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    int AuctionCount,
+    int BidCount,
+    decimal? HighestBid,
+    IReadOnlyList<TenantListingDocumentDto> Documents,
+    IReadOnlyList<TenantListingAuctionDto> Auctions);
+
+public sealed record TenantListingDocumentDto(
+    Guid Id,
+    string DocumentType,
+    string? FileUrl,
+    DateTimeOffset? UploadedAt,
+    bool VerifiedByAdmin,
+    DateTimeOffset? VerifiedAt,
+    string? Notes);
+
+public sealed record TenantListingAuctionDto(
+    Guid Id,
+    string Type,
+    DateTimeOffset? StartsAt,
+    DateTimeOffset? EndsAt,
+    decimal StartingPrice,
+    decimal? ReservePrice,
+    decimal? BuyNowPrice,
+    bool IsSealedBid,
+    bool IsClosed,
+    int BidCount);
 public sealed record TenantBrandingDto(
     Guid TenantId,
     string TenantName,

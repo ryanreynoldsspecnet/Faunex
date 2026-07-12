@@ -1,0 +1,365 @@
+@page "/tenant/listings/{ListingId:guid}"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+
+<PageTitle>Tenant Listing - Faunex</PageTitle>
+
+<AuthorizeView Roles="TenantAdmin">
+    <Authorized Context="tenantListingAuth">
+        <section class="platform-shell" aria-labelledby="tenant-listing-title">
+            <div class="platform-header platform-header--compact">
+                <div>
+                    <p class="platform-kicker">Tenant operations</p>
+                    <h1 id="tenant-listing-title">@(_listing?.Title ?? "Listing detail")</h1>
+                    <p>Inspect listing readiness, seller ownership, compliance state, documents, and auction activity.</p>
+                </div>
+
+                <a class="btn btn-outline-secondary" href="/tenant/listings">Back to listings</a>
+            </div>
+
+            @if (_isLoading)
+            {
+                <section class="platform-panel">
+                    <p>Loading listing...</p>
+                </section>
+            }
+            else if (_error is not null)
+            {
+                <section class="platform-panel">
+                    <div class="alert alert-danger" role="alert">@_error</div>
+                </section>
+            }
+            else if (_listing is null)
+            {
+                <section class="platform-panel platform-empty">
+                    <p>Listing not found.</p>
+                </section>
+            }
+            else
+            {
+                <section class="platform-panel tenant-listing-hero">
+                    <div>
+                        <span class="platform-status @GetComplianceStatusClass(_listing.ComplianceStatus)">@FormatComplianceStatus(_listing.ComplianceStatus)</span>
+                        <h2>@_listing.Title</h2>
+                        <p>@(_listing.Description ?? "No description has been added yet.")</p>
+                    </div>
+                    <dl class="tenant-listing-facts">
+                        <div>
+                            <dt>Price</dt>
+                            <dd>@FormatPrice(_listing)</dd>
+                        </div>
+                        <div>
+                            <dt>Quantity</dt>
+                            <dd>@_listing.Quantity</dd>
+                        </div>
+                        <div>
+                            <dt>Listing</dt>
+                            <dd>@(_listing.IsActive ? "Active" : "Inactive")</dd>
+                        </div>
+                        <div>
+                            <dt>Location</dt>
+                            <dd>@(_listing.Location ?? "Not specified")</dd>
+                        </div>
+                    </dl>
+                </section>
+
+                <div class="tenant-listing-detail-grid">
+                    <section class="platform-panel">
+                        <div class="platform-panel__header">
+                            <div>
+                                <p class="platform-kicker">Listing profile</p>
+                                <h2>Overview</h2>
+                            </div>
+                        </div>
+                        <dl class="tenant-summary tenant-summary--wide">
+                            <div>
+                                <dt>Animal class</dt>
+                                <dd>@FormatAnimalClass(_listing.AnimalClass)</dd>
+                            </div>
+                            <div>
+                                <dt>Animal detail</dt>
+                                <dd>@(_listing.AnimalDetails ?? "Not captured")</dd>
+                            </div>
+                            <div>
+                                <dt>Created</dt>
+                                <dd>@FormatDate(_listing.CreatedAt)</dd>
+                            </div>
+                            <div>
+                                <dt>Updated</dt>
+                                <dd>@FormatDate(_listing.UpdatedAt)</dd>
+                            </div>
+                        </dl>
+                    </section>
+
+                    <section class="platform-panel">
+                        <div class="platform-panel__header">
+                            <div>
+                                <p class="platform-kicker">Seller</p>
+                                <h2>Owner</h2>
+                            </div>
+                        </div>
+                        <dl class="tenant-summary tenant-summary--wide">
+                            <div>
+                                <dt>Name</dt>
+                                <dd>@(_listing.SellerDisplayName ?? "Not captured")</dd>
+                            </div>
+                            <div>
+                                <dt>Email</dt>
+                                <dd>@(_listing.SellerEmail ?? "Not captured")</dd>
+                            </div>
+                            <div>
+                                <dt>Seller ID</dt>
+                                <dd class="tenant-listing-code">@_listing.SellerId</dd>
+                            </div>
+                        </dl>
+                    </section>
+
+                    <section class="platform-panel">
+                        <div class="platform-panel__header">
+                            <div>
+                                <p class="platform-kicker">Compliance</p>
+                                <h2>Review state</h2>
+                            </div>
+                        </div>
+                        <dl class="tenant-summary tenant-summary--wide">
+                            <div>
+                                <dt>Status</dt>
+                                <dd>@FormatComplianceStatus(_listing.ComplianceStatus)</dd>
+                            </div>
+                            <div>
+                                <dt>Submitted</dt>
+                                <dd>@FormatDate(_listing.SubmittedAt)</dd>
+                            </div>
+                            <div>
+                                <dt>Reviewed</dt>
+                                <dd>@FormatDate(_listing.ReviewedAt)</dd>
+                            </div>
+                            <div>
+                                <dt>Last compliance update</dt>
+                                <dd>@FormatDate(_listing.LastUpdatedAt)</dd>
+                            </div>
+                        </dl>
+                        <div class="tenant-listing-note">
+                            <strong>Review notes</strong>
+                            <p>@(_listing.ReviewNotes ?? "No review notes have been captured.")</p>
+                        </div>
+                    </section>
+
+                    <section class="platform-panel">
+                        <div class="platform-panel__header">
+                            <div>
+                                <p class="platform-kicker">Activity</p>
+                                <h2>Auctions and bids</h2>
+                            </div>
+                        </div>
+                        <dl class="tenant-summary tenant-summary--wide">
+                            <div>
+                                <dt>Auctions</dt>
+                                <dd>@_listing.AuctionCount</dd>
+                            </div>
+                            <div>
+                                <dt>Bids</dt>
+                                <dd>@_listing.BidCount</dd>
+                            </div>
+                            <div>
+                                <dt>Highest bid</dt>
+                                <dd>@FormatMoney(_listing.HighestBid, _listing.CurrencyCode)</dd>
+                            </div>
+                        </dl>
+                    </section>
+                </div>
+
+                <section class="platform-panel">
+                    <div class="platform-panel__header tenant-listings-summary">
+                        <div>
+                            <p class="platform-kicker">Documents</p>
+                            <h2>@_listing.Documents.Count document@(_listing.Documents.Count == 1 ? string.Empty : "s")</h2>
+                        </div>
+                    </div>
+
+                    @if (_listing.Documents.Count == 0)
+                    {
+                        <div class="platform-empty">
+                            <p>No compliance documents have been uploaded for this listing.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="platform-table-wrap">
+                            <table class="table platform-table tenant-listings-table">
+                                <thead>
+                                    <tr>
+                                        <th>Document</th>
+                                        <th>Status</th>
+                                        <th>Uploaded</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var document in _listing.Documents)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@FormatDocumentType(document.DocumentType)</strong>
+                                                @if (!string.IsNullOrWhiteSpace(document.FileUrl))
+                                                {
+                                                    <a href="@document.FileUrl" target="_blank" rel="noopener">Open file</a>
+                                                }
+                                            </td>
+                                            <td>
+                                                <span class="platform-status @(document.VerifiedByAdmin ? "platform-status--active" : "platform-status--pending")">
+                                                    @(document.VerifiedByAdmin ? "Verified" : "Pending")
+                                                </span>
+                                            </td>
+                                            <td>@FormatDate(document.UploadedAt)</td>
+                                            <td>@(document.Notes ?? "-")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+
+                <section class="platform-panel">
+                    <div class="platform-panel__header tenant-listings-summary">
+                        <div>
+                            <p class="platform-kicker">Auction history</p>
+                            <h2>@_listing.Auctions.Count auction@(_listing.Auctions.Count == 1 ? string.Empty : "s")</h2>
+                        </div>
+                    </div>
+
+                    @if (_listing.Auctions.Count == 0)
+                    {
+                        <div class="platform-empty">
+                            <p>No auctions have been created for this listing yet.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="platform-table-wrap">
+                            <table class="table platform-table tenant-listings-table">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Window</th>
+                                        <th>Price</th>
+                                        <th>Bids</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var auction in _listing.Auctions)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@auction.Type</strong>
+                                                <span>@(auction.IsSealedBid ? "Sealed bid" : "Open bid")</span>
+                                            </td>
+                                            <td>
+                                                <strong>@FormatDate(auction.StartsAt)</strong>
+                                                <span>Ends @FormatDate(auction.EndsAt)</span>
+                                            </td>
+                                            <td>
+                                                <strong>@FormatMoney(auction.StartingPrice, _listing.CurrencyCode)</strong>
+                                                <span>Reserve @FormatMoney(auction.ReservePrice, _listing.CurrencyCode)</span>
+                                            </td>
+                                            <td>@auction.BidCount</td>
+                                            <td>@(auction.IsClosed ? "Closed" : "Open")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+            }
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Tenant Access Required</h1>
+            <p>Please log in with a tenant administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public Guid ListingId { get; set; }
+
+    private bool _isLoading;
+    private string? _error;
+    private TenantListingDetailsDto? _listing;
+
+    protected override Task OnParametersSetAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+        _listing = null;
+
+        try
+        {
+            _listing = await Api.GetAsync<TenantListingDetailsDto>($"/api/tenant/listings/{ListingId}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string FormatPrice(TenantListingDetailsDto item)
+    {
+        return item.BuyNowPrice.HasValue
+            ? $"Buy now {FormatMoney(item.BuyNowPrice, item.CurrencyCode)}"
+            : $"From {FormatMoney(item.StartingPrice, item.CurrencyCode)}";
+    }
+
+    private static string FormatMoney(decimal? value, string currency)
+        => value.HasValue ? $"{value.Value:0.##} {currency}" : "-";
+
+    private static string FormatDate(DateTimeOffset? value)
+        => value is null ? "-" : value.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+    private static string FormatAnimalClass(string value) => value switch
+    {
+        "bird" => "Bird",
+        "livestock" => "Livestock",
+        "game" => "Game",
+        "poultry" => "Poultry",
+        _ => "Unknown"
+    };
+
+    private static string FormatComplianceStatus(string status) => status switch
+    {
+        "PendingDocuments" => "Pending documents",
+        "UnderReview" => "Under review",
+        _ => status
+    };
+
+    private static string GetComplianceStatusClass(string status) => status switch
+    {
+        "Approved" => "platform-status--active",
+        "Rejected" or "Suspended" => "platform-status--inactive",
+        _ => "platform-status--pending"
+    };
+
+    private static string FormatDocumentType(string value) => value switch
+    {
+        "CitesPermit" => "CITES permit",
+        "VeterinaryCertificate" => "Veterinary certificate",
+        "HealthCertificate" => "Health certificate",
+        "TransferOfOwnership" => "Transfer of ownership",
+        "GamePermit" => "Game permit",
+        "PoultryHealthCertificate" => "Poultry health certificate",
+        "TransportPermit" => "Transport permit",
+        _ => value
+    };
+}
