@@ -222,6 +222,114 @@ public sealed class TenantAdminController(
         return Ok(new TenantListingsResultDto(items, total));
     }
 
+    [HttpGet("listings/{listingId:guid}")]
+    public async Task<ActionResult<TenantListingDetailsDto>> GetListing(Guid listingId, CancellationToken cancellationToken)
+    {
+        var tenantId = CurrentTenantId();
+        if (tenantId is null)
+        {
+            return Forbid();
+        }
+
+        var listing = await db.Listings
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Include(x => x.BirdDetails)
+                .ThenInclude(x => x!.Species)
+            .Include(x => x.LivestockDetails)
+            .Include(x => x.GameAnimalDetails)
+            .Include(x => x.PoultryDetails)
+            .Include(x => x.Compliance)
+            .Include(x => x.ComplianceDocuments)
+            .FirstOrDefaultAsync(x => x.Id == listingId && x.TenantId == tenantId.Value, cancellationToken);
+
+        if (listing is null)
+        {
+            return NotFound(new { error = "Listing not found." });
+        }
+
+        var seller = await users.Users
+            .AsNoTracking()
+            .Where(x => x.Id == listing.SellerId && x.TenantId == tenantId.Value)
+            .Select(x => new { x.Email, x.DisplayName })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var auctions = await db.Auctions
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x => x.TenantId == tenantId.Value && x.ListingId == listing.Id)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new TenantListingAuctionDto(
+                x.Id,
+                x.Type.ToString(),
+                x.StartsAt,
+                x.EndsAt,
+                x.StartingPrice,
+                x.ReservePrice,
+                x.BuyNowPrice,
+                x.IsSealedBid,
+                x.IsClosed,
+                db.Bids.IgnoreQueryFilters().Count(b => b.TenantId == tenantId.Value && b.AuctionId == x.Id)))
+            .ToListAsync(cancellationToken);
+
+        var bidCount = await db.Bids
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .CountAsync(x => x.TenantId == tenantId.Value
+                && db.Auctions.IgnoreQueryFilters().Any(a => a.Id == x.AuctionId && a.ListingId == listing.Id), cancellationToken);
+
+        var highestBid = await db.Bids
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x => x.TenantId == tenantId.Value
+                && db.Auctions.IgnoreQueryFilters().Any(a => a.Id == x.AuctionId && a.ListingId == listing.Id))
+            .OrderByDescending(x => x.Amount)
+            .Select(x => (decimal?)x.Amount)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var documents = listing.ComplianceDocuments
+            .OrderBy(x => x.DocumentType)
+            .ThenByDescending(x => x.UploadedAt)
+            .Select(x => new TenantListingDocumentDto(
+                x.Id,
+                x.DocumentType.ToString(),
+                x.FileUrl,
+                x.UploadedAt,
+                x.VerifiedByAdmin,
+                x.VerifiedAt,
+                x.Notes))
+            .ToList();
+
+        var detail = new TenantListingDetailsDto(
+            listing.Id,
+            listing.Title,
+            listing.Description,
+            listing.SellerId,
+            seller?.Email,
+            seller?.DisplayName,
+            GetAnimalClass(listing),
+            GetAnimalDetails(listing),
+            listing.StartingPrice,
+            listing.BuyNowPrice,
+            listing.CurrencyCode,
+            listing.Quantity,
+            listing.Location,
+            listing.IsActive,
+            listing.Compliance?.Status.ToString() ?? ListingComplianceStatus.Draft.ToString(),
+            listing.Compliance?.SubmittedAt,
+            listing.Compliance?.ReviewedAt,
+            listing.Compliance?.LastUpdatedAt,
+            listing.Compliance?.ReviewNotes,
+            listing.CreatedAt,
+            listing.UpdatedAt,
+            auctions.Count,
+            bidCount,
+            highestBid,
+            documents,
+            auctions);
+
+        return Ok(detail);
+    }
     [HttpGet("users")]
     public async Task<ActionResult<IReadOnlyList<TenantUserDto>>> GetUsers(CancellationToken cancellationToken)
     {
@@ -487,6 +595,39 @@ public sealed class TenantAdminController(
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string GetAnimalClass(Listing listing) => listing switch
+    {
+        { BirdDetails: not null } => "bird",
+        { LivestockDetails: not null } => "livestock",
+        { GameAnimalDetails: not null } => "game",
+        { PoultryDetails: not null } => "poultry",
+        _ => "unknown"
+    };
+
+    private static string? GetAnimalDetails(Listing listing)
+    {
+        if (listing.BirdDetails?.Species is not null)
+        {
+            return $"{listing.BirdDetails.Species.CommonName} ({listing.BirdDetails.Species.ScientificName})";
+        }
+
+        if (!string.IsNullOrWhiteSpace(listing.LivestockDetails?.Breed))
+        {
+            return listing.LivestockDetails.Breed;
+        }
+
+        if (!string.IsNullOrWhiteSpace(listing.GameAnimalDetails?.Species))
+        {
+            return listing.GameAnimalDetails.Species;
+        }
+
+        if (!string.IsNullOrWhiteSpace(listing.PoultryDetails?.Breed))
+        {
+            return listing.PoultryDetails.Breed;
+        }
+
+        return null;
+    }
     private static TenantBrandingDto ToBrandingDto(Faunex.Domain.Entities.Tenant tenant) =>
         new(
             tenant.Id,
@@ -551,6 +692,54 @@ public sealed record TenantListingRowDto(
     DateTimeOffset? LastUpdatedAt,
     string? ReviewNotes,
     int AuctionCount,
+    int BidCount);
+public sealed record TenantListingDetailsDto(
+    Guid Id,
+    string Title,
+    string? Description,
+    Guid SellerId,
+    string? SellerEmail,
+    string? SellerDisplayName,
+    string AnimalClass,
+    string? AnimalDetails,
+    decimal StartingPrice,
+    decimal? BuyNowPrice,
+    string CurrencyCode,
+    int Quantity,
+    string? Location,
+    bool IsActive,
+    string ComplianceStatus,
+    DateTimeOffset? SubmittedAt,
+    DateTimeOffset? ReviewedAt,
+    DateTimeOffset? LastUpdatedAt,
+    string? ReviewNotes,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    int AuctionCount,
+    int BidCount,
+    decimal? HighestBid,
+    IReadOnlyList<TenantListingDocumentDto> Documents,
+    IReadOnlyList<TenantListingAuctionDto> Auctions);
+
+public sealed record TenantListingDocumentDto(
+    Guid Id,
+    string DocumentType,
+    string? FileUrl,
+    DateTimeOffset? UploadedAt,
+    bool VerifiedByAdmin,
+    DateTimeOffset? VerifiedAt,
+    string? Notes);
+
+public sealed record TenantListingAuctionDto(
+    Guid Id,
+    string Type,
+    DateTimeOffset? StartsAt,
+    DateTimeOffset? EndsAt,
+    decimal StartingPrice,
+    decimal? ReservePrice,
+    decimal? BuyNowPrice,
+    bool IsSealedBid,
+    bool IsClosed,
     int BidCount);
 public sealed record TenantBrandingDto(
     Guid TenantId,
