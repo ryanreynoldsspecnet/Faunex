@@ -13,6 +13,29 @@ public sealed record TenantDashboardDto(
     int ComplianceQueueCount);
 
 
+
+public sealed record TenantListingsResultDto(
+    IReadOnlyList<TenantListingRowDto> Items,
+    int Total);
+
+public sealed record TenantListingRowDto(
+    Guid Id,
+    string Title,
+    Guid SellerId,
+    string AnimalClass,
+    decimal StartingPrice,
+    decimal? BuyNowPrice,
+    string CurrencyCode,
+    int Quantity,
+    string? Location,
+    bool IsActive,
+    string ComplianceStatus,
+    DateTimeOffset? SubmittedAt,
+    DateTimeOffset? ReviewedAt,
+    DateTimeOffset? LastUpdatedAt,
+    string? ReviewNotes,
+    int AuctionCount,
+    int BidCount);
 public sealed record TenantBrandingDto(
     Guid TenantId,
     string TenantName,

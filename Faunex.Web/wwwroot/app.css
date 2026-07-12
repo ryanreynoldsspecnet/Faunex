@@ -602,6 +602,37 @@ a, .btn-link {
     background: #dff3e9;
 }
 
+
+.platform-status--pending {
+    color: #6b4a12;
+    background: #fff0c8;
+}
+
+.tenant-listings-toolbar {
+    grid-template-columns: minmax(260px, 1fr) minmax(160px, 220px) minmax(180px, 240px) auto;
+}
+
+.tenant-listings-toolbar__actions {
+    align-self: end;
+}
+
+.tenant-listings-summary {
+    margin-top: 0.25rem;
+}
+
+.tenant-listings-summary > span {
+    color: #52615a;
+    font-weight: 700;
+}
+
+.tenant-listings-table {
+    min-width: 1120px;
+}
+
+.tenant-listings-pagination {
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
 .platform-status--inactive {
     color: #6b2430;
     background: #f8dde2;

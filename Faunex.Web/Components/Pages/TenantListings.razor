@@ -1,73 +1,171 @@
+@page "/tenant/listings"
 @page "/admin/tenant-listings"
+@rendermode InteractiveServer
 @inject Faunex.Web.Api.FaunexApiClient Api
 
-<h3>Tenant Listings (Tenant Admin)</h3>
+<PageTitle>Tenant Listings - Faunex</PageTitle>
 
-<div style="margin-bottom: 1rem;">
-    <label>Animal Class:</label>
-    <select @bind="_animalClass">
-        <option value="">All</option>
-        <option value="bird">Bird</option>
-        <option value="livestock">Livestock</option>
-        <option value="game">Game</option>
-        <option value="poultry">Poultry</option>
-    </select>
+<AuthorizeView Roles="TenantAdmin">
+    <Authorized Context="tenantListingsAuth">
+        <section class="platform-shell" aria-labelledby="tenant-listings-title">
+            <div class="platform-header platform-header--compact">
+                <div>
+                    <p class="platform-kicker">Tenant operations</p>
+                    <h1 id="tenant-listings-title">Listings</h1>
+                    <p>Track submitted listings, compliance state, auction activity, and marketplace readiness.</p>
+                </div>
 
-    <button style="margin-left: 1rem;" @onclick="ReloadAsync">Apply</button>
-</div>
+                <a class="btn btn-outline-secondary" href="/tenant">Back to tenant</a>
+            </div>
 
-@if (_isLoading)
-{
-    <p>Loading...</p>
-}
-else if (_error is not null)
-{
-    <p>@_error</p>
-}
-else if (_result is null || _result.Items.Count == 0)
-{
-    <p>No listings found.</p>
-}
-else
-{
-    <p>Total: @_result.Total | Showing: @_result.Items.Count</p>
+            <section class="platform-panel">
+                <div class="platform-list-toolbar tenant-listings-toolbar">
+                    <div>
+                        <label class="form-label" for="tenant-listing-search">Search listings</label>
+                        <InputText id="tenant-listing-search" class="form-control" @bind-Value="_search" placeholder="Title, description, or location" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="tenant-listing-animal">Animal class</label>
+                        <InputSelect id="tenant-listing-animal" class="form-select" @bind-Value="_animalClass">
+                            <option value="">All animals</option>
+                            <option value="bird">Bird</option>
+                            <option value="livestock">Livestock</option>
+                            <option value="game">Game</option>
+                            <option value="poultry">Poultry</option>
+                        </InputSelect>
+                    </div>
+                    <div>
+                        <label class="form-label" for="tenant-listing-status">Compliance</label>
+                        <InputSelect id="tenant-listing-status" class="form-select" @bind-Value="_complianceStatus">
+                            <option value="">All statuses</option>
+                            <option value="Draft">Draft</option>
+                            <option value="PendingDocuments">Pending documents</option>
+                            <option value="UnderReview">Under review</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Rejected">Rejected</option>
+                            <option value="Suspended">Suspended</option>
+                        </InputSelect>
+                    </div>
+                    <div class="platform-form-actions tenant-listings-toolbar__actions">
+                        <button class="btn btn-primary" type="button" @onclick="ApplyFiltersAsync" disabled="@_isLoading">Apply</button>
+                        <button class="btn btn-outline-secondary" type="button" @onclick="ClearFiltersAsync" disabled="@_isLoading">Clear</button>
+                    </div>
+                </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Animal</th>
-                <th>Seller</th>
-                <th>Active</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in _result.Items)
-            {
-                <tr>
-                    <td>@item.Title</td>
-                    <td>@item.AnimalClass</td>
-                    <td>@item.SellerId</td>
-                    <td>@GetActiveDisplay(item)</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+                @if (_isLoading)
+                {
+                    <p>Loading listings...</p>
+                }
+                else if (_error is not null)
+                {
+                    <div class="alert alert-danger" role="alert">@_error</div>
+                }
+                else if (_result is null || _result.Items.Count == 0)
+                {
+                    <div class="platform-empty">
+                        <p>No listings match the current filters.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="platform-panel__header tenant-listings-summary">
+                        <div>
+                            <p class="platform-kicker">Listing register</p>
+                            <h2>@_result.Total total</h2>
+                        </div>
+                        <span>@PageRangeLabel</span>
+                    </div>
 
-    <div style="margin-top: 1rem;">
-        <button @onclick="PrevAsync" disabled="@(_skip == 0)">Prev</button>
-        <button style="margin-left: 0.5rem;" @onclick="NextAsync" disabled="@(_result is null || _skip + _take >= _result.Total)">Next</button>
-    </div>
-}
+                    <div class="platform-table-wrap">
+                        <table class="table platform-table tenant-listings-table">
+                            <thead>
+                                <tr>
+                                    <th>Listing</th>
+                                    <th>Status</th>
+                                    <th>Price</th>
+                                    <th>Activity</th>
+                                    <th>Last update</th>
+                                    <th class="platform-table__actions">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _result.Items)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@item.Title</strong>
+                                            <span>@FormatMeta(item)</span>
+                                            <span>Seller: @item.SellerId</span>
+                                        </td>
+                                        <td>
+                                            <span class="platform-status @GetComplianceStatusClass(item.ComplianceStatus)">@FormatComplianceStatus(item.ComplianceStatus)</span>
+                                            <span>@GetActiveDisplay(item)</span>
+                                        </td>
+                                        <td>
+                                            <strong>@FormatPrice(item)</strong>
+                                            <span>Qty: @item.Quantity</span>
+                                        </td>
+                                        <td>
+                                            <strong>@item.AuctionCount auction@(item.AuctionCount == 1 ? string.Empty : "s")</strong>
+                                            <span>@item.BidCount bid@(item.BidCount == 1 ? string.Empty : "s")</span>
+                                        </td>
+                                        <td>
+                                            <strong>@FormatDate(item.LastUpdatedAt)</strong>
+                                            <span>@FormatReviewNote(item)</span>
+                                        </td>
+                                        <td class="platform-row-actions">
+                                            <button class="btn btn-outline-secondary btn-sm" type="button" disabled>View</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="platform-form-actions tenant-listings-pagination">
+                        <button class="btn btn-outline-secondary" type="button" @onclick="PrevAsync" disabled="@(_skip == 0 || _isLoading)">Previous</button>
+                        <button class="btn btn-outline-secondary" type="button" @onclick="NextAsync" disabled="@(!CanNext || _isLoading)">Next</button>
+                    </div>
+                }
+            </section>
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-message">
+            <h1>Tenant Access Required</h1>
+            <p>Please log in with a tenant administrator account.</p>
+            <a class="btn btn-primary" href="/login">Login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
 
 @code {
     private bool _isLoading;
     private string? _error;
-    private Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.ListingDto>? _result;
+    private TenantListingsResultDto? _result;
 
+    private string? _search;
     private string? _animalClass;
+    private string? _complianceStatus;
     private int _skip;
-    private int _take = 20;
+    private readonly int _take = 20;
+
+    private bool CanNext => _result is not null && _skip + _take < _result.Total;
+
+    private string PageRangeLabel
+    {
+        get
+        {
+            if (_result is null || _result.Total == 0)
+            {
+                return "No rows";
+            }
+
+            var start = _skip + 1;
+            var end = Math.Min(_skip + _result.Items.Count, _result.Total);
+            return $"Showing {start}-{end}";
+        }
+    }
 
     protected override Task OnInitializedAsync() => ReloadAsync();
 
@@ -78,8 +176,28 @@ else
 
         try
         {
-            var url = $"/api/listings/tenant?animalClass={Uri.EscapeDataString(_animalClass ?? string.Empty)}&skip={_skip}&take={_take}";
-            _result = await Api.GetAsync<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.ListingDto>>(url);
+            var query = new List<string>
+            {
+                $"skip={_skip}",
+                $"take={_take}"
+            };
+
+            if (!string.IsNullOrWhiteSpace(_search))
+            {
+                query.Add($"search={Uri.EscapeDataString(_search)}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(_animalClass))
+            {
+                query.Add($"animalClass={Uri.EscapeDataString(_animalClass)}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(_complianceStatus))
+            {
+                query.Add($"complianceStatus={Uri.EscapeDataString(_complianceStatus)}");
+            }
+
+            _result = await Api.GetAsync<TenantListingsResultDto>($"/api/tenant/listings?{string.Join("&", query)}");
         }
         catch (Exception ex)
         {
@@ -91,6 +209,21 @@ else
         }
     }
 
+    private async Task ApplyFiltersAsync()
+    {
+        _skip = 0;
+        await ReloadAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _search = null;
+        _animalClass = null;
+        _complianceStatus = null;
+        _skip = 0;
+        await ReloadAsync();
+    }
+
     private async Task PrevAsync()
     {
         _skip = Math.Max(0, _skip - _take);
@@ -99,10 +232,55 @@ else
 
     private async Task NextAsync()
     {
+        if (!CanNext)
+        {
+            return;
+        }
+
         _skip += _take;
         await ReloadAsync();
     }
 
-    private static string GetActiveDisplay(Faunex.Application.DTOs.ListingDto item)
-        => item.IsActive == true ? "Yes" : item.IsActive == false ? "No" : "Pending / Draft";
+    private static string FormatMeta(TenantListingRowDto item)
+        => string.Join(" · ", new[] { FormatAnimalClass(item.AnimalClass), item.Location }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    private static string FormatAnimalClass(string value) => value switch
+    {
+        "bird" => "Bird",
+        "livestock" => "Livestock",
+        "game" => "Game",
+        "poultry" => "Poultry",
+        _ => "Unknown"
+    };
+
+    private static string FormatPrice(TenantListingRowDto item)
+    {
+        var currency = string.IsNullOrWhiteSpace(item.CurrencyCode) ? "ZAR" : item.CurrencyCode;
+        return item.BuyNowPrice.HasValue
+            ? $"Buy now {item.BuyNowPrice.Value:0.##} {currency}"
+            : $"From {item.StartingPrice:0.##} {currency}";
+    }
+
+    private static string GetActiveDisplay(TenantListingRowDto item)
+        => item.IsActive ? "Active listing" : "Inactive listing";
+
+    private static string FormatDate(DateTimeOffset? value)
+        => value is null ? "-" : value.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+    private static string FormatReviewNote(TenantListingRowDto item)
+        => string.IsNullOrWhiteSpace(item.ReviewNotes) ? "No review notes" : item.ReviewNotes;
+
+    private static string FormatComplianceStatus(string status) => status switch
+    {
+        "PendingDocuments" => "Pending documents",
+        "UnderReview" => "Under review",
+        _ => status
+    };
+
+    private static string GetComplianceStatusClass(string status) => status switch
+    {
+        "Approved" => "platform-status--active",
+        "Rejected" or "Suspended" => "platform-status--inactive",
+        _ => "platform-status--pending"
+    };
 }

@@ -1,5 +1,6 @@
 using Faunex.Api.Auth;
 using Faunex.Application.Auth;
+using Faunex.Domain.Entities;
 using Faunex.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -132,6 +133,95 @@ public sealed class TenantAdminController(
 
         return Ok(ToBrandingDto(tenant));
     }
+
+    [HttpGet("listings")]
+    public async Task<ActionResult<TenantListingsResultDto>> GetListings(
+        [FromQuery] string? search,
+        [FromQuery] string? animalClass,
+        [FromQuery] string? complianceStatus,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = CurrentTenantId();
+        if (tenantId is null)
+        {
+            return Forbid();
+        }
+
+        skip = Math.Max(0, skip);
+        take = Math.Clamp(take, 1, 100);
+
+        var query = db.Listings
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x => x.TenantId == tenantId.Value);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(x => x.Title.ToLower().Contains(term)
+                || (x.Description != null && x.Description.ToLower().Contains(term))
+                || (x.Location != null && x.Location.ToLower().Contains(term)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(animalClass))
+        {
+            var selectedAnimalClass = animalClass.Trim().ToLowerInvariant();
+            query = selectedAnimalClass switch
+            {
+                "bird" => query.Where(x => x.BirdDetails != null),
+                "livestock" => query.Where(x => x.LivestockDetails != null),
+                "game" => query.Where(x => x.GameAnimalDetails != null),
+                "poultry" => query.Where(x => x.PoultryDetails != null),
+                _ => query
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(complianceStatus)
+            && Enum.TryParse<ListingComplianceStatus>(complianceStatus.Trim(), ignoreCase: true, out var parsedStatus))
+        {
+            query = query.Where(x => x.Compliance != null && x.Compliance.Status == parsedStatus);
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(x => x.UpdatedAt)
+            .ThenBy(x => x.Title)
+            .Skip(skip)
+            .Take(take)
+            .Select(x => new TenantListingRowDto(
+                x.Id,
+                x.Title,
+                x.SellerId,
+                x.BirdDetails != null
+                    ? "bird"
+                    : x.LivestockDetails != null
+                        ? "livestock"
+                        : x.GameAnimalDetails != null
+                            ? "game"
+                            : x.PoultryDetails != null
+                                ? "poultry"
+                                : "unknown",
+                x.StartingPrice,
+                x.BuyNowPrice,
+                x.CurrencyCode,
+                x.Quantity,
+                x.Location,
+                x.IsActive,
+                x.Compliance == null ? ListingComplianceStatus.Draft.ToString() : x.Compliance.Status.ToString(),
+                x.Compliance == null ? null : x.Compliance.SubmittedAt,
+                x.Compliance == null ? null : x.Compliance.ReviewedAt,
+                x.Compliance == null ? null : x.Compliance.LastUpdatedAt,
+                x.Compliance == null ? null : x.Compliance.ReviewNotes,
+                db.Auctions.IgnoreQueryFilters().Count(a => a.TenantId == tenantId.Value && a.ListingId == x.Id),
+                db.Bids.IgnoreQueryFilters().Count(b => b.TenantId == tenantId.Value && db.Auctions.IgnoreQueryFilters().Any(a => a.Id == b.AuctionId && a.ListingId == x.Id))))
+            .ToListAsync(cancellationToken);
+
+        return Ok(new TenantListingsResultDto(items, total));
+    }
+
     [HttpGet("users")]
     public async Task<ActionResult<IReadOnlyList<TenantUserDto>>> GetUsers(CancellationToken cancellationToken)
     {
@@ -439,6 +529,29 @@ public sealed record TenantDashboardDto(
     int ComplianceQueueCount);
 
 
+
+public sealed record TenantListingsResultDto(
+    IReadOnlyList<TenantListingRowDto> Items,
+    int Total);
+
+public sealed record TenantListingRowDto(
+    Guid Id,
+    string Title,
+    Guid SellerId,
+    string AnimalClass,
+    decimal StartingPrice,
+    decimal? BuyNowPrice,
+    string CurrencyCode,
+    int Quantity,
+    string? Location,
+    bool IsActive,
+    string ComplianceStatus,
+    DateTimeOffset? SubmittedAt,
+    DateTimeOffset? ReviewedAt,
+    DateTimeOffset? LastUpdatedAt,
+    string? ReviewNotes,
+    int AuctionCount,
+    int BidCount);
 public sealed record TenantBrandingDto(
     Guid TenantId,
     string TenantName,
