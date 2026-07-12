@@ -812,6 +812,43 @@ a, .btn-link {
     font-family: var(--bs-font-monospace);
     font-size: 0.9rem;
 }
+
+.tenant-listing-create-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.tenant-listing-create-aside ol {
+    display: grid;
+    gap: 0.85rem;
+    margin: 1rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tenant-listing-create-aside li {
+    padding: 0.9rem;
+    border: 1px solid #dfe6dd;
+    border-radius: 8px;
+    background: #fbfcfa;
+}
+
+.tenant-listing-create-aside strong,
+.tenant-listing-create-aside span {
+    display: block;
+}
+
+.tenant-listing-create-aside strong {
+    color: #17231e;
+    font-weight: 850;
+}
+
+.tenant-listing-create-aside span {
+    margin-top: 0.2rem;
+    color: #52615a;
+}
 @media (max-width: 992px) {
     .home-hero {
         background:
