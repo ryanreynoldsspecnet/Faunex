@@ -91,10 +91,14 @@ Branch: `feature/section-3-tenant-domains`. No merge authorization is implied fo
 - [x] Add an additive schema migration and pin the matching local EF tool.
 - [x] Add Caddy configuration validation to CI and explicitly reload Caddy after deployment.
 - [x] Pass 97 local tests, including two-tenant denials, pending/disabled domains, verification rotation and tenant reset links.
-- [ ] Complete browser, PostgreSQL migration and Caddy CI checks; record PR and exact results.
+- [x] Complete browser, PostgreSQL migration and Caddy CI checks; record PR and exact results.
 - [ ] Merge with approval; verify a real subdomain and real custom-domain TLS journey with user-controlled DNS.
 
 Read [tenant domain operations](tenant-domains.md) before rollout. Existing domains deliberately become unverified after migration; custom domains need fresh proof, and managed Faunex subdomains can be verified by a platform operator. The platform root and central tenant-administration login remain available. Do not remove working DNS records or copy secrets into commits.
+
+Pull request: [#35](https://github.com/ryanreynoldsspecnet/Faunex/pull/35). Implementation `3e71f61bfed864a580ddc034e079c039e891f841` passed [CI run 40674950322](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40674950322): Caddy configuration validation, complete PostgreSQL migration chain, tests, vulnerability gate, Release build and both publishes passed. Deploy was correctly skipped. A final UI polish/handoff commit follows this run; inspect that revision's checks before merging.
+
+Edge/Playwright verification used an isolated in-memory API with test-only accounts, not the VPS. Platform login redirected to the tenant list; adding a custom hostname returned to Domains with pending status and TXT details; failed verification displayed an error; search worked; mobile had no page-level overflow; unknown hosts returned 404; tenant login showed tenant navigation branding. No browser page errors occurred. Desktop/mobile screenshots are local artifacts. Table content scrolls horizontally on narrow screens. A configurable `DataProtection:KeyPath` enabled the Windows-only preview without changing the existing Linux production default. Preview keys/accounts are not committed.
 
 Pilot scope retains one tenant per account and globally unique email addresses. This section enforces that boundary; it does not implement multi-tenant memberships, cross-domain single sign-on, a logo-upload store, automatic DNS editing, or wildcard certificates. Primary-domain selection is metadata, not a cross-origin login redirect. Logo settings continue using HTTPS image URLs or existing local assets.
 

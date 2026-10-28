@@ -6,7 +6,7 @@
 <PageTitle>Add Domain - Faunex</PageTitle>
 <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin">
     <Authorized Context="domainAuth">
-        <section class="platform-shell" aria-labelledby="add-domain-title">
+        <section class="platform-shell domain-shell" aria-labelledby="add-domain-title">
             <div class="platform-header platform-header--compact"><h1 id="add-domain-title">Add Domain</h1><a class="btn btn-outline-secondary" href="@ListPath">Back to domains</a></div>
             <EditForm Model="_model" OnValidSubmit="SaveAsync">
                 <DataAnnotationsValidator /><ValidationSummary />

@@ -5,7 +5,7 @@
 <PageTitle>Tenant Domains - Faunex</PageTitle>
 <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin">
     <Authorized>
-        <section class="platform-shell" aria-labelledby="domains-title">
+        <section class="platform-shell domain-shell" aria-labelledby="domains-title">
             <div class="platform-header platform-header--compact">
                 <div><p class="platform-kicker">@(_tenant?.Name ?? "Tenant")</p><h1 id="domains-title">Domains</h1></div>
                 <a class="btn btn-outline-secondary" href="/platform">Back to tenants</a>

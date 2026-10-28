@@ -991,3 +991,5 @@ h1:focus {
 .domain-proof dt { font-size: 0.75rem; font-weight: 600; }
 .domain-proof dd { margin-bottom: 0.5rem; }
 .domain-proof code { white-space: normal; overflow-wrap: anywhere; }
+.domain-table .platform-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; white-space: normal; }
+.domain-shell .platform-header h1 { font-size: 2rem; }
