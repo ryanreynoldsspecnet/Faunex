@@ -205,5 +205,5 @@ public sealed class ListingFileService(ApplicationDbContext db, ITenantContext t
         { logger.LogWarning(ex, "Could not remove unused listing storage object {StorageKey}; reconciliation required.", key); }
     }
     private static bool SerializationFailure(Exception ex) => ex is PostgresException { SqlState: "40001" }
-        || ex is DbUpdateException { InnerException: PostgresException { SqlState: "40001" } };
+        || (ex.InnerException is not null && SerializationFailure(ex.InnerException));
 }
