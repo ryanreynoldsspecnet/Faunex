@@ -7,9 +7,15 @@ public sealed class TokenStore(ProtectedLocalStorage storage)
 {
     private const string Key = "faunex.jwt";
     private string? _cachedToken;
+    private bool _cleared;
+    public event Action? Cleared;
 
     public async Task<string?> GetTokenAsync()
     {
+        if (_cleared)
+        {
+            return null;
+        }
         if (!string.IsNullOrWhiteSpace(_cachedToken))
         {
             return _cachedToken;
@@ -33,13 +39,21 @@ public sealed class TokenStore(ProtectedLocalStorage storage)
 
     public async Task SetTokenAsync(string token)
     {
-        _cachedToken = token;
         await storage.SetAsync(Key, token);
+        _cachedToken = token;
+        _cleared = false;
     }
 
     public async Task ClearAsync()
     {
         _cachedToken = null;
-        await storage.DeleteAsync(Key);
+        _cleared = true;
+        try
+        {
+            await storage.DeleteAsync(Key);
+        }
+        catch (InvalidOperationException) { }
+        catch (JSException) { }
+        Cleared?.Invoke();
     }
 }

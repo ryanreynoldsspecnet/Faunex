@@ -14,7 +14,7 @@ public static class ControllersRegistrationExtensions
 {
     public static IServiceCollection AddFaunexApiControllers(this IServiceCollection services)
     {
-        services.AddControllers();
+        services.AddControllers(options => options.Filters.Add<DomainAuthorizationExceptionFilter>());
 
         services.AddHttpContextAccessor();
 
@@ -30,9 +30,12 @@ public static class ControllersRegistrationExtensions
         services.AddScoped<ISpeciesLookupService, SpeciesLookupService>();
 
         services.AddScoped<JwtTokenIssuer>();
+        services.AddScoped<TradingProfileService>();
         services.AddScoped<TenantDomainResolver>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IdentitySeeder>();
+        services.AddScoped<UserMutationGuard>();
+        services.AddScoped<IdentityMutationTransactionFilter>();
 
         services.AddDbContext<ApplicationIdentityDbContext>((sp, options) =>
         {
@@ -41,7 +44,12 @@ public static class ControllersRegistrationExtensions
             options.UseNpgsql(connectionString);
         });
 
-        services.AddIdentityCore<ApplicationUser>()
+        services.AddIdentityCore<ApplicationUser>(options =>
+            {
+                options.Lockout.AllowedForNewUsers = true;
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+            })
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<ApplicationIdentityDbContext>()
             .AddDefaultTokenProviders();

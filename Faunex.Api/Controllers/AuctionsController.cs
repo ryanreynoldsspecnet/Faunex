@@ -23,7 +23,7 @@ public sealed class AuctionsController(IAuctionService auctions) : ControllerBas
         return Ok(results);
     }
 
-    [Authorize(Policy = "SellerOnly")]
+    [Authorize(Policy = "ListingManager")]
     [HttpPost]
     public async Task<ActionResult<Guid>> Create([FromBody] AuctionDto auction, CancellationToken cancellationToken)
     {
@@ -31,7 +31,7 @@ public sealed class AuctionsController(IAuctionService auctions) : ControllerBas
         return CreatedAtAction(nameof(GetById), new { id }, id);
     }
 
-    [Authorize(Policy = "SellerOnly")]
+    [Authorize(Policy = "ListingManager")]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] AuctionDto auction, CancellationToken cancellationToken)
     {
@@ -40,7 +40,7 @@ public sealed class AuctionsController(IAuctionService auctions) : ControllerBas
         return NoContent();
     }
 
-    [Authorize(Policy = "SellerOnly")]
+    [Authorize(Policy = "TenantAdminOnly")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {

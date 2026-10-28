@@ -7,7 +7,7 @@ public static class UserAccessRules
     public static IReadOnlyCollection<string> NormalizeRoles(IReadOnlyList<string>? requestedRoles) =>
         (requestedRoles is { Count: > 0 } ? requestedRoles : [FaunexRoles.Buyer])
             .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
+            .Select(x => FaunexRoles.All.FirstOrDefault(role => string.Equals(role, x.Trim(), StringComparison.OrdinalIgnoreCase)) ?? x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 

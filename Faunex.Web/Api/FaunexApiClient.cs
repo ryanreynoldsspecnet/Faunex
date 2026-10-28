@@ -95,11 +95,16 @@ public sealed class FaunexApiClient(IHttpClientFactory httpClientFactory, TokenS
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
-    private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    private async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
         {
             return;
+        }
+
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            await tokenStore.ClearAsync();
         }
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);

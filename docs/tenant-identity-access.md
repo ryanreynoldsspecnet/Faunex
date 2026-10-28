@@ -53,3 +53,19 @@ Platform administrators can manage tenant domains through:
 - `DELETE /api/platform/tenants/{tenantId}/domains/{domainId}`
 
 Domain hostnames are normalized before storage and lookup. Each hostname can belong to only one tenant.
+
+## Account And Session Enforcement
+
+JWT signatures and expiry are validated first. Every authenticated API request then checks the current Identity account, security stamp, role set, tenant assignment, platform flag, email and tenant activity. Disabled/deleted accounts, inactive/missing tenants and obsolete claims are rejected. Pre-security-stamp tokens require a fresh login after the Section 2 deployment.
+
+Administrator security updates rotate the security stamp. Password resets use Identity's stamp rotation. Re-enabling an account does not restore its old browser session. Five incorrect passwords temporarily lock an enabled account for five minutes; a successful login clears the failure count.
+
+The Blazor UI clears its stored token when the API returns 401 and checks token lifetime when resolving authentication state. A 403 is a permission denial, not a reason to sign out. There is no idle-session polling timer.
+
+TenantAdmin and Seller can manage listings subject to tenant/ownership checks. Only TenantAdmin can open/close auctions. PlatformSuperAdmin or PlatformComplianceAdmin can perform compliance review; a platform flag alone does not grant review permission.
+
+Only a platform super administrator can assign the super-admin role or modify another super administrator. User mutations protect the last active tenant/platform super administrator and run inside serializable transactions. The current account cannot delete or disable itself.
+
+Tenant creation, first-user creation and its TenantAdmin assignment share a database transaction. Failure rolls back the complete onboarding operation. The legacy domain trading profile is synchronized from Identity before tenant token issuance for listing/bid foreign-key compatibility; it never grants permissions.
+
+The tenant-domain registration/membership model is still Section 3 work. Platform UI registration is hidden; the older API contract still supports tenantless buyers when no tenant host resolves and must not be treated as completed domain enforcement.

@@ -21,9 +21,9 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
             var bid = await bids.PlaceBidAsync(auctionId, request.Amount, cancellationToken);
             return Ok(bid);
         }
-        catch (UnauthorizedAccessException ex)
+        catch (UnauthorizedAccessException)
         {
-            return Forbid(ex.Message);
+            return Forbid();
         }
         catch (InvalidOperationException ex)
         {
@@ -39,9 +39,9 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
             var result = await bids.GetBidsForAuctionAsync(auctionId, skip, take, cancellationToken);
             return Ok(result);
         }
-        catch (UnauthorizedAccessException ex)
+        catch (UnauthorizedAccessException)
         {
-            return Forbid(ex.Message);
+            return Forbid();
         }
         catch (InvalidOperationException ex)
         {
@@ -57,13 +57,13 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
             var price = await bids.GetCurrentPriceAsync(auctionId, cancellationToken);
             return Ok(new CurrentPriceDto(price));
         }
-        catch (UnauthorizedAccessException ex)
+        catch (UnauthorizedAccessException)
         {
-            return Forbid(ex.Message);
+            return Forbid();
         }
     }
 
-    [Authorize(Policy = "SellerOnly")]
+    [Authorize(Policy = "TenantAdminOnly")]
     [HttpPost("open")]
     public async Task<IActionResult> Open(Guid auctionId, CancellationToken cancellationToken)
     {
@@ -72,9 +72,9 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
             await auctions.OpenAuctionAsync(auctionId, cancellationToken);
             return NoContent();
         }
-        catch (UnauthorizedAccessException ex)
+        catch (UnauthorizedAccessException)
         {
-            return Forbid(ex.Message);
+            return Forbid();
         }
         catch (InvalidOperationException ex)
         {
@@ -82,7 +82,7 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
         }
     }
 
-    [Authorize(Policy = "SellerOnly")]
+    [Authorize(Policy = "TenantAdminOnly")]
     [HttpPost("close")]
     public async Task<IActionResult> Close(Guid auctionId, CancellationToken cancellationToken)
     {
@@ -91,9 +91,9 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
             await auctions.CloseAsync(auctionId, cancellationToken);
             return NoContent();
         }
-        catch (UnauthorizedAccessException ex)
+        catch (UnauthorizedAccessException)
         {
-            return Forbid(ex.Message);
+            return Forbid();
         }
         catch (InvalidOperationException ex)
         {

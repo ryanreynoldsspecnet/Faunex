@@ -1,11 +1,8 @@
 using Faunex.Api.Controllers;
 using Faunex.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Faunex.Application.Auth;
+using Faunex.Api.Auth;
 using Microsoft.AspNetCore.DataProtection;
-using System.Text;
 using Faunex.Api.Email;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,86 +36,7 @@ builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
 
 builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        var issuer = GetRequiredConfiguration(builder.Configuration, builder.Environment, "FAUNEX_JWT_ISSUER", "faunex-dev");
-        var audience = GetRequiredConfiguration(builder.Configuration, builder.Environment, "FAUNEX_JWT_AUDIENCE", "faunex-dev");
-        var signingKey = GetRequiredConfiguration(builder.Configuration, builder.Environment, "FAUNEX_JWT_SIGNING_KEY", "DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME");
-
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = issuer,
-            ValidAudience = audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
-            ClockSkew = TimeSpan.FromMinutes(2)
-        };
-
-        options.Events = new JwtBearerEvents
-        {
-            OnAuthenticationFailed = context =>
-            {
-                context.HttpContext.RequestServices
-                    .GetRequiredService<ILoggerFactory>()
-                    .CreateLogger("JwtBearer")
-                    .LogWarning(context.Exception, "JWT authentication failed");
-
-                return Task.CompletedTask;
-            },
-            OnTokenValidated = context =>
-            {
-                var principal = context.Principal;
-                var actorId = principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var tenantId = principal?.FindFirst(Faunex.Application.Auth.FaunexClaimTypes.TenantId)?.Value;
-                var isPlatformAdmin = principal?.FindFirst(Faunex.Application.Auth.FaunexClaimTypes.IsPlatformAdmin)?.Value;
-
-                context.HttpContext.RequestServices
-                    .GetRequiredService<ILoggerFactory>()
-                    .CreateLogger("JwtBearer")
-                    .LogInformation("JWT validated. actor_id={ActorId} tenant_id={TenantId} is_platform_admin={IsPlatformAdmin}", actorId, tenantId, isPlatformAdmin);
-
-                return Task.CompletedTask;
-            }
-        };
-    });
-
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("BuyerOnly", policy =>
-        policy.RequireAuthenticatedUser()
-              .RequireRole(FaunexRoles.Buyer));
-
-    options.AddPolicy("SellerOnly", policy =>
-        policy.RequireAuthenticatedUser()
-              .RequireRole(FaunexRoles.Seller));
-
-    options.AddPolicy("TenantAdminOnly", policy =>
-        policy.RequireAuthenticatedUser()
-              .RequireRole(FaunexRoles.TenantAdmin));
-
-    // Platform admin policies (used by api/platform/* endpoints)
-    options.AddPolicy("PlatformAdminOnly", policy =>
-        policy.RequireAuthenticatedUser()
-              .RequireRole(FaunexRoles.PlatformAdmin, FaunexRoles.PlatformSuperAdmin));
-
-    options.AddPolicy("PlatformSuperAdminOnly", policy =>
-        policy.RequireAuthenticatedUser()
-              .RequireRole(FaunexRoles.PlatformSuperAdmin));
-
-    options.AddPolicy("PlatformCompliance", policy =>
-    {
-        policy.RequireAuthenticatedUser();
-        policy.RequireAssertion(ctx =>
-            ctx.User.IsInRole(FaunexRoles.PlatformAdmin)
-            || ctx.User.IsInRole(FaunexRoles.PlatformSuperAdmin)
-            || ctx.User.IsInRole(FaunexRoles.PlatformComplianceAdmin)
-            || string.Equals(ctx.User.FindFirst(FaunexClaimTypes.IsPlatformAdmin)?.Value, "true", StringComparison.OrdinalIgnoreCase));
-    });
-});
+builder.Services.AddFaunexAuthentication(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
 
