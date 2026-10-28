@@ -41,6 +41,7 @@
             }
             else
             {
+                <ListingReviewPanel ListingId="ListingId" OnChanged="ReloadAsync" />
                 <section class="platform-panel tenant-listing-hero">
                     <div>
                         <span class="platform-status @GetComplianceStatusClass(_listing.ComplianceStatus)">@FormatComplianceStatus(_listing.ComplianceStatus)</span>

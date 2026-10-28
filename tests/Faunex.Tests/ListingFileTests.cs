@@ -143,7 +143,7 @@ public sealed class ListingFileTests
         var key = Assert.Single(test.Store.Files).Key;
         test.Store.Files.TryRemove(key, out _);
         using var reviewer = test.App.AuthenticatedClient(await test.App.TokenAsync(await test.App.AddUserAsync(null, FaunexRoles.PlatformSuperAdmin)));
-        Assert.Equal(HttpStatusCode.BadRequest, (await reviewer.PostAsJsonAsync($"/api/platform/compliance/listings/{test.Id}/approve", new { Notes = "Reviewed" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await reviewer.PostAsJsonAsync($"/api/platform/compliance/listings/{test.Id}/approve", new { Notes = "Reviewed", Revision = (await test.Snapshot()).Revision })).StatusCode);
         Assert.Equal("UnderReview", (await test.Snapshot()).Status);
     }
 

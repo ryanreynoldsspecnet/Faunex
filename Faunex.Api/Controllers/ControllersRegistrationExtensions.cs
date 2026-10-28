@@ -29,6 +29,7 @@ public static class ControllersRegistrationExtensions
         services.AddSingleton<IUploadScanner, ClamAvUploadScanner>();
         services.AddSingleton<UploadContentValidator>();
         services.AddScoped<ListingFileService>();
+        services.AddScoped<Faunex.Api.Compliance.ListingReviewQueries>();
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

@@ -49,21 +49,7 @@ else
         <dd class="col-sm-9"><code>@_listing.SellerId</code></dd>
     </dl>
 
-    @if (_listing.IsActive != true)
-    {
-        <button class="btn btn-primary" disabled="@_isSubmitting" @onclick="SubmitForReviewAsync">
-            @(_isSubmitting ? "Submitting..." : "Submit for Compliance Review")
-        </button>
-
-        @if (_submitSuccess is not null)
-        {
-            <div class="text-success mt-2">@_submitSuccess</div>
-        }
-        else if (_submitError is not null)
-        {
-            <div class="text-danger mt-2">@_submitError</div>
-        }
-    }
+    <ListingReviewPanel ListingId="ListingId" OnChanged="LoadAsync" />
 }
 
 @code {
@@ -76,9 +62,6 @@ else
 
     private Faunex.Application.DTOs.ListingDto? _listing;
 
-    private bool _isSubmitting;
-    private string? _submitSuccess;
-    private string? _submitError;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -92,9 +75,6 @@ else
         _error = null;
         _listing = null;
 
-        _isSubmitting = false;
-        _submitSuccess = null;
-        _submitError = null;
 
         try
         {
@@ -145,31 +125,6 @@ else
         }
     }
 
-    private async Task SubmitForReviewAsync()
-    {
-        if (_listing is null)
-        {
-            return;
-        }
-
-        _isSubmitting = true;
-        _submitSuccess = null;
-        _submitError = null;
-
-        try
-        {
-            await Api.PostAsync($"/api/seller/listings/{_listing.Id}/submit", body: new { });
-            _submitSuccess = "Submitted for compliance review";
-        }
-        catch
-        {
-            _submitError = "Could not submit listing for review. Please try again.";
-        }
-        finally
-        {
-            _isSubmitting = false;
-        }
-    }
 
     private static string FormatPrice(Faunex.Application.DTOs.ListingDto item)
     {
@@ -185,7 +140,6 @@ else
 
     private static string GetStatus(Faunex.Application.DTOs.ListingDto item)
     {
-        // Best-effort using existing data only.
-        return item.IsActive == true ? "Approved" : item.IsActive == false ? "Inactive" : "Pending / Draft";
+        return item.IsActive == true ? "Published" : "Unpublished";
     }
 }

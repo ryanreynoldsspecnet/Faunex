@@ -19,7 +19,7 @@ This is the restart point for development. Read this file and the [28 October au
 | 1 | Dependency gate, maintained CI actions, secret-file exclusions, durable handoff | Merged and deployed | PR #28; validate/deploy passed; live homepage 200 |
 | 2 | Account eligibility, session revocation, consistent role policies, first-admin transaction | Merged and deployed; business smoke test pending | PR #34; production run 40669423490 validate/deploy passed |
 | 3 | Tenant domains, verified routing/TLS, membership/host boundaries, complete branding | Merged; Stormbird subdomain confirmed working; custom-domain acceptance pending | PRs #35/#36; deployment 40712476902 passed; user confirmed live homepage |
-| 4 | Bird listing edit/media/documents, enforced compliance, review and public storefront | 4A merged/deployed; 4B protected uploads in progress | Draft to evidence review to approved tenant listing, with resubmission and protected files |
+| 4 | Bird listing edit/media/documents, enforced compliance, review and public storefront | 4A/4B merged/deployed; 4C review workflow in progress | Draft to evidence review to approved tenant listing, with resubmission and protected files |
 | 5 | Timed auction setup, concurrent bid rules, closure and winner/no-sale result | Not started | Invalid/self/late bids rejected; concurrency tests; one persisted authoritative outcome |
 | 6 | Tenant PayFast settings, winner order, checkout, verified callbacks, reconciliation | Not started | Sandbox failure/retry/duplicate tests and authorized low-value live payment to tenant account |
 | 7 | Pilot acceptance, operational recovery, monitoring, mobile/desktop journeys | Not started | Business acceptance, restore/restart drill, exact-revision green deploy and rollback procedure |
@@ -145,7 +145,7 @@ Edge/Playwright created a draft using the real local API, returned to the tenant
 
 PR #37 was user-merged at `2cecd8c8c7377c88c5402a4ed8a79accfa85110b`. [Production run 40724005267](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40724005267) passed validate/deploy, with all 126 tests executing successfully in CI. Read-only Stormbird home/Browse and Faunex home checks returned 200 without marketplace errors. Master was synchronized and the merged branch removed. This verifies deployment, not an authenticated production business acceptance test.
 
-## Active Section 4B: Protected Listing Files
+## Implemented Section 4B: Protected Listing Files
 
 Branch: `feature/section-4b-protected-uploads`. Do not merge without user approval and green checks for the final revision.
 
@@ -158,16 +158,36 @@ Branch: `feature/section-4b-protected-uploads`. Do not merge without user approv
 - [x] Enforce revision conflicts and review/auction locks; file changes return listings to inactive Draft.
 - [x] Accept only intact managed evidence for configured requirements, including a fresh check at approval. Legacy URL metadata is not proof.
 - [x] Finish local, real PostgreSQL/scanner CI and desktop/mobile browser verification; record exact PR/check evidence below. Recheck the final handoff revision before merge.
-- [ ] Merge with approval, verify deployment and perform the production file/restart acceptance checklist in [listing file operations](listing-files.md).
+- [x] Verify user-completed merge and production deploy; synchronize master and remove merged branch.
+- [ ] Live scanner-health, upload and restart/restore acceptance in [listing file operations](listing-files.md).
 
 VPS capacity confirmed by user: 4 CPU, 8 GB RAM. Scanner capped at 1.5 CPU and 4 GB RAM; no public scanner port. Uploads return a retryable 503 while it initializes or is unavailable; other site functions do not wait for scanner health. Operational resource checks remain necessary after deployment.
 
 Documents remain optional unless a tenant/animal-class policy explicitly requires them. PDFs are antivirus-scanned attachments, not parsed for legal validity or certified as safe. Images are normalized copies; their original bytes are not retained. Full reviewer UI/history and configurable requirement UI are not completed by 4B. Do not close all of Section 4 or start auction/payment implementation from this slice alone.
 
-Pull request: [#38](https://github.com/ryanreynoldsspecnet/Faunex/pull/38), not merged. Implementation `987c739539593bf309f741326b0bf8527704d219` passed [CI 40740289121](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40740289121): all 153 tests executed/passed on PostgreSQL/Linux, including actual ClamAV clean/EICAR checks, clean photo/PDF uploads through the scanner, concurrent same-revision uploads, private role/tenant denials, missing/corrupt storage, review/auction locks, quotas, EXIF normalization and persistence across storage instances. The initial CI run caught a wrapped PostgreSQL serialization conflict returning 500; the correction traverses the provider exception chain and returns 409, with only one persisted file and cleanup of the losing upload. No gate was bypassed. Caddy validation, vulnerability scan, clean Release build and both publish steps passed; deployment was correctly skipped.
+Pull request: [#38](https://github.com/ryanreynoldsspecnet/Faunex/pull/38), user-merged at `9aac7379d0f7ea6f980b3f2190232811ffced2bb`. [Production run 40742473221](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40742473221) passed validate/deploy. The deploy log confirms the scanner started and the two new volumes were created; it is not proof of scanner health. Faunex home and Stormbird home/Browse returned 200 without marketplace errors. Local SSH host-key verification was unavailable and was not bypassed; a PuTTY `docker compose ps -a` check was requested. Master was synchronized and the merged branch removed before 4C.
+
+Implementation `987c739539593bf309f741326b0bf8527704d219` passed [CI 40740289121](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40740289121): all 153 tests executed/passed on PostgreSQL/Linux, including actual ClamAV clean/EICAR checks, clean photo/PDF uploads through the scanner, concurrent same-revision uploads, private role/tenant denials, missing/corrupt storage, review/auction locks, quotas, EXIF normalization and persistence across storage instances. The initial CI run caught a wrapped PostgreSQL serialization conflict returning 500; the correction traverses the provider exception chain and returns 409, with only one persisted file and cleanup of the losing upload. No gate was bypassed. Caddy validation, vulnerability scan, clean Release build and both publish steps passed; deployment was correctly skipped.
 
 Local verification: 147 tests passed, six PostgreSQL/real-scanner cases explicitly skipped (153 total); no pending model changes; API/Web publish and dependency advisory scan passed. The additive migration creates `ListingFiles` plus a nullable link from existing document metadata. It does not fetch old external URLs or migrate untrusted bytes into managed storage.
 
 Edge/Playwright verification used isolated tenant/admin accounts and the real local upload API/native image processing with test-only in-memory file storage and scanner doubles. It uploaded two photos and a PDF, checked preview images, downloaded the exact PDF bytes, reloaded persisted records, switched public gallery photos, and confirmed that deleting a photo unpublishes and revokes public reads (404). Desktop 1440px and mobile 390px screenshots were inspected; no page errors or page-level overflow. Document tables scroll horizontally on narrow screens. Only the external preview fixture materializes SQLite grid/detail reads and sets an approved fixture state; real PostgreSQL SQL, authorization and scan behavior are covered in CI. This is not production review acceptance or a real VPS restart/restore drill.
 
-Next: obtain merge approval, inspect master validate/deploy, and verify scanner health and a disposable upload on Stormbird. Then continue **4C reviewer evidence inspection and decision history/resubmission**. Requirement UI remains deferred until business rules are agreed. A separate custom-domain acceptance test and operational backup/restore acceptance remain open. No live tenant data was changed during 4B development.
+Next: **4C reviewer evidence inspection and decision history/resubmission**, while scanner/file operational acceptance remains open. Requirement UI remains deferred until business rules are agreed. A separate custom-domain acceptance test and operational backup/restore acceptance remain open. No live tenant data was changed during 4B development.
+
+## Active Section 4C: Review Workflow
+
+Branch: `feature/section-4c-compliance-review`. User approved continuing after merging 4B. No automatic merge of this section.
+
+- [x] Replace quick approve/reject rows with a searchable, status-filtered, paginated queue and detail-first review.
+- [x] Show listing/animal details, tenant/seller, requirements and private read-only file access to super-admin/compliance reviewers.
+- [x] Require current revision for every review decision, bounded notes, reasons for requested changes/suspension, valid states, active tenant and no existing auction activity.
+- [x] Recheck required evidence and every current file's integrity before approval; publish only on approval.
+- [x] Persist actor/time/from/to/notes/revision history atomically with status changes, including submission, edits and file changes. No history-edit endpoint; application writes reject modification/deletion of tracked history records.
+- [x] Show tenant/seller status/history and submission/resubmission. Suspended listings can be returned for changes by a reviewer; they do not resume publication automatically.
+- [ ] Verify local/real PostgreSQL concurrency, migrations, scanner, browser workflow, vulnerability/build/publish gates; record PR and exact results.
+- [ ] Merge with approval, verify production deploy and business acceptance using disposable tenant data.
+
+History begins at this deployment; do not invent or backfill old decisions. The latest 200 events are displayed, with all events retained in the database while the listing exists. This is status/revision history, not a complete immutable snapshot of prior listing content or a legal certification. SQL maintenance or cascade removal of a listing is outside the application append-only guard. Retention/backup policies remain operational acceptance work. Reviewer notes are visible to the owning seller and tenant administrators, so do not enter confidential internal-only comments.
+
+Old submission endpoints remain compatible when no revision is supplied, but still enforce current status, ownership, evidence and optimistic concurrency. New UI submission sends the revision. Review decision requests without Revision are now rejected; old approve/reject clients must reload and update. Requirement-management UI remains deferred. Auction lifecycle/payment implementation is still Sections 5/6, not part of 4C.
