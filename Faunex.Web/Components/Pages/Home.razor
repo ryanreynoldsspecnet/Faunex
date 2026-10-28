@@ -1,6 +1,7 @@
 @page "/"
 @inject Faunex.Web.Api.FaunexApiClient Api
 @inject NavigationManager Nav
+@inject ILogger<Home> Logger
 
 <PageTitle>@(_isPlatformHost ? "Faunex" : DisplayTenantName)</PageTitle>
 
@@ -116,8 +117,9 @@ else if (_marketplaceError is not null)
 {
     <section class="marketplace-shell">
         <div class="platform-empty" role="status">
-            <h1>Marketplace not found</h1>
+            <h1>Marketplace temporarily unavailable</h1>
             <p>@_marketplaceError</p>
+            <button class="btn btn-primary" type="button" @onclick="LoadMarketplaceAsync">Try Again</button>
         </div>
     </section>
 }
@@ -168,7 +170,18 @@ else if (_marketplace is not null)
                 <a class="btn btn-primary" href="/browse">View All</a>
             </div>
 
-            @if (_featuredListings is null || _featuredListings.Count == 0)
+            @if (_isLoadingListings)
+            {
+                <p role="status">Loading listings...</p>
+            }
+            else if (_listingsError is not null)
+            {
+                <div class="alert alert-warning" role="alert">
+                    <p>@_listingsError</p>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="LoadListingsAsync">Retry Listings</button>
+                </div>
+            }
+            else if (_featuredListings is null || _featuredListings.Count == 0)
             {
                 <div class="platform-empty">
                     <p>No approved listings are available yet.</p>
@@ -198,6 +211,8 @@ else if (_marketplace is not null)
     private bool _isLoadingMarketplace;
     private string _host = string.Empty;
     private string? _marketplaceError;
+    private string? _listingsError;
+    private bool _isLoadingListings;
     private MarketplaceContextDto? _marketplace;
     private IReadOnlyList<Faunex.Application.DTOs.ListingDto>? _featuredListings;
 
@@ -205,7 +220,9 @@ else if (_marketplace is not null)
     private string MarketplaceTagline => _marketplace?.MarketplaceTagline ?? $"Browse approved listings and auction opportunities from {DisplayTenantName}.";
     private string MarketplaceSupport => _marketplace?.SupportEmail ?? _marketplace?.ContactEmail ?? _marketplace?.SupportPhone ?? _marketplace?.ContactPhone ?? "Available from tenant admin";
     private string MarketplaceStyle => Faunex.Application.Tenancy.TenantBrandingRules.IsColour(_marketplace?.BrandPrimaryColor) ? $"--tenant-primary:{_marketplace!.BrandPrimaryColor};" : string.Empty;
-    private string FeaturedListingCountLabel => (_featuredListings?.Count ?? 0) == 0 ? "Opening soon" : $"{_featuredListings!.Count} available";
+    private string FeaturedListingCountLabel => _listingsError is not null ? "Temporarily unavailable"
+        : _isLoadingListings ? "Loading..."
+        : (_featuredListings?.Count ?? 0) == 0 ? "Opening soon" : $"{_featuredListings!.Count} available";
 
     protected override async Task OnInitializedAsync()
     {
@@ -217,6 +234,12 @@ else if (_marketplace is not null)
             return;
         }
 
+        await LoadMarketplaceAsync();
+    }
+
+    private async Task LoadMarketplaceAsync()
+    {
+        if (_isLoadingMarketplace) return;
         _isLoadingMarketplace = true;
         _marketplaceError = null;
 
@@ -224,16 +247,36 @@ else if (_marketplace is not null)
         {
             var host = MarketplaceRoutes.HostQuery(_host);
             _marketplace = await Api.GetAsync<MarketplaceContextDto>($"/api/marketplace/context?host={host}");
-            _featuredListings = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>($"/api/marketplace/listings?host={host}");
+            if (_marketplace is null) _marketplaceError = "This marketplace is currently unavailable. Please try again.";
         }
         catch (Exception ex)
         {
-            _marketplaceError = ex.Message;
+            Logger.LogWarning(ex, "Could not load marketplace context for {MarketplaceHost}", _host);
+            _marketplaceError = "We could not load this marketplace. Please try again.";
         }
         finally
         {
             _isLoadingMarketplace = false;
         }
+        if (_marketplaceError is null && _marketplace is not null) await LoadListingsAsync();
+    }
+
+    private async Task LoadListingsAsync()
+    {
+        if (_isLoadingListings) return;
+        _isLoadingListings = true;
+        _listingsError = null;
+        try
+        {
+            var host = MarketplaceRoutes.HostQuery(_host);
+            _featuredListings = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>($"/api/marketplace/listings?host={host}");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load marketplace listings for {MarketplaceHost}", _host);
+            _listingsError = "Listings are temporarily unavailable. Please try again.";
+        }
+        finally { _isLoadingListings = false; }
     }
 
     private static string FormatPrice(Faunex.Application.DTOs.ListingDto item)

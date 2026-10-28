@@ -195,9 +195,11 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
                 approvedComplianceByListingId,
                 l => l.Id,
                 c => c.ListingId,
-                (listing, compliance) => new ApprovedListingRow(
-                    listing,
-                    compliance.ReviewedAt ?? (DateTimeOffset?)listing.CreatedAt));
+                (listing, compliance) => new ApprovedListingRow
+                {
+                    Listing = listing,
+                    SortAt = compliance.ReviewedAt ?? (DateTimeOffset?)listing.CreatedAt
+                });
     }
 
     private IQueryable<Auction> PublicAuctionQuery(Guid tenantId)
@@ -329,7 +331,11 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
             auction.IsSealedBid,
             auction.IsClosed);
 
-    private sealed record ApprovedListingRow(Listing Listing, DateTimeOffset? SortAt);
+    private sealed class ApprovedListingRow
+    {
+        public Listing Listing { get; init; } = null!;
+        public DateTimeOffset? SortAt { get; init; }
+    }
 }
 
 public sealed record MarketplaceContextDto(
