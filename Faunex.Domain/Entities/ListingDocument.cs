@@ -12,6 +12,8 @@ public sealed class ListingDocument : BaseEntity
     public ListingDocumentType DocumentType { get; set; } = ListingDocumentType.Unknown;
 
     public string? FileUrl { get; set; }
+    public Guid? StoredFileId { get; set; }
+    public ListingFile? StoredFile { get; set; }
 
     public DateTimeOffset? UploadedAt { get; set; }
 

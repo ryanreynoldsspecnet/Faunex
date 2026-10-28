@@ -31,6 +31,7 @@ else
 {
     <div class="mb-3">
         <h4>@_item.Title</h4>
+        <ListingPhotoGallery ListingId="ListingId" Title="@_item.Title" />
         <p class="text-muted mb-1"><strong>Status:</strong> Approved</p>
         <p class="text-muted mb-1"><strong>Listing type:</strong> @GetSaleType(_item)</p>
         <p class="mb-1"><strong>Price:</strong> @GetPriceLabel(_item)</p>

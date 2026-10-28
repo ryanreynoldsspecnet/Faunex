@@ -34,6 +34,7 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<ListingCompliance> ListingCompliances { get; set; } = null!;
     public DbSet<ListingDocument> ListingDocuments { get; set; } = null!;
     public DbSet<ListingDocumentRequirement> ListingDocumentRequirements { get; set; } = null!;
+    public DbSet<ListingFile> ListingFiles { get; set; } = null!;
 
     private Guid? CurrentTenantId => _tenantContext.TenantId;
 
@@ -53,6 +54,11 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<Listing>().Property(x => x.Revision).IsConcurrencyToken();
+        modelBuilder.Entity<ListingFile>().HasOne(x => x.Listing).WithMany().HasForeignKey(x => x.ListingId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ListingFile>().HasIndex(x => x.StorageKey).IsUnique();
+        modelBuilder.Entity<ListingFile>().HasIndex(x => new { x.TenantId, x.ListingId });
+        modelBuilder.Entity<ListingFile>().HasQueryFilter(x => IsPlatformAdmin || (CurrentTenantId != null && x.TenantId == CurrentTenantId));
+        modelBuilder.Entity<ListingDocument>().HasOne(x => x.StoredFile).WithOne().HasForeignKey<ListingDocument>(x => x.StoredFileId).OnDelete(DeleteBehavior.SetNull);
         modelBuilder.Entity<ListingDocumentRequirement>()
             .HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<ListingDocumentRequirement>()

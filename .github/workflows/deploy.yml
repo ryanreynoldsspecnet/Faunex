@@ -29,6 +29,7 @@ jobs:
           --health-retries 10
     env:
       FAUNEX_TEST_POSTGRES: Host=127.0.0.1;Port=5432;Database=postgres;Username=postgres;Password=faunex-test-only
+      FAUNEX_TEST_CLAMAV: '127.0.0.1:3310'
 
     steps:
       - name: Checkout repository
@@ -41,6 +42,21 @@ jobs:
 
       - name: Restore
         run: dotnet restore Faunex.slnx
+
+      - name: Start isolated upload scanner
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name faunex-test-clamav --memory=4g --cpus=1.5 \
+            -p 127.0.0.1:3310:3310 -v "$PWD/deploy/clamav:/run/faunex:ro" \
+            --entrypoint /bin/sh clamav/clamav:1.5.4-debian \
+            -c 'cp /run/faunex/clamd.conf /etc/clamav/clamd.conf && exec /init'
+          for attempt in $(seq 1 60); do
+            if docker exec faunex-test-clamav clamdscan --config-file=/etc/clamav/clamd.conf --ping=1; then exit 0; fi
+            sleep 5
+          done
+          docker logs faunex-test-clamav
+          exit 1
 
       - name: Validate Caddy configuration
         run: docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
@@ -67,6 +83,13 @@ jobs:
 
       - name: Publish Web
         run: dotnet publish Faunex.Web/Faunex.Web.csproj --configuration Release --no-build --output ./artifacts/web -p:StaticWebAssetsMode=Publish
+
+      - name: Scanner diagnostics and cleanup
+        if: always()
+        shell: bash
+        run: |
+          docker logs --tail 60 faunex-test-clamav || true
+          docker rm -f faunex-test-clamav || true
 
   deploy:
     needs: validate

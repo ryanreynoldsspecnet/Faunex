@@ -1,0 +1,19 @@
+@inject Faunex.Web.Api.FaunexApiClient Api
+@if (_photos.Count > 0)
+{
+    <div class="listing-photo-gallery">
+        <img class="listing-photo-gallery__main" src="@($"/media/listing-photos/{_selected}")" alt="@Title" />
+        <div class="listing-photo-gallery__thumbnails">@foreach (var id in _photos) { <button type="button" class="@(_selected == id ? "selected" : null)" aria-label="@($"Photo {_photos.IndexOf(id) + 1}")" aria-pressed="@(_selected == id)" @onclick="() => _selected = id"><img src="@($"/media/listing-photos/{id}")" alt="" /></button> }</div>
+    </div>
+}
+@code {
+    [Parameter] public Guid ListingId { get; set; }
+    [Parameter] public string Title { get; set; } = "Listing photo";
+    private List<Guid> _photos = [];
+    private Guid _selected;
+    protected override async Task OnParametersSetAsync()
+    {
+        try { _photos = await Api.GetPublicAsync<List<Guid>>($"/api/marketplace/listings/{ListingId}/photos") ?? []; _selected = _photos.FirstOrDefault(); }
+        catch (InvalidOperationException) { _photos = []; }
+    }
+}

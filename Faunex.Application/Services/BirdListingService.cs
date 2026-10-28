@@ -4,10 +4,11 @@ using Faunex.Application.DTOs;
 using Faunex.Application.Interfaces;
 using Faunex.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 
 namespace Faunex.Application.Services;
 
-public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantContext tenantContext) : IBirdListingService
+public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantContext tenantContext, IListingFileStorage fileStorage) : IBirdListingService
 {
     public async Task<BirdListingDto?> GetByIdAsync(Guid listingId, CancellationToken cancellationToken = default)
     {
@@ -212,6 +213,10 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         EnsurePlatformComplianceReviewer();
 
         var listing = await dbContext.Listings
+            .Include(x => x.BirdDetails)
+            .Include(x => x.LivestockDetails)
+            .Include(x => x.GameAnimalDetails)
+            .Include(x => x.PoultryDetails)
             .Include(x => x.Compliance)
             .FirstOrDefaultAsync(x => x.Id == listingId, cancellationToken);
 
@@ -226,6 +231,10 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         {
             throw new InvalidOperationException("Listing compliance must be UnderReview to approve.");
         }
+
+        var required = await GetRequiredDocumentTypesAsync(listing, cancellationToken);
+        if (required.Count > 0 && required.Except(await ManagedEvidenceTypesAsync(listing, cancellationToken)).Any())
+            throw new ListingValidationException("Required supporting files are missing or unavailable. Approval is blocked.");
 
         compliance.Status = ListingComplianceStatus.Approved;
         compliance.ReviewNotes = notes;
@@ -466,12 +475,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
 
         var required = await GetRequiredDocumentTypesAsync(listing, cancellationToken);
 
-        var uploadedTypes = await dbContext.ListingDocuments
-            .AsNoTracking()
-            .Where(x => x.ListingId == listing.Id && x.UploadedAt != null && x.FileUrl != null && x.FileUrl != "")
-            .Select(x => x.DocumentType)
-            .Distinct()
-            .ToListAsync(cancellationToken);
+        IReadOnlyCollection<ListingDocumentType> uploadedTypes = required.Count == 0 ? [] : await ManagedEvidenceTypesAsync(listing, cancellationToken);
 
         var missing = required.Except(uploadedTypes).ToList();
 
@@ -488,6 +492,23 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<IReadOnlyCollection<ListingDocumentType>> ManagedEvidenceTypesAsync(Listing listing, CancellationToken cancellationToken)
+    {
+        var documents = await dbContext.ListingDocuments.AsNoTracking().Include(x => x.StoredFile)
+            .Where(x => x.TenantId == listing.TenantId && x.ListingId == listing.Id && x.UploadedAt != null
+                && x.StoredFile != null && x.StoredFile.TenantId == listing.TenantId && x.StoredFile.ListingId == listing.Id
+                && !x.StoredFile.IsPhoto && x.StoredFile.DeletedAt == null).ToListAsync(cancellationToken);
+        var available = new HashSet<ListingDocumentType>();
+        foreach (var document in documents)
+        {
+            var file = document.StoredFile!;
+            var bytes = await fileStorage.ReadAsync(file.StorageKey, cancellationToken);
+            if (bytes is not null && bytes.LongLength == file.Length && Convert.ToHexString(SHA256.HashData(bytes)) == file.Sha256)
+                available.Add(document.DocumentType);
+        }
+        return available;
     }
 
     private async Task ReviewAsync(Guid listingId, ListingComplianceStatus newStatus, string? notes, CancellationToken cancellationToken)

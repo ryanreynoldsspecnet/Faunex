@@ -9,6 +9,51 @@ namespace Faunex.Web.Api;
 
 public sealed class FaunexApiClient(IHttpClientFactory httpClientFactory, TokenStore tokenStore, NavigationManager navigation)
 {
+    public async Task<T?> GetPublicAsync<T>(string path, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Add(MarketplaceHosts.OriginHeader, navigation.ToAbsoluteUri(navigation.Uri).IdnHost);
+        using var response = await httpClientFactory.CreateClient("FaunexApi").SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
+    }
+
+    public async Task<byte[]> GetFileBytesAsync(string path, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        await ApplyAuthAsync(request);
+        using var response = await httpClientFactory.CreateClient("FaunexApi").SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        if (bytes.Length > 10 * 1024 * 1024) throw new InvalidOperationException("File exceeds the download limit.");
+        return bytes;
+    }
+
+    public async Task<T?> UploadFileAsync<T>(string path, Stream content, string name, string type, Guid revision,
+        bool isPhoto, int? documentType, CancellationToken cancellationToken = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new StreamContent(content);
+        file.Headers.ContentType = new MediaTypeHeaderValue(type);
+        form.Add(file, "File", name);
+        form.Add(new StringContent(revision.ToString()), "Revision");
+        form.Add(new StringContent(isPhoto ? "true" : "false"), "IsPhoto");
+        if (documentType.HasValue) form.Add(new StringContent(documentType.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "DocumentType");
+        using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = form };
+        await ApplyAuthAsync(request);
+        using var response = await httpClientFactory.CreateClient("FaunexApi").SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
+    }
+
+    public async Task<T?> DeleteFileAsync<T>(string path, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, path);
+        await ApplyAuthAsync(request);
+        using var response = await httpClientFactory.CreateClient("FaunexApi").SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
+    }
     public async Task<T?> GetAsync<T>(string path, CancellationToken cancellationToken = default)
     {
         var client = httpClientFactory.CreateClient("FaunexApi");

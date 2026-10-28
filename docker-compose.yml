@@ -1,4 +1,19 @@
 services:
+  clamav:
+    image: clamav/clamav:1.5.4-debian
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: 1.5
+    entrypoint: ["/bin/sh", "-c", "cp /run/faunex/clamd.conf /etc/clamav/clamd.conf && exec /init"]
+    volumes:
+      - ./deploy/clamav:/run/faunex:ro
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdscan", "--config-file=/etc/clamav/clamd.conf", "--ping=1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
   caddy:
     image: caddy:2-alpine
     container_name: faunex-caddy
@@ -39,10 +54,14 @@ services:
       FAUNEX_EMAIL_SMTP_ENABLE_SSL: ${FAUNEX_EMAIL_SMTP_ENABLE_SSL}
       FAUNEX_EMAIL_FROM_EMAIL: ${FAUNEX_EMAIL_FROM_EMAIL}
       FAUNEX_EMAIL_FROM_NAME: ${FAUNEX_EMAIL_FROM_NAME}
+      Files__RootPath: /var/lib/faunex/listing-files
+      Files__ScannerHost: clamav
     volumes:
       - dataprotection_keys:/root/.aspnet/DataProtection-Keys
+      - listing_files:/var/lib/faunex/listing-files
     depends_on:
       - db
+      - clamav
 
   faunex-web:
     build:
@@ -77,3 +96,5 @@ volumes:
   dataprotection_keys:
   caddy_data:
   caddy_config:
+  listing_files:
+  clamav_data:

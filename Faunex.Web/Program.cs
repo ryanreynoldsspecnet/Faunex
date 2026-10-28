@@ -84,6 +84,7 @@ app.Logger.LogInformation("Web configured ApiSettings:BaseUrlRaw={ApiBaseUrlRaw}
 app.Logger.LogInformation("Web normalized ApiSettings:BaseUrl={ApiBaseUrl}", apiBaseUrl);
 
 app.MapGet("/__ping", () => Results.Ok("pong"));
+app.MapListingMedia();
 
 // =====================
 // Middleware pipeline

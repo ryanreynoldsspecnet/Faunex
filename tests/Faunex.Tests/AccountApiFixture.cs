@@ -23,6 +23,8 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using System.Data.Common;
+using Faunex.Api.Files;
+using Faunex.Application.Interfaces;
 
 namespace Faunex.Tests;
 
@@ -95,6 +97,10 @@ internal sealed class AccountApiFixture : IAsyncDisposable
             if (databaseName is null) o.UseSqlite(connectionString); else o.UseNpgsql(connectionString);
         });
         services.AddFaunexAuthentication(builder.Configuration, builder.Environment);
+        services.AddSingleton<TestFileStorage>();
+        services.AddSingleton<IListingFileStorage>(sp => sp.GetRequiredService<TestFileStorage>());
+        services.AddSingleton<TestUploadScanner>();
+        services.AddSingleton<IUploadScanner>(sp => sp.GetRequiredService<TestUploadScanner>());
         services.AddSingleton<TestDomainOwnership>();
         services.AddScoped<IDomainOwnershipVerifier>(sp => sp.GetRequiredService<TestDomainOwnership>());
         services.AddSingleton<TestEmailSender>();
@@ -109,6 +115,7 @@ internal sealed class AccountApiFixture : IAsyncDisposable
         }));
         app.UseRouting();
         app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseAuthorization();
         app.MapControllers();
         await app.StartAsync();
