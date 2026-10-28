@@ -41,7 +41,7 @@ builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Information);
 // Services
 // =====================
 builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo("/root/.aspnet/DataProtection-Keys"))
+    .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["DataProtection:KeyPath"] ?? "/root/.aspnet/DataProtection-Keys"))
     .SetApplicationName("Faunex");
 
 builder.Services.AddHttpClient("FaunexApi", client =>
@@ -55,6 +55,7 @@ builder.Services.AddScoped<JwtAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<JwtAuthStateProvider>());
 
 builder.Services.AddScoped<FaunexApiClient>();
+builder.Services.AddScoped<Faunex.Web.Marketplace.MarketplaceBranding>();
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -96,6 +97,7 @@ if (!app.Environment.IsDevelopment())
 // HTTPS is handled by reverse proxy / Docker host
 // app.UseHttpsRedirection();
 
+app.UseMiddleware<Faunex.Web.Tenancy.TenantHostGateway>();
 app.UseStaticFiles();
 
 // REQUIRED in .NET 10 for Blazor static web assets

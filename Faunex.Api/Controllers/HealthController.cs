@@ -7,5 +7,6 @@ namespace Faunex.Api.Controllers;
 public sealed class HealthController : ControllerBase
 {
     [HttpGet("ping")]
+    [Faunex.Api.Tenancy.InfrastructureEndpoint]
     public ActionResult Ping() => Content("Faunex API is alive", "text/plain");
 }

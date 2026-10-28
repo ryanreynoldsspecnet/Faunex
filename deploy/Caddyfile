@@ -1,3 +1,12 @@
+{
+    on_demand_tls {
+        ask http://faunex-api:8080/api/tenancy/tls-authorization
+    }
+    servers {
+        strict_sni_host on
+    }
+}
+
 faunex.co.za {
     encode zstd gzip
     reverse_proxy faunex-web:8080
@@ -9,4 +18,16 @@ www.faunex.co.za {
 
 http://154.65.98.94 {
     redir https://faunex.co.za{uri} permanent
+}
+
+https:// {
+    tls {
+        on_demand
+    }
+    encode zstd gzip
+    reverse_proxy faunex-web:8080
+}
+
+http:// {
+    redir https://{host}{uri} permanent
 }

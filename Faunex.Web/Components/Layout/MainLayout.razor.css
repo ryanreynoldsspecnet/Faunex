@@ -6,7 +6,15 @@
 
 main {
     flex: 1;
+    min-width: 0;
 }
+
+.navbar { flex-wrap: wrap; gap: 0.25rem 1rem; }
+.navbar-nav { flex-wrap: wrap; min-width: 0; }
+.navbar-text { overflow-wrap: anywhere; }
+.navbar-brand { max-width: 100%; min-width: 0; }
+.navbar-brand__tenant-name { display: block; white-space: normal; overflow-wrap: anywhere; font-size: 1.15rem; }
+.page ::deep .btn-primary { background-color: var(--tenant-primary, #1f6f4a); border-color: var(--tenant-primary, #1f6f4a); }
 
 .sidebar {
     background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);

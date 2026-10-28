@@ -1,7 +1,11 @@
 using System.Net.Http.Headers;
 using Faunex.Api.Auth;
+using Faunex.Api.Tenancy;
+using Faunex.Api.Email;
 using Faunex.Api.Controllers;
 using Faunex.Application.Auth;
+using Faunex.Application.Tenancy;
+using System.IdentityModel.Tokens.Jwt;
 using Faunex.Domain.Entities;
 using Faunex.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
@@ -91,6 +95,10 @@ internal sealed class AccountApiFixture : IAsyncDisposable
             if (databaseName is null) o.UseSqlite(connectionString); else o.UseNpgsql(connectionString);
         });
         services.AddFaunexAuthentication(builder.Configuration, builder.Environment);
+        services.AddSingleton<TestDomainOwnership>();
+        services.AddScoped<IDomainOwnershipVerifier>(sp => sp.GetRequiredService<TestDomainOwnership>());
+        services.AddSingleton<TestEmailSender>();
+        services.AddScoped<IEmailSender>(sp => sp.GetRequiredService<TestEmailSender>());
         services.AddSingleton<OnboardingFailure>();
         services.AddScoped<UserManager<ApplicationUser>, TestUserManager>();
         var app = builder.Build();
@@ -108,8 +116,16 @@ internal sealed class AccountApiFixture : IAsyncDisposable
         using var scope = app.Services.CreateScope();
         var application = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var identity = scope.ServiceProvider.GetRequiredService<ApplicationIdentityDbContext>();
-        await application.Database.ExecuteSqlRawAsync(application.Database.GenerateCreateScript());
-        await identity.Database.ExecuteSqlRawAsync(identity.Database.GenerateCreateScript());
+        if (fixture.UsesPostgres)
+        {
+            await application.Database.MigrateAsync();
+            await identity.Database.MigrateAsync();
+        }
+        else
+        {
+            await application.Database.ExecuteSqlRawAsync(application.Database.GenerateCreateScript());
+            await identity.Database.ExecuteSqlRawAsync(identity.Database.GenerateCreateScript());
+        }
         var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         foreach (var role in FaunexRoles.All)
         {
@@ -124,7 +140,10 @@ internal sealed class AccountApiFixture : IAsyncDisposable
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var tenant = new Tenant { Name = Guid.NewGuid().ToString(), IsActive = active };
         db.Tenants.Add(tenant);
+        db.TenantDomains.Add(new TenantDomain { TenantId = tenant.Id, Hostname = TenantHost(tenant.Id), VerifiedAt = DateTimeOffset.UtcNow });
         await db.SaveChangesAsync();
+        Client.DefaultRequestHeaders.Remove(MarketplaceHosts.OriginHeader);
+        Client.DefaultRequestHeaders.Add(MarketplaceHosts.OriginHeader, TenantHost(tenant.Id));
         return tenant.Id;
     }
 
@@ -152,8 +171,13 @@ internal sealed class AccountApiFixture : IAsyncDisposable
     {
         var client = Server.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var tenant = new JwtSecurityTokenHandler().CanReadToken(token)
+            ? new JwtSecurityTokenHandler().ReadJwtToken(token).Claims.FirstOrDefault(x => x.Type == FaunexClaimTypes.TenantId)?.Value : null;
+        client.DefaultRequestHeaders.Add(MarketplaceHosts.OriginHeader, Guid.TryParse(tenant, out var id) ? TenantHost(id) : MarketplaceHosts.Root);
         return client;
     }
+
+    public static string TenantHost(Guid tenantId) => $"tenant-{tenantId:N}.faunex.co.za";
 
     public async Task ChangeUserAsync(Guid id, Func<UserManager<ApplicationUser>, ApplicationUser, Task> change)
     {
@@ -174,6 +198,24 @@ internal sealed class AccountApiFixture : IAsyncDisposable
             await using var drop = new NpgsqlCommand($"DROP DATABASE \"{_databaseName}\" WITH (FORCE)", admin);
             await drop.ExecuteNonQueryAsync();
         }
+    }
+}
+
+internal sealed class TestDomainOwnership : IDomainOwnershipVerifier
+{
+    public string? ExpectedToken { get; set; }
+    public Func<Task<bool>>? Handler { get; set; }
+    public Task<bool> VerifyAsync(string hostname, string token, CancellationToken cancellationToken = default) =>
+        Handler is null ? Task.FromResult(token == ExpectedToken) : Handler();
+}
+
+internal sealed class TestEmailSender : IEmailSender
+{
+    public List<string> ResetLinks { get; } = [];
+    public Task SendPasswordResetAsync(string toEmail, string resetLink, CancellationToken cancellationToken = default)
+    {
+        ResetLinks.Add(resetLink);
+        return Task.CompletedTask;
     }
 }
 

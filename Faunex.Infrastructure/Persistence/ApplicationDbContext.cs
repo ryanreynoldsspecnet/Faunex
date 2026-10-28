@@ -97,6 +97,11 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
             .HasIndex(x => x.Hostname)
             .IsUnique();
 
+        modelBuilder.Entity<TenantDomain>()
+            .Property(x => x.VerificationToken).IsConcurrencyToken();
+        modelBuilder.Entity<TenantDomain>()
+            .Property(x => x.VerifiedAt).IsConcurrencyToken();
+
         // Tenant scoping
         // Rules:
         // - Platform admin (TenantId == null) can query across tenants.

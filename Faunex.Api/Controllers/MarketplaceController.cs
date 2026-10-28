@@ -287,14 +287,14 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
     private static MarketplaceContextDto ToContextDto(Faunex.Domain.Entities.Tenant tenant)
     {
         var domains = tenant.Domains
-            .Where(x => x.IsActive)
+            .Where(x => x.IsActive && x.VerifiedAt != null)
             .OrderByDescending(x => x.IsPrimary)
             .ThenBy(x => x.Hostname)
             .Select(x => x.Hostname)
             .ToArray();
 
         var primaryDomain = tenant.Domains
-            .Where(x => x.IsActive)
+            .Where(x => x.IsActive && x.VerifiedAt != null)
             .OrderByDescending(x => x.IsPrimary)
             .ThenBy(x => x.Hostname)
             .Select(x => x.Hostname)

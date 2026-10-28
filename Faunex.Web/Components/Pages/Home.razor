@@ -2,7 +2,7 @@
 @inject Faunex.Web.Api.FaunexApiClient Api
 @inject NavigationManager Nav
 
-<PageTitle>Faunex</PageTitle>
+<PageTitle>@(_isPlatformHost ? "Faunex" : DisplayTenantName)</PageTitle>
 
 @if (_isPlatformHost)
 {

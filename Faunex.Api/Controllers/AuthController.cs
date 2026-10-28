@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
+using Faunex.Application.Tenancy;
 
 namespace Faunex.Api.Controllers;
 
@@ -17,7 +18,7 @@ public sealed class AuthController(
     RoleManager<IdentityRole<Guid>> roles,
     JwtTokenIssuer tokenIssuer,
     AccountAccessService accounts,
-    TenantDomainResolver tenantDomainResolver,
+    TenantRequestContext origin,
     IEmailSender emailSender,
     IOptions<SmtpEmailOptions> emailOptions,
     IWebHostEnvironment environment,
@@ -32,7 +33,12 @@ public sealed class AuthController(
             return BadRequest(new { error = "Email and password are required." });
         }
 
-        var tenantId = await tenantDomainResolver.ResolveTenantIdAsync(request.RegistrationHost, cancellationToken);
+        var tenantId = await origin.TenantIdAsync(cancellationToken);
+        if (tenantId is null || (request.RegistrationHost is not null
+            && MarketplaceHosts.Normalize(request.RegistrationHost) != origin.Host))
+        {
+            return BadRequest(new { error = "Registration is only available on the verified tenant marketplace you are visiting." });
+        }
 
         var user = new ApplicationUser
         {
@@ -91,7 +97,7 @@ public sealed class AuthController(
         }
 
         var user = await users.FindByEmailAsync(request.Email);
-        if (user is null)
+        if (user is null || !await AllowsAccountAsync(user, cancellationToken))
         {
             return BadRequest(new { error = "Invalid credentials." });
         }
@@ -129,14 +135,15 @@ public sealed class AuthController(
 
         var genericMessage = "If that account exists, password reset instructions will be sent.";
         var user = await users.FindByEmailAsync(request.Email.Trim());
-        if (user is null)
+        if (user is null || !await AllowsAccountAsync(user, cancellationToken))
         {
             logger.LogInformation("Password reset requested for unknown email. email={Email}", request.Email);
             return Ok(new ForgotPasswordResponse(genericMessage));
         }
 
         var token = await users.GeneratePasswordResetTokenAsync(user);
-        var resetLink = BuildResetLink(request.Email.Trim(), token, emailOptions.Value.PublicBaseUrl);
+        var resetBaseUrl = origin.IsPlatform ? emailOptions.Value.PublicBaseUrl : $"https://{origin.Host}";
+        var resetLink = BuildResetLink(request.Email.Trim(), token, resetBaseUrl);
 
         try
         {
@@ -167,7 +174,7 @@ public sealed class AuthController(
         }
 
         var user = await users.FindByEmailAsync(request.Email.Trim());
-        if (user is null)
+        if (user is null || !await AllowsAccountAsync(user, HttpContext.RequestAborted))
         {
             return BadRequest(new { error = "The reset details are invalid or expired." });
         }
@@ -211,4 +218,8 @@ public sealed class AuthController(
 
         return $"{baseUrl}/reset-password?email={encodedEmail}&token={encodedToken}";
     }
+
+    private async Task<bool> AllowsAccountAsync(ApplicationUser user, CancellationToken cancellationToken) =>
+        await origin.AllowsAccountAsync(user.TenantId, user.IsPlatformAdmin,
+            (await users.GetRolesAsync(user)).Contains(FaunexRoles.TenantAdmin), cancellationToken);
 }

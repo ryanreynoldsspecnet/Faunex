@@ -137,7 +137,7 @@ public sealed class AccountAccessIntegrationTests
             });
         }
 
-        Assert.Equal(HttpStatusCode.BadRequest, (await app.Client.PostAsJsonAsync("/api/auth/login",
+        Assert.Equal(disableAccount ? HttpStatusCode.BadRequest : HttpStatusCode.NotFound, (await app.Client.PostAsJsonAsync("/api/auth/login",
             new { user.Email, AccountApiFixture.Password })).StatusCode);
     }
 
