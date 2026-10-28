@@ -18,6 +18,7 @@ public interface IApplicationDbContext
 
     DbSet<ListingCompliance> ListingCompliances { get; }
     DbSet<ListingDocument> ListingDocuments { get; }
+    DbSet<ListingDocumentRequirement> ListingDocumentRequirements { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

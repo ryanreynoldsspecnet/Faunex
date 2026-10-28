@@ -4,6 +4,7 @@ namespace Faunex.Domain.Entities;
 
 public sealed class Listing : BaseEntity
 {
+    public Guid Revision { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; }
 
     public Guid SellerId { get; set; }

@@ -11,5 +11,12 @@ public sealed record BirdListingDto(
     string CurrencyCode,
     int Quantity,
     string? Location,
-    bool IsActive
+    bool IsActive,
+    string? RingNumber = null,
+    string? MicrochipNumber = null,
+    string? Sex = null,
+    DateOnly? HatchDate = null,
+    Guid? Revision = null,
+    string? ComplianceStatus = null,
+    bool HasAuctionActivity = false
 );

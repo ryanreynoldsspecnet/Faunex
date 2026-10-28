@@ -18,8 +18,8 @@ This is the restart point for development. Read this file and the [28 October au
 | --- | --- | --- | --- |
 | 1 | Dependency gate, maintained CI actions, secret-file exclusions, durable handoff | Merged and deployed | PR #28; validate/deploy passed; live homepage 200 |
 | 2 | Account eligibility, session revocation, consistent role policies, first-admin transaction | Merged and deployed; business smoke test pending | PR #34; production run 40669423490 validate/deploy passed |
-| 3 | Tenant domains, verified routing/TLS, membership/host boundaries, complete branding | Merged; live subdomain acceptance found a marketplace-query defect | PR #35; deployment 40686415138 passed; domain/TLS/branding reachable; marketplace fix in progress |
-| 4 | Bird listing edit/media/documents, enforced compliance, review and public storefront | Not started | Draft to evidence review to approved tenant listing, with resubmission and protected files |
+| 3 | Tenant domains, verified routing/TLS, membership/host boundaries, complete branding | Merged; Stormbird subdomain confirmed working; custom-domain acceptance pending | PRs #35/#36; deployment 40712476902 passed; user confirmed live homepage |
+| 4 | Bird listing edit/media/documents, enforced compliance, review and public storefront | 4A in progress: bird draft editor and validation | Draft to evidence review to approved tenant listing, with resubmission and protected files |
 | 5 | Timed auction setup, concurrent bid rules, closure and winner/no-sale result | Not started | Invalid/self/late bids rejected; concurrency tests; one persisted authoritative outcome |
 | 6 | Tenant PayFast settings, winner order, checkout, verified callbacks, reconciliation | Not started | Sandbox failure/retry/duplicate tests and authorized low-value live payment to tenant account |
 | 7 | Pilot acceptance, operational recovery, monitoring, mobile/desktop journeys | Not started | Business acceptance, restore/restart drill, exact-revision green deploy and rollback procedure |
@@ -79,7 +79,7 @@ Deployment note: tokens issued before the security-stamp claim was introduced ar
 4. Keep one bounded implementation section active. Record new ideas separately instead of starting them mid-section.
 5. Use staging/sandbox for authenticated and payment regression tests; never test destructive edge cases against live tenant data.
 
-## Active Section 3
+## Section 3: Implemented, Custom-Domain Acceptance Pending
 
 PR #35 was user-merged at `3c4273a567f808ee54e825f6f531a62a13a32ccd`. [Master deployment 40686415138](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40686415138) completed successfully. Local master was synchronized and the merged local branch removed. First live tenant host: `stormbird.faunex.co.za`; the user added DNS and assigned the domain. Anonymous HTTPS loads tenant branding, but the homepage reports a listings error. Do not close live acceptance yet.
 
@@ -102,11 +102,11 @@ Edge/Playwright verification used an isolated in-memory API with test-only accou
 
 Pilot scope retains one tenant per account and globally unique email addresses. This section enforces that boundary; it does not implement multi-tenant memberships, cross-domain single sign-on, a logo-upload store, automatic DNS editing, or wildcard certificates. Primary-domain selection is metadata, not a cross-origin login redirect. Logo settings continue using HTTPS image URLs or existing local assets.
 
-Section 4 follows Section 3 verification: finish bird listing edit/media/documents and the compliance-to-publication journey. Do not start it while domain rollout remains unresolved.
+The user confirmed Stormbird is working after PR #36 and approved proceeding to Section 4. A separate tenant-owned custom hostname has not been supplied; its live DNS/TLS acceptance remains open and must not be described as completed.
 
 ### Marketplace Loading Follow-Up
 
-Active branch: `fix/tenant-marketplace-loading`, based on the merged Section 3 revision. No merge approval implied.
+PR [#36](https://github.com/ryanreynoldsspecnet/Faunex/pull/36) was user-merged at `4fd4392a942499bf052c8cfa3e21ab51386da980`. [Production run 40712476902](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40712476902) passed validate and deploy. Read-only HTTPS checks of Stormbird home/Browse and Faunex home returned 200, with no former 500/unavailable message; Stormbird home correctly showed no approved listings. The user separately confirmed the live site works. Local master was synchronized and the merged local fix branch removed before starting 4A.
 
 The Stormbird screenshot and a read-only public GET confirm the page reports an API 500 while tenant branding loads. Local PostgreSQL-provider SQL compilation reproduces failures composing browse ordering and detail filtering over the positional `ApprovedListingRow` record projection. These failures occur before SQL is sent, even for an empty marketplace. Server-log confirmation was requested separately; no VPS credentials/data were accessed.
 
@@ -115,3 +115,23 @@ The narrow correction uses an EF-translatable member-initializer projection whil
 Regression coverage adds browse/detail/auction SQL translation checks that run without a database, plus actual PostgreSQL HTTP tests for empty and populated tenant marketplaces, approval/active filters, ordering, null review timestamps and cross-tenant denials. PostgreSQL-only HTTP tests are explicitly skipped on local SQLite (which cannot order DateTimeOffset), not silently treated as passes; CI must execute them before review. Browser retry/error/empty-state verification uses test-only local responses, not production data. Record final check evidence in the follow-up PR before merging, then re-test the live Stormbird homepage and Browse Listings.
 
 Staging, exact-revision deployments, backup/restore evidence and runtime-image freshness remain open operational work from the audit; Section 1 does not claim to complete those items.
+
+## Active Section 4A: Bird Draft Editor
+
+Branch: `feature/section-4a-bird-listing-editor`. Section 4 is deliberately split into reviewable pieces; this does not claim the upload-to-approval journey is finished.
+
+- [x] Replace separate tenant/seller creation forms with one species-based create/edit screen and entry points from listing details.
+- [x] Default new drafts to ZAR and persist quantity/location, ring/microchip identifiers, sex and hatch date. Existing USD remains unchanged unless explicitly edited; no currency conversion is performed.
+- [x] Share server validation across canonical creation, legacy creation and updates. No arbitrary seller transfer or client-controlled activation.
+- [x] Enforce seller ownership and tenant boundaries; tenant admins can edit their tenant's listings.
+- [x] Reject stale revisions, review/suspended states and listings with existing auction activity. Edits return listings to inactive Draft and require review again.
+- [x] Consolidate submission methods and load animal classifications before checking tenant-specific required evidence. With no configured rules, documents are optional; submission still requires manual review. Missing configured evidence remains PendingDocuments and may be resubmitted.
+- [x] Add nullable bird-detail fields and a listing revision token through an additive migration. Existing rows receive the empty revision and rotate on their first edit.
+- [ ] Complete local/real-PostgreSQL regression, browser workflow, vulnerability, publish and migration checks; record PR and exact results.
+- [ ] Merge only with approval, verify deployment, and demonstrate draft creation/editing on the tenant host.
+
+Revision checks rotate on tracked listing changes and compliance submissions/review decisions. Concurrency with auction setup/bidding still belongs to Section 5; this slice rejects auctions already present, not a completed auction state machine. Old API edit clients must reload and send the current Revision. Direct client attempts to change SellerId or publish via IsActive are rejected/ignored respectively.
+
+Business decision on 28 October: the user cannot yet define permit/certificate rules and explicitly requested optional documents until the owners/partners establish the requirements. Replace the old blanket animal requirements with an empty-by-default tenant/animal-class policy. No CITES/veterinary or other animal documents are made mandatory automatically. The policy table supports later configuration; configuration UI and protected uploads follow in 4B. Manual review is still mandatory before publication. Platform approval is not legal certification. Existing stored document metadata is not yet a protected upload store. Do not mark document security or legal compliance complete from this slice.
+
+Next within Section 4: **4B protected image/evidence upload and tenant-configurable requirements**, then **4C inspect evidence, record review history/decisions, resubmit and demonstrate publication**. Do not begin auctions/payments merely because the draft editor is merged. Full taxonomy, new animal verticals and commercial billing remain outside this slice.

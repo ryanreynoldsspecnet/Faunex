@@ -33,14 +33,30 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
 
     public DbSet<ListingCompliance> ListingCompliances { get; set; } = null!;
     public DbSet<ListingDocument> ListingDocuments { get; set; } = null!;
+    public DbSet<ListingDocumentRequirement> ListingDocumentRequirements { get; set; } = null!;
 
     private Guid? CurrentTenantId => _tenantContext.TenantId;
 
     private bool IsPlatformAdmin => _tenantContext.IsPlatformAdmin;
 
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var entry in ChangeTracker.Entries<Listing>().Where(x => x.State == EntityState.Modified))
+        {
+            entry.Entity.Revision = Guid.NewGuid();
+            entry.Entity.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<Listing>().Property(x => x.Revision).IsConcurrencyToken();
+        modelBuilder.Entity<ListingDocumentRequirement>()
+            .HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ListingDocumentRequirement>()
+            .HasIndex(x => new { x.TenantId, x.AnimalClass, x.DocumentType }).IsUnique();
 
         modelBuilder.Entity<BirdDetails>()
             .HasKey(x => x.ListingId);

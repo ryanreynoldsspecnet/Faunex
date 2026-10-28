@@ -24,6 +24,10 @@ else if (_listing is null)
 }
 else
 {
+    @if (_listing.AnimalClass.Equals("bird", StringComparison.OrdinalIgnoreCase))
+    {
+        <a class="btn btn-primary mb-3" href="@($"/seller/listings/{ListingId}/edit")">Edit Listing</a>
+    }
     <dl class="row">
         <dt class="col-sm-3">Title</dt>
         <dd class="col-sm-9">@_listing.Title</dd>

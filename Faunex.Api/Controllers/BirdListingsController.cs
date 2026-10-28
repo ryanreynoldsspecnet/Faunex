@@ -9,6 +9,7 @@ namespace Faunex.Api.Controllers;
 [Route("api/[controller]")]
 public sealed class BirdListingsController(IBirdListingService listings) : ControllerBase
 {
+    [Authorize]
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<BirdListingDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
@@ -16,6 +17,7 @@ public sealed class BirdListingsController(IBirdListingService listings) : Contr
         return listing is null ? NotFound() : Ok(listing);
     }
 
+    [Authorize]
     [HttpGet("by-seller/{sellerId:guid}")]
     public async Task<ActionResult<IReadOnlyList<BirdListingDto>>> GetBySellerId(Guid sellerId, CancellationToken cancellationToken)
     {

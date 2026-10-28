@@ -626,7 +626,15 @@ public sealed class TenantAdminController(
     {
         if (listing.BirdDetails?.Species is not null)
         {
-            return $"{listing.BirdDetails.Species.CommonName} ({listing.BirdDetails.Species.ScientificName})";
+            var bird = listing.BirdDetails;
+            return string.Join("; ", new[]
+            {
+                $"{bird.Species.CommonName} ({bird.Species.ScientificName})",
+                bird.Sex,
+                bird.RingNumber is null ? null : $"Ring: {bird.RingNumber}",
+                bird.MicrochipNumber is null ? null : $"Microchip: {bird.MicrochipNumber}",
+                bird.HatchDate is null ? null : $"Hatched: {bird.HatchDate:yyyy-MM-dd}"
+            }.Where(x => !string.IsNullOrWhiteSpace(x)));
         }
 
         if (!string.IsNullOrWhiteSpace(listing.LivestockDetails?.Breed))

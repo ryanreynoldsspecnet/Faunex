@@ -5,12 +5,13 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <h3>My Listings</h3>
+<AuthorizeView Roles="Seller,TenantAdmin"><Authorized><a class="btn btn-primary mb-3" href="/seller/listings/create/bird">Add Bird Listing</a></Authorized></AuthorizeView>
 
 <AuthorizeView>
     <Authorized>
         @if (!_isInSellerOrTenantAdminRole)
         {
-            <p>You are signed in, but you don’t have access to seller listings.</p>
+            <p>You are signed in, but you donâ€™t have access to seller listings.</p>
         }
         else if (_isLoading)
         {
@@ -22,7 +23,7 @@
         }
         else if (_listings is null || _listings.Count == 0)
         {
-            <p>You haven’t created any listings yet.</p>
+            <p>You havenâ€™t created any listings yet.</p>
         }
         else
         {
