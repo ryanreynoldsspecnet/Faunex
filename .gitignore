@@ -366,3 +366,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Local deployment credentials; only sanitized templates belong in source control.
+.env
+.env.*
+!.env.example
+!.env.sample
