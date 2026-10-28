@@ -23,7 +23,7 @@ public sealed class BrowserSessionTests
         var notifications = 0;
         identity.AuthenticationStateChanged += _ => notifications++;
         using var http = new HttpClient(new StatusHandler(status)) { BaseAddress = new Uri("https://test.invalid") };
-        var api = new FaunexApiClient(new ClientFactory(http), tokens);
+        var api = new FaunexApiClient(new ClientFactory(http), tokens, new TestNavigation());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => api.GetAsync<object>("/api/auth/me"));
         Assert.Equal(authenticated, (await identity.GetAuthenticationStateAsync()).User.Identity!.IsAuthenticated);
@@ -50,6 +50,11 @@ public sealed class BrowserSessionTests
     private sealed class ClientFactory(HttpClient client) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => client;
+    }
+
+    private sealed class TestNavigation : Microsoft.AspNetCore.Components.NavigationManager
+    {
+        public TestNavigation() => Initialize("https://faunex.co.za/", "https://faunex.co.za/");
     }
 
     private sealed class MemoryJsRuntime : IJSRuntime

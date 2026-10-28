@@ -1,5 +1,6 @@
 using Faunex.Api.Auth;
 using Faunex.Application.Auth;
+using Faunex.Application.Tenancy;
 using Faunex.Domain.Entities;
 using Faunex.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -37,7 +38,7 @@ public sealed class TenantAdminController(
                 x.CompanyName,
                 x.IsActive,
                 PrimaryDomain = x.Domains
-                    .Where(d => d.IsPrimary && d.IsActive)
+                    .Where(d => d.IsPrimary && d.IsActive && d.VerifiedAt != null)
                     .Select(d => d.Hostname)
                     .FirstOrDefault()
             })
@@ -90,7 +91,7 @@ public sealed class TenantAdminController(
                 x.ContactEmail,
                 x.ContactPhone,
                 x.Domains
-                    .Where(d => d.IsPrimary && d.IsActive)
+                    .Where(d => d.IsPrimary && d.IsActive && d.VerifiedAt != null)
                     .Select(d => d.Hostname)
                     .FirstOrDefault(),
                 x.IsActive))
@@ -108,9 +109,9 @@ public sealed class TenantAdminController(
             return Forbid();
         }
 
-        if (!string.IsNullOrWhiteSpace(request.BrandPrimaryColor) && !IsHexColour(request.BrandPrimaryColor))
+        if (TenantBrandingRules.Validate(Clean(request.BrandPrimaryColor), Clean(request.LogoUrl)) is { } brandingError)
         {
-            return BadRequest(new { error = "Primary brand colour must be a hex value like #1f6f4a." });
+            return BadRequest(new { error = brandingError });
         }
 
         var tenant = await db.Tenants
@@ -659,7 +660,7 @@ public sealed class TenantAdminController(
             tenant.ContactEmail,
             tenant.ContactPhone,
             tenant.Domains
-                .Where(x => x.IsPrimary && x.IsActive)
+                .Where(x => x.IsPrimary && x.IsActive && x.VerifiedAt != null)
                 .Select(x => x.Hostname)
                 .FirstOrDefault(),
             tenant.IsActive);

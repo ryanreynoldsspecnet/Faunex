@@ -1,0 +1,42 @@
+@page "/platform/tenants/{TenantId:guid}/domains/new"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Add Domain - Faunex</PageTitle>
+<AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin">
+    <Authorized Context="domainAuth">
+        <section class="platform-shell domain-shell" aria-labelledby="add-domain-title">
+            <div class="platform-header platform-header--compact"><h1 id="add-domain-title">Add Domain</h1><a class="btn btn-outline-secondary" href="@ListPath">Back to domains</a></div>
+            <EditForm Model="_model" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator /><ValidationSummary />
+                @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+                <div class="mb-3"><label class="form-label" for="hostname">Hostname</label><InputText id="hostname" class="form-control" @bind-Value="_model.Hostname" disabled="@_saving" /><ValidationMessage For="() => _model.Hostname" /></div>
+                <div class="form-check mb-3"><InputCheckbox id="domain-active" class="form-check-input" @bind-Value="_model.IsActive" disabled="@_saving" /><label class="form-check-label" for="domain-active">Active</label></div>
+                <div class="platform-form-actions"><button class="btn btn-primary" type="submit" disabled="@_saving">@(_saving ? "Adding..." : "Add Domain")</button><a class="btn btn-outline-secondary" href="@ListPath">Cancel</a></div>
+            </EditForm>
+        </section>
+    </Authorized>
+    <NotAuthorized><h1>Platform Access Required</h1><a href="/login">Login</a></NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter] public Guid TenantId { get; set; }
+    private readonly TenantDomainFormModel _model = new();
+    private bool _saving;
+    private string? _error;
+    private string ListPath => $"/platform/tenants/{TenantId}/domains";
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            await Api.PostAsync<CreateTenantDomainRequest, TenantDomainDto>($"/api/platform/tenants/{TenantId}/domains", new(_model.Hostname, false, _model.IsActive));
+            Nav.NavigateTo(ListPath);
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+}

@@ -981,3 +981,15 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+/* Domain verification values must remain readable without widening the page. */
+.domain-table { min-width: 760px; table-layout: fixed; }
+.domain-table th:nth-child(1) { width: 24%; }
+.domain-table th:nth-child(2) { width: 18%; }
+.domain-table th:nth-child(3) { width: 32%; }
+.domain-table td { overflow-wrap: anywhere; }
+.domain-proof { margin: 0; }
+.domain-proof dt { font-size: 0.75rem; font-weight: 600; }
+.domain-proof dd { margin-bottom: 0.5rem; }
+.domain-proof code { white-space: normal; overflow-wrap: anywhere; }
+.domain-table .platform-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; white-space: normal; }
+.domain-shell .platform-header h1 { font-size: 2rem; }

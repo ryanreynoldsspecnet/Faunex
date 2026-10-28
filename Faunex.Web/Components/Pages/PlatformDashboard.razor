@@ -112,6 +112,7 @@
                                             </span>
                                         </td>
                                         <td class="platform-row-actions">
+                                            <a class="btn btn-sm btn-outline-secondary" href="@($"/platform/tenants/{tenant.Id}/domains")">Domains</a>
                                             <a class="btn btn-sm btn-outline-secondary" href="@($"/platform/users?tenantId={tenant.Id}")">Users</a>
                                             <a class="btn btn-sm btn-outline-secondary" href="@($"/platform/tenants/{tenant.Id}/edit")">Edit</a>
                                             @if (_confirmDeleteTenantId == tenant.Id)

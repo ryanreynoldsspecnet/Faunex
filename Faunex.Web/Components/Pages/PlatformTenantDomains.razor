@@ -1,0 +1,103 @@
+@page "/platform/tenants/{TenantId:guid}/domains"
+@rendermode InteractiveServer
+@inject Faunex.Web.Api.FaunexApiClient Api
+
+<PageTitle>Tenant Domains - Faunex</PageTitle>
+<AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin">
+    <Authorized>
+        <section class="platform-shell domain-shell" aria-labelledby="domains-title">
+            <div class="platform-header platform-header--compact">
+                <div><p class="platform-kicker">@(_tenant?.Name ?? "Tenant")</p><h1 id="domains-title">Domains</h1></div>
+                <a class="btn btn-outline-secondary" href="/platform">Back to tenants</a>
+            </div>
+            <div class="platform-list-toolbar">
+                <div><label for="domain-search" class="form-label">Search domains</label><input id="domain-search" class="form-control" type="search" @bind="_search" @bind:event="oninput" /></div>
+                <a class="btn btn-primary" href="@($"/platform/tenants/{TenantId}/domains/new")">Add Domain</a>
+            </div>
+            @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+            @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
+            @if (_loading) { <p role="status">Loading domains...</p> }
+            else if (_domains.Count == 0) { <p>No domains assigned.</p> }
+            else
+            {
+                <div class="platform-table-wrap">
+                    <table class="table platform-table domain-table">
+                        <thead><tr><th>Hostname</th><th>Status</th><th>DNS ownership</th><th class="platform-table__actions">Actions</th></tr></thead>
+                        <tbody>
+                            @foreach (var domain in _domains.Where(d => d.Hostname.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                <tr @key="domain.Id">
+                                    <td><strong>@domain.Hostname</strong>@if (domain.IsPrimary) { <span>Primary</span> }</td>
+                                    <td><span class="platform-status @(domain.VerifiedAt is not null && domain.IsActive ? "platform-status--active" : "platform-status--inactive")">@(domain.VerifiedAt is null ? "Pending verification" : domain.IsActive ? "Verified / active" : "Verified / inactive")</span></td>
+                                    <td>
+                                        @if (domain.VerifiedAt is not null) { <span>Verified @domain.VerifiedAt.Value.ToString("dd MMM yyyy")</span> }
+                                        else if (domain.VerificationRecordName is not null)
+                                        {
+                                            <dl class="domain-proof"><dt>TXT name</dt><dd><code>@domain.VerificationRecordName</code></dd><dt>TXT value</dt><dd><code>@domain.VerificationRecordValue</code></dd><dt>Expires</dt><dd>@domain.VerificationRequestedAt?.AddDays(7).ToString("dd MMM yyyy HH:mm 'UTC'")</dd></dl>
+                                        }
+                                        else { <span>Awaiting verification</span> }
+                                    </td>
+                                    <td>
+                                        <div class="platform-row-actions">
+                                            @if (domain.VerifiedAt is null)
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary" disabled="@_busy" @onclick="() => VerifyAsync(domain)">Verify</button>
+                                                @if (domain.VerificationRecordName is not null) { <button class="btn btn-sm btn-outline-secondary" disabled="@_busy" @onclick="() => ChallengeAsync(domain)">New TXT Record</button> }
+                                            }
+                                            @if (domain.VerifiedAt is not null && domain.IsActive && !domain.IsPrimary) { <button class="btn btn-sm btn-outline-secondary" disabled="@_busy" @onclick="() => UpdateAsync(domain, true, true)">Set Primary</button> }
+                                            <button class="btn btn-sm btn-outline-secondary" disabled="@_busy" @onclick="() => UpdateAsync(domain, false, !domain.IsActive)">@(domain.IsActive ? "Disable" : "Enable")</button>
+                                            @if (_deleteId == domain.Id)
+                                            {
+                                                <button class="btn btn-sm btn-danger" disabled="@_busy" @onclick="() => DeleteAsync(domain)">Confirm Delete</button>
+                                                <button class="btn btn-sm btn-outline-secondary" disabled="@_busy" @onclick="() => _deleteId = null">Cancel</button>
+                                            }
+                                            else { <button class="btn btn-sm btn-outline-danger" disabled="@_busy" @onclick="() => _deleteId = domain.Id">Delete</button> }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (!_domains.Any(d => d.Hostname.Contains(_search, StringComparison.OrdinalIgnoreCase))) { <p>No matching domains.</p> }
+            }
+        </section>
+    </Authorized>
+    <NotAuthorized><h1>Platform Access Required</h1><a href="/login">Login</a></NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter] public Guid TenantId { get; set; }
+    private TenantDto? _tenant;
+    private List<TenantDomainDto> _domains = [];
+    private string _search = "";
+    private string? _error, _notice;
+    private bool _loading, _busy;
+    private Guid? _deleteId;
+    private string Path => $"/api/platform/tenants/{TenantId}/domains";
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _tenant = await Api.GetAsync<TenantDto>($"/api/platform/tenants/{TenantId}");
+            _domains = await Api.GetAsync<List<TenantDomainDto>>(Path) ?? [];
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+    private Task VerifyAsync(TenantDomainDto d) => RunAsync(async () => { await Api.PostAsync<object, TenantDomainDto>($"{Path}/{d.Id}/verify", new { }); }, "Domain verified.");
+    private Task ChallengeAsync(TenantDomainDto d) => RunAsync(async () => { await Api.PostAsync<object, TenantDomainDto>($"{Path}/{d.Id}/challenge", new { }); }, "New verification record generated.");
+    private Task UpdateAsync(TenantDomainDto d, bool primary, bool active) => RunAsync(async () => { await Api.PutAsync<UpdateTenantDomainRequest, TenantDomainDto>($"{Path}/{d.Id}", new(primary, active)); }, "Domain updated.");
+    private Task DeleteAsync(TenantDomainDto d) => RunAsync(() => Api.DeleteAsync($"{Path}/{d.Id}"), "Domain deleted.");
+    private async Task RunAsync(Func<Task> action, string notice)
+    {
+        if (_busy) return;
+        _busy = true;
+        _error = _notice = null;
+        try { await action(); _deleteId = null; await LoadAsync(); if (_error is null) _notice = notice; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

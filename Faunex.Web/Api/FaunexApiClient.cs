@@ -2,10 +2,12 @@ using Faunex.Web.Auth;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Components;
+using Faunex.Application.Tenancy;
 
 namespace Faunex.Web.Api;
 
-public sealed class FaunexApiClient(IHttpClientFactory httpClientFactory, TokenStore tokenStore)
+public sealed class FaunexApiClient(IHttpClientFactory httpClientFactory, TokenStore tokenStore, NavigationManager navigation)
 {
     public async Task<T?> GetAsync<T>(string path, CancellationToken cancellationToken = default)
     {
@@ -163,6 +165,7 @@ public sealed class FaunexApiClient(IHttpClientFactory httpClientFactory, TokenS
 
     private async Task ApplyAuthAsync(HttpRequestMessage request)
     {
+        request.Headers.Add(MarketplaceHosts.OriginHeader, navigation.ToAbsoluteUri(navigation.Uri).IdnHost);
         var token = await tokenStore.GetTokenAsync();
         if (!string.IsNullOrWhiteSpace(token))
         {

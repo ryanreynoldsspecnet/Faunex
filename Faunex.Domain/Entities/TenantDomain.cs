@@ -10,4 +10,7 @@ public sealed class TenantDomain : BaseEntity
     public string Hostname { get; set; } = string.Empty;
     public bool IsPrimary { get; set; }
     public bool IsActive { get; set; } = true;
+    public string? VerificationToken { get; set; }
+    public DateTimeOffset? VerificationRequestedAt { get; set; }
+    public DateTimeOffset? VerifiedAt { get; set; }
 }

@@ -81,4 +81,10 @@ public sealed record TenantDomainDto(
     string Hostname,
     bool IsPrimary,
     bool IsActive,
-    DateTimeOffset CreatedUtc);
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset? VerifiedAt,
+    DateTimeOffset? VerificationRequestedAt,
+    string? VerificationRecordName,
+    string? VerificationRecordValue);
+
+public sealed record UpdateTenantDomainRequest(bool IsPrimary, bool IsActive);

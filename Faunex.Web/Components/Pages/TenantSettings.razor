@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject Faunex.Web.Api.FaunexApiClient Api
 @inject NavigationManager Nav
+@inject MarketplaceBranding Branding
 
 <PageTitle>Tenant Settings - Faunex</PageTitle>
 
@@ -92,7 +93,7 @@
                     </section>
 
                     <aside class="platform-panel tenant-brand-preview" style="@PreviewStyle" aria-labelledby="tenant-preview-title">
-                        @if (!string.IsNullOrWhiteSpace(_model.LogoUrl))
+                        @if (!string.IsNullOrWhiteSpace(_model.LogoUrl) && Faunex.Application.Tenancy.TenantBrandingRules.IsLogo(_model.LogoUrl))
                         {
                             <img src="@_model.LogoUrl" alt="@PreviewName" />
                         }
@@ -137,7 +138,7 @@
     private string PreviewName => _model.MarketplaceDisplayName ?? _branding?.CompanyName ?? _branding?.TenantName ?? "Marketplace";
     private string PreviewTagline => _model.MarketplaceTagline ?? $"Browse approved listings and auctions from {PreviewName}.";
     private string PreviewSupport => _model.SupportEmail ?? _branding?.ContactEmail ?? _model.SupportPhone ?? _branding?.ContactPhone ?? "Available from tenant admin";
-    private string PreviewStyle => string.IsNullOrWhiteSpace(_model.BrandPrimaryColor) ? string.Empty : $"--tenant-primary:{_model.BrandPrimaryColor};";
+    private string PreviewStyle => Faunex.Application.Tenancy.TenantBrandingRules.IsColour(_model.BrandPrimaryColor) ? $"--tenant-primary:{_model.BrandPrimaryColor};" : string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -202,6 +203,7 @@
             }
 
             _saveSuccess = "Marketplace branding saved.";
+            await Branding.RefreshAsync();
         }
         catch (Exception ex)
         {

@@ -42,6 +42,9 @@ jobs:
       - name: Restore
         run: dotnet restore Faunex.slnx
 
+      - name: Validate Caddy configuration
+        run: docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
       - name: Check vulnerable packages
         shell: bash
         run: |
@@ -117,4 +120,5 @@ jobs:
             ubuntu@${{ secrets.FAUNEX_SERVER_IP }} \
             'cd /home/ubuntu/faunex &&
              git pull origin master &&
-             docker compose up -d --build --remove-orphans'
+             docker compose up -d --build --remove-orphans &&
+             docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile'

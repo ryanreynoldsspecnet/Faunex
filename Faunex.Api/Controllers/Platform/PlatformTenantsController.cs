@@ -8,6 +8,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.AspNetCore.Mvc;
+using Faunex.Application.Tenancy;
+using System.Security.Cryptography;
+using System.Data;
 
 namespace Faunex.Api.Controllers.Platform;
 
@@ -18,11 +21,14 @@ public sealed class PlatformTenantsController(
     ApplicationDbContext db,
     ApplicationIdentityDbContext identityDb,
     UserManager<ApplicationUser> users,
-    RoleManager<IdentityRole<Guid>> roles) : ControllerBase
+    RoleManager<IdentityRole<Guid>> roles,
+    IDomainOwnershipVerifier ownership) : ControllerBase
 {
     [HttpPost("tenants")]
     public async Task<ActionResult<TenantDto>> CreateTenant([FromBody] CreateTenantRequest request, CancellationToken cancellationToken)
     {
+        if (TenantBrandingRules.Validate(Clean(request.BrandPrimaryColor), Clean(request.LogoUrl)) is { } brandingError)
+            return BadRequest(new { error = brandingError });
         var name = request.Name.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -138,7 +144,7 @@ public sealed class PlatformTenantsController(
                 x.SupportEmail,
                 x.SupportPhone,
                 x.Domains
-                    .Where(d => d.IsPrimary && d.IsActive)
+                    .Where(d => d.IsPrimary && d.IsActive && d.VerifiedAt != null)
                     .Select(d => d.Hostname)
                     .FirstOrDefault(),
                 x.Domains.Count(d => d.IsActive),
@@ -175,7 +181,7 @@ public sealed class PlatformTenantsController(
                 x.SupportEmail,
                 x.SupportPhone,
                 x.Domains
-                    .Where(d => d.IsPrimary && d.IsActive)
+                    .Where(d => d.IsPrimary && d.IsActive && d.VerifiedAt != null)
                     .Select(d => d.Hostname)
                     .FirstOrDefault(),
                 x.Domains.Count(d => d.IsActive),
@@ -194,6 +200,8 @@ public sealed class PlatformTenantsController(
     [HttpPut("tenants/{tenantId:guid}")]
     public async Task<ActionResult<TenantDto>> UpdateTenant(Guid tenantId, [FromBody] UpdateTenantRequest request, CancellationToken cancellationToken)
     {
+        if (TenantBrandingRules.Validate(Clean(request.BrandPrimaryColor), Clean(request.LogoUrl)) is { } brandingError)
+            return BadRequest(new { error = brandingError });
         var tenant = await db.Tenants
             .Include(x => x.Domains)
             .FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
@@ -276,20 +284,13 @@ public sealed class PlatformTenantsController(
             return NotFound(new { error = "Tenant not found." });
         }
 
-        var domains = await db.TenantDomains
+        var domains = await db.TenantDomains.AsNoTracking()
             .Where(x => x.TenantId == tenantId)
             .OrderByDescending(x => x.IsPrimary)
             .ThenBy(x => x.Hostname)
-            .Select(x => new TenantDomainDto(
-                x.Id,
-                x.TenantId,
-                x.Hostname,
-                x.IsPrimary,
-                x.IsActive,
-                x.CreatedAt))
             .ToListAsync(cancellationToken);
 
-        return Ok(domains);
+        return Ok(domains.Select(ToDomainDto).ToArray());
     }
 
     [HttpPost("tenants/{tenantId:guid}/domains")]
@@ -305,9 +306,9 @@ public sealed class PlatformTenantsController(
         }
 
         var hostname = TenantDomainResolver.NormalizeHost(request.Hostname);
-        if (hostname is null)
+        if (hostname is null || !MarketplaceHosts.IsTenantDomain(hostname))
         {
-            return BadRequest(new { error = "A valid domain hostname is required." });
+            return BadRequest(new { error = "Enter a public hostname that is not reserved for Faunex." });
         }
 
         var exists = await db.TenantDomains.AnyAsync(x => x.Hostname == hostname, cancellationToken);
@@ -317,6 +318,9 @@ public sealed class PlatformTenantsController(
         }
 
         var now = DateTimeOffset.UtcNow;
+        var managed = MarketplaceHosts.IsManagedSubdomain(hostname);
+        if (request.IsPrimary && (!managed || !request.IsActive))
+            return BadRequest(new { error = "Only an active, verified domain can be primary." });
         var domain = new TenantDomain
         {
             Id = Guid.NewGuid(),
@@ -324,10 +328,14 @@ public sealed class PlatformTenantsController(
             Hostname = hostname,
             IsPrimary = request.IsPrimary,
             IsActive = request.IsActive,
+            VerificationToken = managed ? null : NewVerificationToken(),
+            VerificationRequestedAt = managed ? null : now,
+            VerifiedAt = managed ? now : null,
             CreatedAt = now,
             UpdatedAt = now
         };
 
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         if (domain.IsPrimary)
         {
             await db.TenantDomains
@@ -338,12 +346,85 @@ public sealed class PlatformTenantsController(
         }
 
         db.TenantDomains.Add(domain);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            return Conflict(new { error = "This hostname was assigned or changed by another operation. Refresh and try again." });
+        }
 
         return CreatedAtAction(
             nameof(GetTenantDomains),
             new { tenantId },
             ToDomainDto(domain));
+    }
+
+    [HttpPut("tenants/{tenantId:guid}/domains/{domainId:guid}")]
+    public async Task<ActionResult<TenantDomainDto>> UpdateTenantDomain(Guid tenantId, Guid domainId,
+        [FromBody] UpdateTenantDomainRequest request, CancellationToken cancellationToken)
+    {
+        var domain = await db.TenantDomains.FirstOrDefaultAsync(x => x.Id == domainId && x.TenantId == tenantId, cancellationToken);
+        if (domain is null) return NotFound();
+        if (request.IsPrimary && (domain.VerifiedAt is null || !request.IsActive))
+            return BadRequest(new { error = "Only an active, verified domain can be primary." });
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        if (request.IsPrimary)
+            await db.TenantDomains.Where(x => x.TenantId == tenantId && x.Id != domainId && x.IsPrimary)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsPrimary, false), cancellationToken);
+        domain.IsActive = request.IsActive;
+        domain.IsPrimary = request.IsPrimary;
+        domain.UpdatedAt = DateTimeOffset.UtcNow;
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new { error = "Domain verification changed. Refresh and try again." });
+        }
+        catch (DbUpdateException)
+        {
+            return Conflict(new { error = "A domain changed during this operation. Refresh and try again." });
+        }
+        return Ok(ToDomainDto(domain));
+    }
+
+    [HttpPost("tenants/{tenantId:guid}/domains/{domainId:guid}/challenge")]
+    public async Task<ActionResult<TenantDomainDto>> StartDomainVerification(Guid tenantId, Guid domainId, CancellationToken cancellationToken)
+    {
+        var domain = await db.TenantDomains.FirstOrDefaultAsync(x => x.Id == domainId && x.TenantId == tenantId, cancellationToken);
+        if (domain is null) return NotFound();
+        if (domain.VerifiedAt is not null) return Conflict(new { error = "This domain is already verified." });
+        domain.VerificationToken = NewVerificationToken();
+        domain.VerificationRequestedAt = DateTimeOffset.UtcNow;
+        domain.IsPrimary = false;
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateConcurrencyException) { return Conflict(new { error = "This domain changed. Refresh and try again." }); }
+        return Ok(ToDomainDto(domain));
+    }
+
+    [HttpPost("tenants/{tenantId:guid}/domains/{domainId:guid}/verify")]
+    public async Task<ActionResult<TenantDomainDto>> VerifyTenantDomain(Guid tenantId, Guid domainId, CancellationToken cancellationToken)
+    {
+        var domain = await db.TenantDomains.FirstOrDefaultAsync(x => x.Id == domainId && x.TenantId == tenantId, cancellationToken);
+        if (domain is null) return NotFound();
+        if (!MarketplaceHosts.IsTenantDomain(domain.Hostname)) return BadRequest(new { error = "This hostname cannot be assigned to a tenant." });
+        if (domain.VerifiedAt is not null) return Ok(ToDomainDto(domain));
+        if (!MarketplaceHosts.IsManagedSubdomain(domain.Hostname)
+            && (string.IsNullOrEmpty(domain.VerificationToken) || domain.VerificationRequestedAt is null
+                || domain.VerificationRequestedAt < DateTimeOffset.UtcNow.AddDays(-7)))
+            return BadRequest(new { error = "Generate a current DNS verification record first." });
+        if (!MarketplaceHosts.IsManagedSubdomain(domain.Hostname)
+            && !await ownership.VerifyAsync(domain.Hostname, domain.VerificationToken!, cancellationToken))
+            return BadRequest(new { error = "The matching DNS TXT record is not visible yet." });
+        domain.VerifiedAt = DateTimeOffset.UtcNow;
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateConcurrencyException) { return Conflict(new { error = "The verification record changed. Refresh and try again." }); }
+        return Ok(ToDomainDto(domain));
     }
 
     [HttpDelete("tenants/{tenantId:guid}/domains/{domainId:guid}")]
@@ -385,7 +466,7 @@ public sealed class PlatformTenantsController(
             tenant.SupportEmail,
             tenant.SupportPhone,
             tenant.Domains
-                .Where(x => x.IsPrimary && x.IsActive)
+                .Where(x => x.IsPrimary && x.IsActive && x.VerifiedAt != null)
                 .Select(x => x.Hostname)
                 .FirstOrDefault(),
             tenant.Domains.Count(x => x.IsActive),
@@ -412,7 +493,13 @@ public sealed class PlatformTenantsController(
             domain.Hostname,
             domain.IsPrimary,
             domain.IsActive,
-            domain.CreatedAt);
+            domain.CreatedAt,
+            domain.VerifiedAt,
+            domain.VerificationRequestedAt,
+            string.IsNullOrEmpty(domain.VerificationToken) ? null : $"_faunex-verification.{domain.Hostname}",
+            string.IsNullOrEmpty(domain.VerificationToken) ? null : $"faunex={domain.VerificationToken}");
+
+    private static string NewVerificationToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
 }
 
 public sealed record CreateTenantRequest(
@@ -496,4 +583,10 @@ public sealed record TenantDomainDto(
     string Hostname,
     bool IsPrimary,
     bool IsActive,
-    DateTimeOffset CreatedUtc);
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset? VerifiedAt,
+    DateTimeOffset? VerificationRequestedAt,
+    string? VerificationRecordName,
+    string? VerificationRecordValue);
+
+public sealed record UpdateTenantDomainRequest(bool IsPrimary, bool IsActive);

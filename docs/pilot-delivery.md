@@ -17,8 +17,8 @@ This is the restart point for development. Read this file and the [28 October au
 | Section | Scope | Status | Evidence required to close |
 | --- | --- | --- | --- |
 | 1 | Dependency gate, maintained CI actions, secret-file exclusions, durable handoff | Merged and deployed | PR #28; validate/deploy passed; live homepage 200 |
-| 2 | Account eligibility, session revocation, consistent role policies, first-admin transaction | Implemented and verified; awaiting merge approval | PR #34; 65/65 local and PostgreSQL CI tests; clean vulnerability/build/publish checks |
-| 3 | Tenant domains, verified routing/TLS, membership/host boundaries, complete branding | Not started | Two-tenant negative tests; working subdomain/custom domain; unknown hosts fail closed |
+| 2 | Account eligibility, session revocation, consistent role policies, first-admin transaction | Merged and deployed; business smoke test pending | PR #34; production run 40669423490 validate/deploy passed |
+| 3 | Tenant domains, verified routing/TLS, membership/host boundaries, complete branding | In progress | Two-tenant negative tests; working subdomain/custom domain; unknown hosts fail closed |
 | 4 | Bird listing edit/media/documents, enforced compliance, review and public storefront | Not started | Draft to evidence review to approved tenant listing, with resubmission and protected files |
 | 5 | Timed auction setup, concurrent bid rules, closure and winner/no-sale result | Not started | Invalid/self/late bids rejected; concurrency tests; one persisted authoritative outcome |
 | 6 | Tenant PayFast settings, winner order, checkout, verified callbacks, reconciliation | Not started | Sandbox failure/retry/duplicate tests and authorized low-value live payment to tenant account |
@@ -46,9 +46,9 @@ Local verification on 28 October: all eight projects have no flagged vulnerable 
 
 GitHub verification: [final branch validation](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40655771547) passed. PR #28 was merged with user approval at `dbbf294c2a14367e867744a2bb7ac8aed538cbe5`. [Production run 40660376225](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40660376225) passed both validate and deploy; live HTTPS homepage returned 200. Local master was fast-forwarded and the merged branch was removed locally and remotely.
 
-## Active Section 2
+## Completed Implementation: Section 2
 
-Branch: `fix/pilot-section-2-account-access`. Production remains on Section 1 until a separate Section 2 merge is approved.
+Merged at `e1961bb1988d4f02a91eecd4664bb5d2f0b0ac12`. [Production run 40669423490](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40669423490) passed validate and deploy. Local master was fast-forwarded and the merged branch removed. A fresh-login business smoke test remains for the user; no production credentials were used by the agent.
 
 Pull request: [#34](https://github.com/ryanreynoldsspecnet/Faunex/pull/34).
 
@@ -62,7 +62,8 @@ Pull request: [#34](https://github.com/ryanreynoldsspecnet/Faunex/pull/34).
 - [x] Synchronize the legacy trading profile before issuing tenant tokens, so listing/bid foreign keys refer to the authenticated user. This profile is not an authorization source.
 - [x] Pass the local 65-test suite, clean Release build, API/Web publish and dependency scan.
 - [x] Inspect actual PostgreSQL CI results, including concurrent last-admin removal, and open/verify the PR.
-- [ ] Merge only with approval, verify production deployment and fresh-login smoke test, then clean the branch.
+- [x] Verify the user-completed merge and successful production deployment, then clean the branch.
+- [ ] User fresh-login business smoke test on production.
 
 The HTTP tests reuse production auth/controller registration with isolated data and ephemeral test keys. Local tests use SQLite; Actions starts PostgreSQL 16 and runs these scenarios against unique temporary databases. Tests do not connect to the VPS, send real emails, or mutate real users. A patched SQLite native test dependency is pinned explicitly to keep the advisory gate clear.
 
@@ -78,8 +79,29 @@ Deployment note: tokens issued before the security-stamp claim was introduced ar
 4. Keep one bounded implementation section active. Record new ideas separately instead of starting them mid-section.
 5. Use staging/sandbox for authenticated and payment regression tests; never test destructive edge cases against live tenant data.
 
-## Next Section
+## Active Section 3
 
-Section 3 follows Section 2 acceptance: verified tenant domains/routing/TLS, host/membership boundaries and complete tenant branding. Do not start it while Section 2 remains under review.
+Branch: `feature/section-3-tenant-domains`. No merge authorization is implied for this branch.
+
+- [x] Add an operator domain registry with search, add, verify, rotate challenge, set primary, disable and delete.
+- [x] Require custom-domain DNS TXT proof with a random, expiring challenge; reject stale in-flight verification.
+- [x] Restrict routing and Caddy's certificate permission endpoint to verified, active domains of active tenants.
+- [x] Bind registration, login, reset links and authenticated requests to the marketplace hostname. Preserve central access for tenant administrators while setup is incomplete.
+- [x] Apply tenant name/logo/colour in shared navigation and authentication pages; validate logo sources and colours server-side.
+- [x] Add an additive schema migration and pin the matching local EF tool.
+- [x] Add Caddy configuration validation to CI and explicitly reload Caddy after deployment.
+- [x] Pass 97 local tests, including two-tenant denials, pending/disabled domains, verification rotation and tenant reset links.
+- [x] Complete browser, PostgreSQL migration and Caddy CI checks; record PR and exact results.
+- [ ] Merge with approval; verify a real subdomain and real custom-domain TLS journey with user-controlled DNS.
+
+Read [tenant domain operations](tenant-domains.md) before rollout. Existing domains deliberately become unverified after migration; custom domains need fresh proof, and managed Faunex subdomains can be verified by a platform operator. The platform root and central tenant-administration login remain available. Do not remove working DNS records or copy secrets into commits.
+
+Pull request: [#35](https://github.com/ryanreynoldsspecnet/Faunex/pull/35). Implementation `3e71f61bfed864a580ddc034e079c039e891f841` passed [CI run 40674950322](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40674950322): Caddy configuration validation, complete PostgreSQL migration chain, tests, vulnerability gate, Release build and both publishes passed. Deploy was correctly skipped. A final UI polish/handoff commit follows this run; inspect that revision's checks before merging.
+
+Edge/Playwright verification used an isolated in-memory API with test-only accounts, not the VPS. Platform login redirected to the tenant list; adding a custom hostname returned to Domains with pending status and TXT details; failed verification displayed an error; search worked; mobile had no page-level overflow; unknown hosts returned 404; tenant login showed tenant navigation branding. No browser page errors occurred. Desktop/mobile screenshots are local artifacts. Table content scrolls horizontally on narrow screens. A configurable `DataProtection:KeyPath` enabled the Windows-only preview without changing the existing Linux production default. Preview keys/accounts are not committed.
+
+Pilot scope retains one tenant per account and globally unique email addresses. This section enforces that boundary; it does not implement multi-tenant memberships, cross-domain single sign-on, a logo-upload store, automatic DNS editing, or wildcard certificates. Primary-domain selection is metadata, not a cross-origin login redirect. Logo settings continue using HTTPS image URLs or existing local assets.
+
+Section 4 follows Section 3 verification: finish bird listing edit/media/documents and the compliance-to-publication journey. Do not start it while domain rollout remains unresolved.
 
 Staging, exact-revision deployments, backup/restore evidence and runtime-image freshness remain open operational work from the audit; Section 1 does not claim to complete those items.

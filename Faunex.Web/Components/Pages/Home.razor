@@ -2,7 +2,7 @@
 @inject Faunex.Web.Api.FaunexApiClient Api
 @inject NavigationManager Nav
 
-<PageTitle>Faunex</PageTitle>
+<PageTitle>@(_isPlatformHost ? "Faunex" : DisplayTenantName)</PageTitle>
 
 @if (_isPlatformHost)
 {
@@ -125,7 +125,7 @@ else if (_marketplace is not null)
 {
     <section class="marketplace-hero" aria-labelledby="marketplace-title" style="@MarketplaceStyle">
         <div class="marketplace-hero__content">
-            @if (!string.IsNullOrWhiteSpace(_marketplace.LogoUrl))
+            @if (!string.IsNullOrWhiteSpace(_marketplace.LogoUrl) && Faunex.Application.Tenancy.TenantBrandingRules.IsLogo(_marketplace.LogoUrl))
             {
                 <img class="marketplace-hero__logo" src="@_marketplace.LogoUrl" alt="@DisplayTenantName" />
             }
@@ -204,7 +204,7 @@ else if (_marketplace is not null)
     private string DisplayTenantName => _marketplace?.MarketplaceDisplayName ?? _marketplace?.CompanyName ?? _marketplace?.Name ?? "this marketplace";
     private string MarketplaceTagline => _marketplace?.MarketplaceTagline ?? $"Browse approved listings and auction opportunities from {DisplayTenantName}.";
     private string MarketplaceSupport => _marketplace?.SupportEmail ?? _marketplace?.ContactEmail ?? _marketplace?.SupportPhone ?? _marketplace?.ContactPhone ?? "Available from tenant admin";
-    private string MarketplaceStyle => string.IsNullOrWhiteSpace(_marketplace?.BrandPrimaryColor) ? string.Empty : $"--tenant-primary:{_marketplace.BrandPrimaryColor};";
+    private string MarketplaceStyle => Faunex.Application.Tenancy.TenantBrandingRules.IsColour(_marketplace?.BrandPrimaryColor) ? $"--tenant-primary:{_marketplace!.BrandPrimaryColor};" : string.Empty;
     private string FeaturedListingCountLabel => (_featuredListings?.Count ?? 0) == 0 ? "Opening soon" : $"{_featuredListings!.Count} available";
 
     protected override async Task OnInitializedAsync()

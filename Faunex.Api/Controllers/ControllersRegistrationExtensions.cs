@@ -14,7 +14,11 @@ public static class ControllersRegistrationExtensions
 {
     public static IServiceCollection AddFaunexApiControllers(this IServiceCollection services)
     {
-        services.AddControllers(options => options.Filters.Add<DomainAuthorizationExceptionFilter>());
+        services.AddControllers(options =>
+        {
+            options.Filters.Add<DomainAuthorizationExceptionFilter>();
+            options.Filters.Add<TenantHostFilter>();
+        });
 
         services.AddHttpContextAccessor();
 
@@ -32,6 +36,15 @@ public static class ControllersRegistrationExtensions
         services.AddScoped<JwtTokenIssuer>();
         services.AddScoped<TradingProfileService>();
         services.AddScoped<TenantDomainResolver>();
+        services.AddScoped<TenantRequestContext>();
+        services.AddSingleton<DnsClient.ILookupClient>(new DnsClient.LookupClient(new DnsClient.LookupClientOptions(
+            System.Net.IPAddress.Parse("1.1.1.1"), System.Net.IPAddress.Parse("8.8.8.8"))
+        {
+            UseCache = false,
+            Timeout = TimeSpan.FromSeconds(3),
+            Retries = 1
+        }));
+        services.AddScoped<IDomainOwnershipVerifier, DnsDomainOwnershipVerifier>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IdentitySeeder>();
         services.AddScoped<UserMutationGuard>();
