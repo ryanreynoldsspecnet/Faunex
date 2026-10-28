@@ -8,7 +8,7 @@ public sealed class BirdListingFormModel
     [Required, StringLength(160, MinimumLength = 3)] public string Title { get; set; } = "";
     [Required] public Guid? SpeciesId { get; set; }
     [StringLength(2000)] public string? Description { get; set; }
-    [Range(typeof(decimal), "0.01", "999999999")] public decimal Price { get; set; } = 1;
+    [Range(typeof(decimal), "0.01", "999999999", ParseLimitsInInvariantCulture = true)] public decimal Price { get; set; } = 1;
     public string SaleType { get; set; } = "auction";
     public string CurrencyCode { get; set; } = "ZAR";
     [Range(1, 10000)] public int Quantity { get; set; } = 1;
