@@ -1,0 +1,129 @@
+@page "/tenant/listings/{ListingId:guid}/edit"
+@page "/seller/listings/{ListingId:guid}/edit"
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject AuthenticationStateProvider Authentication
+@inject NavigationManager Nav
+@using Faunex.Application.DTOs
+@using System.Security.Claims
+
+<PageTitle>@PageHeading - Faunex</PageTitle>
+<AuthorizeView Roles="@(TenantRoute ? "TenantAdmin" : "Seller,TenantAdmin")">
+    <Authorized Context="listingEditorAuth">
+        <section class="platform-shell bird-editor" aria-labelledby="bird-editor-title">
+            <div class="platform-header platform-header--compact">
+                <div><p class="platform-kicker">@(_original?.ComplianceStatus ?? "Draft")</p><h1 id="bird-editor-title">@PageHeading</h1></div>
+                <a class="btn btn-outline-secondary" href="@ListPath">Back to listings</a>
+            </div>
+            @if (_loading) { <p role="status">Loading listing...</p> }
+            else if (_loadError is not null)
+            {
+                <div class="alert alert-danger" role="alert">@_loadError</div>
+                <button class="btn btn-outline-secondary" @onclick="LoadAsync">Retry</button>
+            }
+            else
+            {
+                @if (ReadOnly) { <div class="alert alert-warning" role="status">Editing is unavailable during review, suspension or auction activity.</div> }
+                <EditForm Model="_model" OnValidSubmit="SaveAsync">
+                    <DataAnnotationsValidator /><ValidationSummary />
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger" role="alert">@_saveError</div>
+                        <button class="btn btn-outline-secondary mb-3" type="button" disabled="@_saving" @onclick="LoadAsync">Reload Listing</button>
+                    }
+                    <fieldset disabled="@(_saving || ReadOnly)">
+                        <legend class="h5">Listing Details</legend>
+                        <div class="platform-form-grid">
+                            <div><label for="listing-title" class="form-label">Title</label><InputText id="listing-title" class="form-control" @bind-Value="_model.Title" /><ValidationMessage For="() => _model.Title" /></div>
+                            <div><label for="listing-species" class="form-label">Species</label><InputSelect id="listing-species" class="form-select" @bind-Value="_model.SpeciesId"><option value="">Select species</option>@foreach (var species in _species) { <option value="@species.Id">@species.CommonName (@species.ScientificName)</option> }</InputSelect><ValidationMessage For="() => _model.SpeciesId" /></div>
+                            <div><label for="listing-type" class="form-label">Sale type</label><InputSelect id="listing-type" class="form-select" @bind-Value="_model.SaleType"><option value="auction">Auction draft</option><option value="fixed">Fixed price draft</option></InputSelect></div>
+                            <div><label for="listing-currency" class="form-label">Currency</label><InputSelect id="listing-currency" class="form-select" @bind-Value="_model.CurrencyCode"><option value="ZAR">ZAR</option><option value="USD">USD</option></InputSelect></div>
+                            <div><label for="listing-price" class="form-label">@(_model.SaleType == "auction" ? "Starting price" : "Price")</label><InputNumber id="listing-price" class="form-control" step="0.01" @bind-Value="_model.Price" /><ValidationMessage For="() => _model.Price" /></div>
+                            <div><label for="listing-quantity" class="form-label">Quantity</label><InputNumber id="listing-quantity" class="form-control" min="1" max="10000" @bind-Value="_model.Quantity" /><ValidationMessage For="() => _model.Quantity" /></div>
+                            <div><label for="listing-location" class="form-label">Location</label><InputText id="listing-location" class="form-control" @bind-Value="_model.Location" /><ValidationMessage For="() => _model.Location" /></div>
+                            <div class="platform-form-grid__wide"><label for="listing-description" class="form-label">Description</label><InputTextArea id="listing-description" class="form-control" rows="5" @bind-Value="_model.Description" /><ValidationMessage For="() => _model.Description" /></div>
+                        </div>
+                        <h2 class="h5 mt-4">Bird Details</h2>
+                        <div class="platform-form-grid">
+                            <div><label for="listing-ring" class="form-label">Ring number</label><InputText id="listing-ring" class="form-control" @bind-Value="_model.RingNumber" /><ValidationMessage For="() => _model.RingNumber" /></div>
+                            <div><label for="listing-chip" class="form-label">Microchip number</label><InputText id="listing-chip" class="form-control" @bind-Value="_model.MicrochipNumber" /><ValidationMessage For="() => _model.MicrochipNumber" /></div>
+                            <div><label for="listing-sex" class="form-label">Sex</label><InputSelect id="listing-sex" class="form-select" @bind-Value="_model.Sex"><option value="Unknown">Unknown</option><option value="Male">Male</option><option value="Female">Female</option></InputSelect></div>
+                            <div><label for="listing-hatch" class="form-label">Hatch date</label><InputDate id="listing-hatch" class="form-control" max="@DateTime.UtcNow.ToString("yyyy-MM-dd")" @bind-Value="_model.HatchDate" /></div>
+                        </div>
+                    </fieldset>
+                    <div class="platform-form-actions">
+                        <button class="btn btn-primary" type="submit" disabled="@(_saving || ReadOnly || _species.Count == 0)">@(_saving ? "Saving..." : ListingId.HasValue ? "Save Changes" : "Create Draft")</button>
+                        <a class="btn btn-outline-secondary" href="@ListPath">Cancel</a>
+                    </div>
+                </EditForm>
+            }
+        </section>
+    </Authorized>
+    <NotAuthorized><h1>Listing Access Required</h1><a href="/login">Login</a></NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter] public Guid? ListingId { get; set; }
+    private BirdListingFormModel _model = new();
+    private BirdListingDto? _original;
+    private List<BirdSpeciesChoice> _species = [];
+    private bool _loading, _saving;
+    private string? _loadError, _saveError;
+    private bool TenantRoute => Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath.StartsWith("/tenant/", StringComparison.Ordinal);
+    private string ListPath => TenantRoute ? "/tenant/listings" : "/seller/my-listings";
+    private string PageHeading => ListingId.HasValue ? "Edit Bird Listing" : "Add Bird Listing";
+    private bool ReadOnly => _original?.HasAuctionActivity == true || _original?.ComplianceStatus is "UnderReview" or "Suspended";
+    protected override Task OnParametersSetAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = _saveError = null;
+        _original = null;
+        _model = new();
+        try
+        {
+            _species = (await Api.GetAsync<List<BirdSpeciesChoice>>("/api/species") ?? []).OrderBy(x => x.CommonName).ToList();
+            if (_species.Count == 0) throw new InvalidOperationException("No bird species are available.");
+            if (ListingId is { } id)
+            {
+                _original = await Api.GetAsync<BirdListingDto>($"/api/birdlistings/{id}") ?? throw new InvalidOperationException("Listing not found.");
+                _model = BirdListingFormModel.FromDto(_original);
+            }
+        }
+        catch (Exception ex) { _loadError = ex.Message; }
+        finally { _loading = false; }
+    }
+    private async Task SaveAsync()
+    {
+        if (_saving || ReadOnly) return;
+        _saving = true;
+        _saveError = null;
+        try
+        {
+            if (_original is not null)
+            {
+                await Api.PutAsync($"/api/birdlistings/{_original.Id}", _original with
+                {
+                    Title = _model.Title, SpeciesId = _model.SpeciesId!.Value, Description = _model.Description,
+                    StartingPrice = _model.SaleType == "fixed" && _model.Price == _original.BuyNowPrice
+                        ? _original.StartingPrice : _model.Price,
+                    BuyNowPrice = _model.SaleType == "fixed" ? _model.Price : null,
+                    CurrencyCode = _model.CurrencyCode, Quantity = _model.Quantity, Location = _model.Location,
+                    RingNumber = _model.RingNumber, MicrochipNumber = _model.MicrochipNumber,
+                    Sex = _model.Sex, HatchDate = _model.HatchDate, IsActive = false
+                });
+            }
+            else
+            {
+                var user = (await Authentication.GetAuthenticationStateAsync()).User;
+                if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var actor)) throw new InvalidOperationException("Please log in again.");
+                await Api.PostAsync("/api/seller/listings/bird", new CreateBirdListingRequest(_model.SpeciesId!.Value,
+                    _model.Title, _model.Description, _model.Price, _model.SaleType == "auction", actor,
+                    _model.CurrencyCode, _model.Quantity, _model.Location, _model.RingNumber,
+                    _model.MicrochipNumber, _model.Sex, _model.HatchDate));
+            }
+            Nav.NavigateTo(ListPath);
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+}

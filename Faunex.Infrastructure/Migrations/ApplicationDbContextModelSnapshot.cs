@@ -116,6 +116,18 @@ namespace Faunex.Infrastructure.Migrations
                     b.Property<Guid>("ListingId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateOnly?>("HatchDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("MicrochipNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RingNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Sex")
+                        .HasColumnType("text");
+
                     b.Property<Guid?>("SpeciesId")
                         .HasColumnType("uuid");
 
@@ -302,6 +314,10 @@ namespace Faunex.Infrastructure.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("SellerId")
                         .HasColumnType("uuid");
 
@@ -400,6 +416,36 @@ namespace Faunex.Infrastructure.Migrations
                     b.HasIndex("ListingId");
 
                     b.ToTable("ListingDocuments");
+                });
+
+            modelBuilder.Entity("Faunex.Domain.Entities.ListingDocumentRequirement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AnimalClass")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AnimalClass", "DocumentType")
+                        .IsUnique();
+
+                    b.ToTable("ListingDocumentRequirements");
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.LivestockDetails", b =>
@@ -680,6 +726,15 @@ namespace Faunex.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Listing");
+                });
+
+            modelBuilder.Entity("Faunex.Domain.Entities.ListingDocumentRequirement", b =>
+                {
+                    b.HasOne("Faunex.Domain.Entities.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.LivestockDetails", b =>

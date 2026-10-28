@@ -19,230 +19,161 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             .Include(x => x.Compliance)
             .FirstOrDefaultAsync(x => x.Id == listingId, cancellationToken);
 
-        if (listing is null)
+        if (listing is null || listing.BirdDetails is null)
         {
             return null;
         }
 
-        if (IsBuyer(tenantContext) && listing.Compliance?.Status != ListingComplianceStatus.Approved)
+        if (IsBuyer(tenantContext) && (listing.Compliance?.Status != ListingComplianceStatus.Approved || !listing.IsActive))
         {
             return null;
         }
 
-        return MapToDto(listing);
+        if (!tenantContext.IsPlatformAdmin && !IsBuyer(tenantContext))
+            ServiceAuthorization.EnsureSellerOrTenantAdminOwnsSellerId(tenantContext, listing.SellerId);
+        return MapToDto(listing, await dbContext.Auctions.AnyAsync(x => x.ListingId == listingId, cancellationToken));
     }
 
     public async Task<IReadOnlyList<BirdListingDto>> GetBySellerIdAsync(Guid sellerId, CancellationToken cancellationToken = default)
     {
         ServiceAuthorization.EnsureTenantUser(tenantContext);
 
+        if (!tenantContext.IsPlatformAdmin && !IsBuyer(tenantContext))
+            ServiceAuthorization.EnsureSellerOrTenantAdminOwnsSellerId(tenantContext, sellerId);
         var query = dbContext.Listings
             .AsNoTracking()
             .Include(x => x.BirdDetails)
             .Include(x => x.Compliance)
-            .Where(x => x.SellerId == sellerId);
+            .Where(x => x.SellerId == sellerId && x.BirdDetails != null);
 
         if (IsBuyer(tenantContext))
         {
-            query = query.Where(x => x.Compliance != null && x.Compliance.Status == ListingComplianceStatus.Approved);
+            query = query.Where(x => x.IsActive && x.Compliance != null && x.Compliance.Status == ListingComplianceStatus.Approved);
         }
 
         var listings = await query
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return listings.Select(MapToDto).ToList();
+        return listings.Select(x => MapToDto(x)).ToList();
     }
 
-    public async Task<Guid> CreateAsync(BirdListingDto listing, CancellationToken cancellationToken = default)
-    {
-        ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenantContext, "create listings");
-        ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.TenantAdmin, FaunexRoles.Seller);
-        ServiceAuthorization.EnsureSellerOrTenantAdminOwnsSellerId(tenantContext, listing.SellerId);
-
-        var listingId = listing.Id == Guid.Empty ? Guid.NewGuid() : listing.Id;
-
-        var entity = new Listing
-        {
-            Id = listingId,
-            TenantId = tenantContext.TenantId!.Value,
-            SellerId = listing.SellerId,
-            Title = listing.Title,
-            Description = listing.Description,
-            StartingPrice = listing.StartingPrice,
-            BuyNowPrice = listing.BuyNowPrice,
-            CurrencyCode = listing.CurrencyCode,
-            Quantity = listing.Quantity,
-            Location = listing.Location,
-            IsActive = false,
-            BirdDetails = new BirdDetails
-            {
-                ListingId = listingId,
-                SpeciesId = listing.SpeciesId
-            },
-            Compliance = new ListingCompliance
-            {
-                ListingId = listingId,
-                TenantId = tenantContext.TenantId.Value,
-                Status = ListingComplianceStatus.Draft,
-                LastUpdatedAt = DateTimeOffset.UtcNow
-            }
-        };
-
-        dbContext.Listings.Add(entity);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return entity.Id;
-    }
+    public async Task<Guid> CreateAsync(BirdListingDto listing, CancellationToken cancellationToken = default) =>
+        (await CreateEntityAsync(listing, cancellationToken)).Id;
 
     public async Task<ListingDto> CreateBirdListingAsync(CreateBirdListingRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Title))
-        {
-            throw new ArgumentException("Title is required.");
-        }
+        var entity = await CreateEntityAsync(new BirdListingDto(
+            Guid.Empty, request.SellerId, request.SpeciesId, request.Title, request.Description,
+            request.Price, request.IsAuction ? null : request.Price, request.CurrencyCode,
+            request.Quantity, request.Location, false, request.RingNumber, request.MicrochipNumber,
+            request.Sex, request.HatchDate), cancellationToken);
+        return new ListingDto(entity.Id, entity.TenantId, entity.SellerId, "bird",
+            entity.BirdDetails!.SpeciesId, entity.Title, entity.Description, entity.StartingPrice,
+            entity.BuyNowPrice, entity.CurrencyCode, entity.Quantity, entity.Location, entity.IsActive);
+    }
 
-        if (request.Price <= 0)
-        {
-            throw new ArgumentException("Price must be greater than 0.");
-        }
-
-        if (request.SpeciesId == Guid.Empty)
-        {
-            throw new ArgumentException("SpeciesId is required.");
-        }
-
-        // Auth rules (MANDATORY)
+    private async Task<Listing> CreateEntityAsync(BirdListingDto input, CancellationToken cancellationToken)
+    {
         ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenantContext, "create listings");
-        ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.Seller, FaunexRoles.TenantAdmin);
-
-        if (tenantContext is not ITenantContextWithActor actor || !actor.ActorId.HasValue)
-        {
-            throw new UnauthorizedAccessException("Seller identity is required.");
-        }
-
-        if (actor.ActorId.Value != request.SellerId)
-        {
-            throw new UnauthorizedAccessException("Seller can only create listings for themselves.");
-        }
-
-        if (!tenantContext.TenantId.HasValue)
-        {
-            throw new UnauthorizedAccessException("TenantId is required.");
-        }
-
-        // TODO: Auction creation is not implemented in this slice.
-        _ = request.IsAuction;
-
-        var speciesExists = await dbContext.BirdSpeciesSet
-            .AsNoTracking()
-            .AnyAsync(x => x.Id == request.SpeciesId, cancellationToken);
-
-        if (!speciesExists)
-        {
-            throw new ArgumentException("SpeciesId does not exist.");
-        }
-
-        var listingId = Guid.NewGuid();
-        var tenantId = tenantContext.TenantId.Value;
-
+        ServiceAuthorization.EnsureTenantAdminOrSeller(tenantContext);
+        if (tenantContext is not ITenantContextWithActor actor || actor.ActorId != input.SellerId)
+            throw new UnauthorizedAccessException("Create listings under your own account.");
+        await ValidateAsync(input, cancellationToken);
         var entity = new Listing
         {
-            Id = listingId,
-            TenantId = tenantId,
-            SellerId = request.SellerId,
-            Title = request.Title,
-            Description = request.Description,
-            StartingPrice = request.Price,
-            BuyNowPrice = request.IsAuction ? null : request.Price,
-            CurrencyCode = "USD",
-            Quantity = 1,
-            Location = null,
+            TenantId = tenantContext.TenantId!.Value,
+            SellerId = input.SellerId,
+            Title = input.Title.Trim(),
+            Description = Clean(input.Description),
+            StartingPrice = input.StartingPrice,
+            BuyNowPrice = input.BuyNowPrice,
+            CurrencyCode = input.CurrencyCode.Trim().ToUpperInvariant(),
+            Quantity = input.Quantity,
+            Location = Clean(input.Location),
             IsActive = false,
             BirdDetails = new BirdDetails
             {
-                ListingId = listingId,
-                SpeciesId = request.SpeciesId
+                SpeciesId = input.SpeciesId,
+                RingNumber = Clean(input.RingNumber),
+                MicrochipNumber = Clean(input.MicrochipNumber),
+                Sex = Clean(input.Sex),
+                HatchDate = input.HatchDate
             },
             Compliance = new ListingCompliance
             {
-                ListingId = listingId,
-                TenantId = tenantId,
-                Status = ListingComplianceStatus.Draft,
-                LastUpdatedAt = DateTimeOffset.UtcNow
+                TenantId = tenantContext.TenantId.Value,
+                Status = ListingComplianceStatus.Draft
             }
         };
-
         dbContext.Listings.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
-
-        return new ListingDto(
-            entity.Id,
-            entity.TenantId,
-            entity.SellerId,
-            AnimalClass: "Bird",
-            SpeciesId: entity.BirdDetails?.SpeciesId,
-            entity.Title,
-            entity.Description,
-            entity.StartingPrice,
-            entity.BuyNowPrice,
-            entity.CurrencyCode,
-            entity.Quantity,
-            entity.Location,
-            entity.IsActive);
+        return entity;
     }
 
-    public async Task UpdateAsync(BirdListingDto listing, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(BirdListingDto input, CancellationToken cancellationToken = default)
     {
         ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenantContext, "update listings");
-        ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.TenantAdmin, FaunexRoles.Seller);
-
-        var entity = await dbContext.Listings
-            .Include(x => x.BirdDetails)
-            .Include(x => x.Compliance)
-            .FirstOrDefaultAsync(x => x.Id == listing.Id, cancellationToken);
-
-        if (entity is null)
-        {
-            throw new InvalidOperationException("Listing not found.");
-        }
-
+        ServiceAuthorization.EnsureTenantAdminOrSeller(tenantContext);
+        var entity = await dbContext.Listings.Include(x => x.BirdDetails).Include(x => x.Compliance)
+            .FirstOrDefaultAsync(x => x.Id == input.Id, cancellationToken)
+            ?? throw new KeyNotFoundException("Listing not found.");
         ServiceAuthorization.EnsureSellerOrTenantAdminOwnsSellerId(tenantContext, entity.SellerId);
-
-        entity.SellerId = listing.SellerId;
-        entity.Title = listing.Title;
-        entity.Description = listing.Description;
-        entity.StartingPrice = listing.StartingPrice;
-        entity.BuyNowPrice = listing.BuyNowPrice;
-        entity.CurrencyCode = listing.CurrencyCode;
-        entity.Quantity = listing.Quantity;
-        entity.Location = listing.Location;
-        entity.UpdatedAt = DateTimeOffset.UtcNow;
-
+        if (input.SellerId != entity.SellerId)
+            throw new UnauthorizedAccessException("Listing ownership cannot be changed.");
         if (entity.BirdDetails is null)
-        {
-            entity.BirdDetails = new BirdDetails
-            {
-                ListingId = entity.Id,
-                SpeciesId = listing.SpeciesId
-            };
-        }
-        else
-        {
-            entity.BirdDetails.SpeciesId = listing.SpeciesId;
-        }
-
-        // Any substantive change should require re-review if previously approved.
-        // TODO: Decide which fields trigger re-review across verticals.
-        if (entity.Compliance is not null && entity.Compliance.Status == ListingComplianceStatus.Approved)
-        {
-            entity.Compliance.Status = ListingComplianceStatus.Draft;
-            entity.Compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
-            entity.IsActive = false;
-        }
-
+            throw new ListingValidationException("This editor only supports bird listings.");
+        if (input.Revision is null || input.Revision != entity.Revision)
+            throw new ListingEditConflictException("This listing changed. Reload it before saving.");
+        if (entity.Compliance?.Status is ListingComplianceStatus.UnderReview or ListingComplianceStatus.Suspended)
+            throw new ListingEditConflictException("This listing cannot be edited in its current review state.");
+        if (await dbContext.Auctions.AnyAsync(x => x.ListingId == entity.Id, cancellationToken))
+            throw new ListingEditConflictException("Listings with auction activity cannot be edited.");
+        await ValidateAsync(input, cancellationToken);
+        entity.Title = input.Title.Trim();
+        entity.Description = Clean(input.Description);
+        entity.StartingPrice = input.StartingPrice;
+        entity.BuyNowPrice = input.BuyNowPrice;
+        entity.CurrencyCode = input.CurrencyCode.Trim().ToUpperInvariant();
+        entity.Quantity = input.Quantity;
+        entity.Location = Clean(input.Location);
+        entity.BirdDetails.SpeciesId = input.SpeciesId;
+        entity.BirdDetails.RingNumber = Clean(input.RingNumber);
+        entity.BirdDetails.MicrochipNumber = Clean(input.MicrochipNumber);
+        entity.BirdDetails.Sex = Clean(input.Sex);
+        entity.BirdDetails.HatchDate = input.HatchDate;
+        entity.IsActive = false;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        entity.Compliance ??= new ListingCompliance { ListingId = entity.Id, TenantId = entity.TenantId };
+        entity.Compliance.Status = ListingComplianceStatus.Draft;
+        entity.Compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    private async Task ValidateAsync(BirdListingDto input, CancellationToken cancellationToken)
+    {
+        if (input.Title?.Trim().Length is not (>= 3 and <= 160))
+            throw new ListingValidationException("Title must contain 3 to 160 characters.");
+        if (input.Description?.Length > 2000)
+            throw new ListingValidationException("Description must be at most 2000 characters.");
+        if (!ValidPrice(input.StartingPrice) || (input.BuyNowPrice is { } buyNow && (!ValidPrice(buyNow) || buyNow < input.StartingPrice)))
+            throw new ListingValidationException("Prices must be between 0.01 and 999999999, with at most two decimal places. Buy-now cannot be below starting price.");
+        if (input.CurrencyCode?.Trim().ToUpperInvariant() is not ("ZAR" or "USD"))
+            throw new ListingValidationException("Use ZAR or the existing USD currency.");
+        if (input.Quantity is < 1 or > 10000)
+            throw new ListingValidationException("Quantity must be between 1 and 10000.");
+        if (input.Location?.Length > 200 || input.RingNumber?.Length > 80 || input.MicrochipNumber?.Length > 80)
+            throw new ListingValidationException("Location must be at most 200 characters; identifiers at most 80.");
+        if (Clean(input.Sex) is not (null or "Unknown" or "Male" or "Female"))
+            throw new ListingValidationException("Select Unknown, Male or Female.");
+        if (input.HatchDate > DateOnly.FromDateTime(DateTime.UtcNow))
+            throw new ListingValidationException("Hatch date cannot be in the future.");
+        if (input.SpeciesId == Guid.Empty || !await dbContext.BirdSpeciesSet.AnyAsync(x => x.Id == input.SpeciesId, cancellationToken))
+            throw new ListingValidationException("Select a valid bird species.");
+    }
+
+    private static bool ValidPrice(decimal price) => price is >= 0.01m and <= 999999999m && decimal.Round(price, 2) == price;
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     public async Task DeactivateAsync(Guid listingId, CancellationToken cancellationToken = default)
     {
@@ -273,62 +204,8 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task SubmitForReviewAsync(Guid listingId, CancellationToken cancellationToken = default)
-    {
-        ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenantContext, "submit listings for compliance review");
-        ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.TenantAdmin, FaunexRoles.Seller);
-
-        var listing = await dbContext.Listings
-            .Include(x => x.Compliance)
-            .FirstOrDefaultAsync(x => x.Id == listingId, cancellationToken);
-
-        if (listing is null)
-        {
-            throw new InvalidOperationException("Listing not found.");
-        }
-
-        ServiceAuthorization.EnsureSellerOrTenantAdminOwnsSellerId(tenantContext, listing.SellerId);
-
-        var compliance = listing.Compliance;
-        if (compliance is null)
-        {
-            compliance = new ListingCompliance
-            {
-                ListingId = listing.Id,
-                TenantId = listing.TenantId,
-                Status = ListingComplianceStatus.Draft,
-                LastUpdatedAt = DateTimeOffset.UtcNow
-            };
-            listing.Compliance = compliance;
-        }
-
-        var required = GetRequiredDocumentTypesForListing(listing);
-
-        var uploadedTypes = await dbContext.ListingDocuments
-            .AsNoTracking()
-            .Where(x => x.ListingId == listing.Id && x.UploadedAt != null)
-            .Select(x => x.DocumentType)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        var missing = required.Except(uploadedTypes).ToList();
-
-        if (missing.Count > 0)
-        {
-            compliance.Status = ListingComplianceStatus.PendingDocuments;
-            compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
-            listing.IsActive = false;
-            await dbContext.SaveChangesAsync(cancellationToken);
-            return;
-        }
-
-        compliance.Status = ListingComplianceStatus.UnderReview;
-        compliance.SubmittedAt = DateTimeOffset.UtcNow;
-        compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
-        listing.IsActive = false;
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-    }
+    public Task SubmitForReviewAsync(Guid listingId, CancellationToken cancellationToken = default) =>
+        SubmitForComplianceAsync(listingId, cancellationToken);
 
     public async Task ApproveListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default)
     {
@@ -357,6 +234,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         compliance.ReviewedByUserId = ((ITenantContextWithActor)tenantContext).ActorId;
 
         listing.IsActive = true;
+        listing.UpdatedAt = DateTimeOffset.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -388,6 +266,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         compliance.ReviewedByUserId = ((ITenantContextWithActor)tenantContext).ActorId;
 
         listing.IsActive = false;
+        listing.UpdatedAt = DateTimeOffset.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -412,46 +291,31 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         ServiceAuthorization.EnsurePlatformComplianceAdmin(tenantContext);
     }
 
-    private static IReadOnlyCollection<ListingDocumentType> GetRequiredDocumentTypesForListing(Listing listing)
+    private async Task<IReadOnlyCollection<ListingDocumentType>> GetRequiredDocumentTypesAsync(Listing listing, CancellationToken cancellationToken)
     {
-        if (listing.BirdDetails is not null)
-        {
-            // TODO: refine per species/CITES appendix.
-            return new[] { ListingDocumentType.CitesPermit, ListingDocumentType.VeterinaryCertificate };
-        }
-
-        if (listing.LivestockDetails is not null)
-        {
-            // TODO: refine by livestock class.
-            return new[] { ListingDocumentType.HealthCertificate, ListingDocumentType.TransferOfOwnership };
-        }
-
-        if (listing.GameAnimalDetails is not null)
-        {
-            // TODO: refine by region.
-            return new[] { ListingDocumentType.GamePermit };
-        }
-
-        if (listing.PoultryDetails is not null)
-        {
-            // TODO: refine by poultry type.
-            return new[] { ListingDocumentType.PoultryHealthCertificate, ListingDocumentType.TransportPermit };
-        }
-
-        return Array.Empty<ListingDocumentType>();
+        var animalClass = listing.BirdDetails is not null ? "bird"
+            : listing.LivestockDetails is not null ? "livestock"
+            : listing.GameAnimalDetails is not null ? "game"
+            : listing.PoultryDetails is not null ? "poultry"
+            : throw new ListingValidationException("Animal classification is required before submission.");
+        // No configured requirements means optional evidence, never automatic publication.
+        return await dbContext.ListingDocumentRequirements.AsNoTracking()
+            .Where(x => x.TenantId == listing.TenantId && x.AnimalClass == animalClass)
+            .Select(x => x.DocumentType).ToListAsync(cancellationToken);
     }
 
     private static bool IsBuyer(ITenantContext tenantContext)
     {
         if (tenantContext is ITenantContextWithRoles withRoles)
         {
-            return withRoles.Roles.Contains(FaunexRoles.Buyer);
+            return withRoles.Roles.Contains(FaunexRoles.Buyer)
+                && !withRoles.Roles.Contains(FaunexRoles.Seller) && !withRoles.Roles.Contains(FaunexRoles.TenantAdmin);
         }
 
         return false;
     }
 
-    private static BirdListingDto MapToDto(Listing listing)
+    private static BirdListingDto MapToDto(Listing listing, bool hasAuctions = false)
     {
         var speciesId = listing.BirdDetails?.SpeciesId ?? Guid.Empty;
 
@@ -466,7 +330,14 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             listing.CurrencyCode,
             listing.Quantity,
             listing.Location,
-            listing.IsActive
+            listing.IsActive,
+            listing.BirdDetails?.RingNumber,
+            listing.BirdDetails?.MicrochipNumber,
+            listing.BirdDetails?.Sex,
+            listing.BirdDetails?.HatchDate,
+            listing.Revision,
+            listing.Compliance?.Status.ToString() ?? "Draft",
+            hasAuctions
         );
     }
 
@@ -545,6 +416,10 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         ServiceAuthorization.EnsureRole(tenantContext, FaunexRoles.Seller, FaunexRoles.TenantAdmin);
 
         var listing = await dbContext.Listings
+            .Include(x => x.BirdDetails)
+            .Include(x => x.LivestockDetails)
+            .Include(x => x.GameAnimalDetails)
+            .Include(x => x.PoultryDetails)
             .Include(x => x.Compliance)
             .FirstOrDefaultAsync(x => x.Id == listingId, cancellationToken);
 
@@ -571,6 +446,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         }
 
         listing.IsActive = false;
+        listing.UpdatedAt = DateTimeOffset.UtcNow;
 
         if (listing.Compliance is null)
         {
@@ -583,16 +459,16 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             };
         }
 
-        if (listing.Compliance.Status != ListingComplianceStatus.Draft)
+        if (listing.Compliance.Status is not (ListingComplianceStatus.Draft or ListingComplianceStatus.PendingDocuments or ListingComplianceStatus.Rejected))
         {
-            throw new InvalidOperationException("Listing compliance must be in Draft status to submit.");
+            throw new ListingEditConflictException("Only draft, pending-document or rejected listings can be submitted.");
         }
 
-        var required = GetRequiredDocumentTypesForListing(listing);
+        var required = await GetRequiredDocumentTypesAsync(listing, cancellationToken);
 
         var uploadedTypes = await dbContext.ListingDocuments
             .AsNoTracking()
-            .Where(x => x.ListingId == listing.Id && x.UploadedAt != null)
+            .Where(x => x.ListingId == listing.Id && x.UploadedAt != null && x.FileUrl != null && x.FileUrl != "")
             .Select(x => x.DocumentType)
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -636,6 +512,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         compliance.ReviewedByUserId = ((ITenantContextWithActor)tenantContext).ActorId;
 
         listing.IsActive = newStatus == ListingComplianceStatus.Approved;
+        listing.UpdatedAt = DateTimeOffset.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }

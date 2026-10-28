@@ -14,7 +14,10 @@
                     <p>Inspect listing readiness, seller ownership, compliance state, documents, and auction activity.</p>
                 </div>
 
-                <a class="btn btn-outline-secondary" href="/tenant/listings">Back to listings</a>
+                <div class="bird-editor-actions">
+                    @if (_listing?.AnimalClass == "bird") { <a class="btn btn-primary" href="@($"/tenant/listings/{ListingId}/edit")">Edit Listing</a> }
+                    <a class="btn btn-outline-secondary" href="/tenant/listings">Back to listings</a>
+                </div>
             </div>
 
             @if (_isLoading)

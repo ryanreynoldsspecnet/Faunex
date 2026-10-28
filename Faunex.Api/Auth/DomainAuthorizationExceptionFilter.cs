@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Faunex.Application.DTOs;
+using Microsoft.EntityFrameworkCore;
 
 namespace Faunex.Api.Auth;
 
@@ -7,6 +9,22 @@ public sealed class DomainAuthorizationExceptionFilter : IExceptionFilter
 {
     public void OnException(ExceptionContext context)
     {
+        if (context.Exception is ListingValidationException)
+        {
+            context.Result = new BadRequestObjectResult(new { error = context.Exception.Message });
+            context.ExceptionHandled = true;
+        }
+        else if (context.Exception is ListingEditConflictException or DbUpdateConcurrencyException)
+        {
+            context.Result = new ConflictObjectResult(new { error = context.Exception is ListingEditConflictException
+                ? context.Exception.Message : "This record changed while you were saving. Reload it and try again." });
+            context.ExceptionHandled = true;
+        }
+        else if (context.Exception is KeyNotFoundException)
+        {
+            context.Result = new NotFoundObjectResult(new { error = context.Exception.Message });
+            context.ExceptionHandled = true;
+        }
         if (context.Exception is UnauthorizedAccessException)
         {
             context.Result = context.HttpContext.User.Identity?.IsAuthenticated == true
