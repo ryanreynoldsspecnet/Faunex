@@ -1,5 +1,9 @@
 # Faunex Auction Platform
 
+## Development Handoff
+
+Read [Pilot Delivery](docs/pilot-delivery.md) for the active section, verification status, and next step. The [28 October 2026 audit](docs/audit-2026-10-28.md) is the baseline for the pilot work.
+
 Faunex Auction Platform is a modern, scalable auction platform focused on birds—both exotic and indigenous. It’s built to support real-world auction workflows for buyers and sellers, with an admin back-office for operations and reference data management. The platform is designed to be **compliance-aware**, enabling regulatory considerations such as **CITES classification** and permit-related requirements to be modeled and enforced as the system grows.
 
 ## Key Concepts

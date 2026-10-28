@@ -9,6 +9,10 @@
 **/*.cache
 **/*.log
 **/.DS_Store
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
 
 _audit_publish_web
 _audit_publish_web2
