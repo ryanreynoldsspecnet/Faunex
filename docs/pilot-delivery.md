@@ -18,7 +18,7 @@ This is the restart point for development. Read this file and the [28 October au
 | --- | --- | --- | --- |
 | 1 | Dependency gate, maintained CI actions, secret-file exclusions, durable handoff | Merged and deployed | PR #28; validate/deploy passed; live homepage 200 |
 | 2 | Account eligibility, session revocation, consistent role policies, first-admin transaction | Merged and deployed; business smoke test pending | PR #34; production run 40669423490 validate/deploy passed |
-| 3 | Tenant domains, verified routing/TLS, membership/host boundaries, complete branding | In progress | Two-tenant negative tests; working subdomain/custom domain; unknown hosts fail closed |
+| 3 | Tenant domains, verified routing/TLS, membership/host boundaries, complete branding | Merged; live subdomain acceptance found a marketplace-query defect | PR #35; deployment 40686415138 passed; domain/TLS/branding reachable; marketplace fix in progress |
 | 4 | Bird listing edit/media/documents, enforced compliance, review and public storefront | Not started | Draft to evidence review to approved tenant listing, with resubmission and protected files |
 | 5 | Timed auction setup, concurrent bid rules, closure and winner/no-sale result | Not started | Invalid/self/late bids rejected; concurrency tests; one persisted authoritative outcome |
 | 6 | Tenant PayFast settings, winner order, checkout, verified callbacks, reconciliation | Not started | Sandbox failure/retry/duplicate tests and authorized low-value live payment to tenant account |
@@ -81,7 +81,7 @@ Deployment note: tokens issued before the security-stamp claim was introduced ar
 
 ## Active Section 3
 
-Branch: `feature/section-3-tenant-domains`. No merge authorization is implied for this branch.
+PR #35 was user-merged at `3c4273a567f808ee54e825f6f531a62a13a32ccd`. [Master deployment 40686415138](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40686415138) completed successfully. Local master was synchronized and the merged local branch removed. First live tenant host: `stormbird.faunex.co.za`; the user added DNS and assigned the domain. Anonymous HTTPS loads tenant branding, but the homepage reports a listings error. Do not close live acceptance yet.
 
 - [x] Add an operator domain registry with search, add, verify, rotate challenge, set primary, disable and delete.
 - [x] Require custom-domain DNS TXT proof with a random, expiring challenge; reject stale in-flight verification.
@@ -103,5 +103,15 @@ Edge/Playwright verification used an isolated in-memory API with test-only accou
 Pilot scope retains one tenant per account and globally unique email addresses. This section enforces that boundary; it does not implement multi-tenant memberships, cross-domain single sign-on, a logo-upload store, automatic DNS editing, or wildcard certificates. Primary-domain selection is metadata, not a cross-origin login redirect. Logo settings continue using HTTPS image URLs or existing local assets.
 
 Section 4 follows Section 3 verification: finish bird listing edit/media/documents and the compliance-to-publication journey. Do not start it while domain rollout remains unresolved.
+
+### Marketplace Loading Follow-Up
+
+Active branch: `fix/tenant-marketplace-loading`, based on the merged Section 3 revision. No merge approval implied.
+
+The Stormbird screenshot and a read-only public GET confirm the page reports an API 500 while tenant branding loads. Local PostgreSQL-provider SQL compilation reproduces failures composing browse ordering and detail filtering over the positional `ApprovedListingRow` record projection. These failures occur before SQL is sent, even for an empty marketplace. Server-log confirmation was requested separately; no VPS credentials/data were accessed.
+
+The narrow correction uses an EF-translatable member-initializer projection while preserving server-side filtering, ordering, tenant scoping and approval rules. The homepage now keeps a resolved tenant visible if only listings fail, shows a retryable listings error, and does not mislabel an API failure as a missing marketplace.
+
+Regression coverage adds browse/detail/auction SQL translation checks that run without a database, plus actual PostgreSQL HTTP tests for empty and populated tenant marketplaces, approval/active filters, ordering, null review timestamps and cross-tenant denials. PostgreSQL-only HTTP tests are explicitly skipped on local SQLite (which cannot order DateTimeOffset), not silently treated as passes; CI must execute them before review. Browser retry/error/empty-state verification uses test-only local responses, not production data. Record final check evidence in the follow-up PR before merging, then re-test the live Stormbird homepage and Browse Listings.
 
 Staging, exact-revision deployments, backup/restore evidence and runtime-image freshness remain open operational work from the audit; Section 1 does not claim to complete those items.
