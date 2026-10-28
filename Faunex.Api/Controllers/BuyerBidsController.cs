@@ -18,9 +18,9 @@ public sealed class BuyerBidsController(IBidService bids) : ControllerBase
             await bids.PlaceBidAsync(request, cancellationToken);
             return NoContent();
         }
-        catch (UnauthorizedAccessException ex)
+        catch (UnauthorizedAccessException)
         {
-            return Forbid(ex.Message);
+            return Forbid();
         }
         catch (InvalidOperationException ex)
         {

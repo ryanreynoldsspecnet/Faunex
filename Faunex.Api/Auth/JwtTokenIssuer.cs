@@ -10,7 +10,8 @@ namespace Faunex.Api.Auth;
 public sealed class JwtTokenIssuer(
     IConfiguration configuration,
     IWebHostEnvironment environment,
-    UserManager<ApplicationUser> users)
+    UserManager<ApplicationUser> users,
+    TradingProfileService profiles)
 {
     public async Task<(string token, DateTimeOffset expiresAt, IReadOnlyList<string> roles)> IssueAsync(ApplicationUser user, CancellationToken cancellationToken = default)
     {
@@ -19,12 +20,14 @@ public sealed class JwtTokenIssuer(
         var signingKey = GetSigningKey();
 
         var roles = (await users.GetRolesAsync(user)).ToArray();
+        await profiles.SynchronizeAsync(user, roles, cancellationToken);
 
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Email, user.Email ?? string.Empty),
-            new(FaunexClaimTypes.IsPlatformAdmin, user.IsPlatformAdmin ? "true" : "false")
+            new(FaunexClaimTypes.IsPlatformAdmin, user.IsPlatformAdmin ? "true" : "false"),
+            new(FaunexClaimTypes.SecurityStamp, await users.GetSecurityStampAsync(user))
         };
 
         if (user.TenantId.HasValue)
@@ -38,7 +41,7 @@ public sealed class JwtTokenIssuer(
         }
 
         var expiresAt = DateTimeOffset.UtcNow.AddHours(8);
-        // TODO: Reduce expiry for production.
+        // Account state and security stamp are also checked on every API request.
 
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 

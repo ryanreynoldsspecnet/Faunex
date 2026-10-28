@@ -15,9 +15,11 @@ namespace Faunex.Api.Controllers.Platform;
 public sealed class PlatformUsersController(
     ApplicationDbContext db,
     UserManager<ApplicationUser> users,
-    RoleManager<IdentityRole<Guid>> roles) : ControllerBase
+    RoleManager<IdentityRole<Guid>> roles,
+    UserMutationGuard mutations) : ControllerBase
 {
     [HttpPost("users")]
+    [ServiceFilter(typeof(IdentityMutationTransactionFilter))]
     public async Task<ActionResult<PlatformUserDto>> CreateUser([FromBody] CreateUserRequest request, CancellationToken cancellationToken)
     {
         var email = request.Email.Trim();
@@ -103,6 +105,7 @@ public sealed class PlatformUsersController(
     }
 
     [HttpPut("users/{userId:guid}")]
+    [ServiceFilter(typeof(IdentityMutationTransactionFilter))]
     public async Task<ActionResult<PlatformUserDto>> UpdateUser(Guid userId, [FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
     {
         var user = await users.FindByIdAsync(userId.ToString());
@@ -130,6 +133,12 @@ public sealed class PlatformUsersController(
             return validation;
         }
 
+        var guard = await mutations.ValidateAsync(User, user, assignedRoles, request.TenantId, request.IsActive);
+        if (guard is not null)
+        {
+            return guard;
+        }
+
         user.Email = email;
         user.UserName = email;
         user.DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName.Trim();
@@ -153,6 +162,7 @@ public sealed class PlatformUsersController(
     }
 
     [HttpDelete("users/{userId:guid}")]
+    [ServiceFilter(typeof(IdentityMutationTransactionFilter))]
     public async Task<IActionResult> DeleteUser(Guid userId)
     {
         var currentActorRaw = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -167,6 +177,12 @@ public sealed class PlatformUsersController(
             return NotFound(new { error = "User not found." });
         }
 
+        var guard = await mutations.ValidateAsync(User, user, Array.Empty<string>(), user.TenantId, false, deleting: true);
+        if (guard is not null)
+        {
+            return guard;
+        }
+
         var deleted = await users.DeleteAsync(user);
         if (!deleted.Succeeded)
         {
@@ -177,6 +193,7 @@ public sealed class PlatformUsersController(
     }
 
     [HttpPut("users/{userId:guid}/tenant")]
+    [ServiceFilter(typeof(IdentityMutationTransactionFilter))]
     public async Task<IActionResult> SetUserTenant(Guid userId, [FromBody] SetUserTenantRequest request, CancellationToken cancellationToken)
     {
         var user = await users.FindByIdAsync(userId.ToString());
@@ -192,6 +209,14 @@ public sealed class PlatformUsersController(
             return validation;
         }
 
+        var guard = await mutations.ValidateAsync(User, user, currentRoles, request.TenantId,
+            user.LockoutEnd is null || user.LockoutEnd <= DateTimeOffset.UtcNow);
+        if (guard is not null)
+        {
+            return guard;
+        }
+
+        user.SecurityStamp = Guid.NewGuid().ToString("N");
         user.TenantId = request.TenantId;
         user.IsPlatformAdmin = UserAccessRules.IsPlatformRoleSet(currentRoles);
 
@@ -205,6 +230,7 @@ public sealed class PlatformUsersController(
     }
 
     [HttpPut("users/{userId:guid}/roles")]
+    [ServiceFilter(typeof(IdentityMutationTransactionFilter))]
     public async Task<IActionResult> SetUserRoles(Guid userId, [FromBody] SetUserRolesRequest request, CancellationToken cancellationToken)
     {
         var user = await users.FindByIdAsync(userId.ToString());
@@ -218,6 +244,13 @@ public sealed class PlatformUsersController(
         if (validation is not null)
         {
             return validation;
+        }
+
+        var guard = await mutations.ValidateAsync(User, user, assignedRoles, user.TenantId,
+            user.LockoutEnd is null || user.LockoutEnd <= DateTimeOffset.UtcNow);
+        if (guard is not null)
+        {
+            return guard;
         }
 
         var roleResult = await SetRolesInternalAsync(user, assignedRoles);
@@ -243,6 +276,11 @@ public sealed class PlatformUsersController(
 
     private async Task<ActionResult?> ValidateAssignmentAsync(Guid? tenantId, IReadOnlyCollection<string> assignedRoles, CancellationToken cancellationToken)
     {
+        if (assignedRoles.Contains(FaunexRoles.PlatformSuperAdmin) && !User.IsInRole(FaunexRoles.PlatformSuperAdmin))
+        {
+            return Forbid();
+        }
+
         var shape = UserAccessRules.ValidateRoleTenantShape(tenantId, assignedRoles);
 
         if (!shape.IsValid)
@@ -278,6 +316,7 @@ public sealed class PlatformUsersController(
 
     private async Task<IdentityResult> SetRolesInternalAsync(ApplicationUser user, IReadOnlyCollection<string> assignedRoles)
     {
+        user.SecurityStamp = Guid.NewGuid().ToString("N");
         var currentRoles = await users.GetRolesAsync(user);
         var remove = currentRoles.Except(assignedRoles, StringComparer.OrdinalIgnoreCase).ToArray();
         var add = assignedRoles.Except(currentRoles, StringComparer.OrdinalIgnoreCase).ToArray();

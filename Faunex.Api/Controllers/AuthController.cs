@@ -16,6 +16,7 @@ public sealed class AuthController(
     UserManager<ApplicationUser> users,
     RoleManager<IdentityRole<Guid>> roles,
     JwtTokenIssuer tokenIssuer,
+    AccountAccessService accounts,
     TenantDomainResolver tenantDomainResolver,
     IEmailSender emailSender,
     IOptions<SmtpEmailOptions> emailOptions,
@@ -95,7 +96,7 @@ public sealed class AuthController(
             return BadRequest(new { error = "Invalid credentials." });
         }
 
-        var ok = await users.CheckPasswordAsync(user, request.Password);
+        var ok = await accounts.CheckPasswordAsync(user, request.Password, cancellationToken);
         if (!ok)
         {
             return BadRequest(new { error = "Invalid credentials." });

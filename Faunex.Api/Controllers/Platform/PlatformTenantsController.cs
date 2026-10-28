@@ -6,6 +6,7 @@ using Faunex.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Faunex.Api.Controllers.Platform;
@@ -15,6 +16,7 @@ namespace Faunex.Api.Controllers.Platform;
 [Authorize(Policy = "PlatformAdminOnly")]
 public sealed class PlatformTenantsController(
     ApplicationDbContext db,
+    ApplicationIdentityDbContext identityDb,
     UserManager<ApplicationUser> users,
     RoleManager<IdentityRole<Guid>> roles) : ControllerBase
 {
@@ -70,14 +72,17 @@ public sealed class PlatformTenantsController(
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
+        // Identity and tenant records must commit on the same connection/transaction.
+        identityDb.Database.SetDbConnection(db.Database.GetDbConnection());
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await using var identityTransaction = await identityDb.Database.UseTransactionAsync(transaction.GetDbTransaction(), cancellationToken);
+
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync(cancellationToken);
 
         var roleResult = await EnsureRoleAsync(FaunexRoles.TenantAdmin);
         if (!roleResult.Succeeded)
         {
-            db.Tenants.Remove(tenant);
-            await db.SaveChangesAsync(cancellationToken);
             return BadRequest(new { errors = roleResult.Errors.Select(e => e.Description).ToArray() });
         }
 
@@ -94,20 +99,16 @@ public sealed class PlatformTenantsController(
         var createdAdmin = await users.CreateAsync(admin, request.FirstAdminPassword);
         if (!createdAdmin.Succeeded)
         {
-            db.Tenants.Remove(tenant);
-            await db.SaveChangesAsync(cancellationToken);
             return BadRequest(new { errors = createdAdmin.Errors.Select(e => e.Description).ToArray() });
         }
 
         var assignedRole = await users.AddToRoleAsync(admin, FaunexRoles.TenantAdmin);
         if (!assignedRole.Succeeded)
         {
-            await users.DeleteAsync(admin);
-            db.Tenants.Remove(tenant);
-            await db.SaveChangesAsync(cancellationToken);
             return BadRequest(new { errors = assignedRole.Errors.Select(e => e.Description).ToArray() });
         }
 
+        await transaction.CommitAsync(cancellationToken);
         return CreatedAtAction(nameof(GetTenants), new { id = tenant.Id }, ToDto(tenant));
     }
 

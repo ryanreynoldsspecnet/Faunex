@@ -23,7 +23,7 @@ public sealed class BirdListingsController(IBirdListingService listings) : Contr
         return Ok(results);
     }
 
-    [Authorize(Policy = "SellerOnly")]
+    [Authorize(Policy = "ListingManager")]
     [HttpPost]
     public async Task<ActionResult<Guid>> Create([FromBody] BirdListingDto listing, CancellationToken cancellationToken)
     {
@@ -31,7 +31,7 @@ public sealed class BirdListingsController(IBirdListingService listings) : Contr
         return CreatedAtAction(nameof(GetById), new { id }, id);
     }
 
-    [Authorize(Policy = "SellerOnly")]
+    [Authorize(Policy = "ListingManager")]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] BirdListingDto listing, CancellationToken cancellationToken)
     {
@@ -40,7 +40,7 @@ public sealed class BirdListingsController(IBirdListingService listings) : Contr
         return NoContent();
     }
 
-    [Authorize(Policy = "SellerOnly")]
+    [Authorize(Policy = "ListingManager")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
     {

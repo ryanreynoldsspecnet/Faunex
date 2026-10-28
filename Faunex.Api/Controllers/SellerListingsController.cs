@@ -7,7 +7,7 @@ namespace Faunex.Api.Controllers;
 
 [ApiController]
 [Route("api/seller/listings")]
-[Authorize(Policy = "SellerOnly")]
+[Authorize(Policy = "ListingManager")]
 public sealed class SellerListingsController(IBirdListingService birdListings) : ControllerBase
 {
     [HttpGet]
@@ -32,9 +32,9 @@ public sealed class SellerListingsController(IBirdListingService birdListings) :
             var listing = await birdListings.CreateBirdListingAsync(request, cancellationToken);
             return Created(string.Empty, listing);
         }
-        catch (UnauthorizedAccessException ex)
+        catch (UnauthorizedAccessException)
         {
-            return Forbid(ex.Message);
+            return Forbid();
         }
         catch (ArgumentException ex)
         {

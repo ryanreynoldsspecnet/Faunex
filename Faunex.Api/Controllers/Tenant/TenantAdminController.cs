@@ -16,7 +16,8 @@ namespace Faunex.Api.Controllers.Tenant;
 public sealed class TenantAdminController(
     ApplicationDbContext db,
     UserManager<ApplicationUser> users,
-    RoleManager<IdentityRole<Guid>> roles) : ControllerBase
+    RoleManager<IdentityRole<Guid>> roles,
+    UserMutationGuard mutations) : ControllerBase
 {
     [HttpGet("dashboard")]
     public async Task<ActionResult<TenantDashboardDto>> GetDashboard(CancellationToken cancellationToken)
@@ -366,6 +367,7 @@ public sealed class TenantAdminController(
     }
 
     [HttpPost("users")]
+    [ServiceFilter(typeof(IdentityMutationTransactionFilter))]
     public async Task<ActionResult<TenantUserDto>> CreateUser([FromBody] CreateTenantUserRequest request, CancellationToken cancellationToken)
     {
         var tenantId = CurrentTenantId();
@@ -425,6 +427,7 @@ public sealed class TenantAdminController(
     }
 
     [HttpPut("users/{userId:guid}")]
+    [ServiceFilter(typeof(IdentityMutationTransactionFilter))]
     public async Task<ActionResult<TenantUserDto>> UpdateUser(Guid userId, [FromBody] UpdateTenantUserRequest request, CancellationToken cancellationToken)
     {
         var tenantId = CurrentTenantId();
@@ -458,6 +461,12 @@ public sealed class TenantAdminController(
             return validation;
         }
 
+        var guard = await mutations.ValidateAsync(User, user, assignedRoles, tenantId, request.IsActive);
+        if (guard is not null)
+        {
+            return guard;
+        }
+
         user.Email = email;
         user.UserName = email;
         user.DisplayName = Clean(request.DisplayName);
@@ -481,6 +490,7 @@ public sealed class TenantAdminController(
     }
 
     [HttpDelete("users/{userId:guid}")]
+    [ServiceFilter(typeof(IdentityMutationTransactionFilter))]
     public async Task<IActionResult> DeleteUser(Guid userId)
     {
         var currentActorRaw = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -494,6 +504,12 @@ public sealed class TenantAdminController(
         if (user is null)
         {
             return NotFound(new { error = "User not found." });
+        }
+
+        var guard = await mutations.ValidateAsync(User, user, Array.Empty<string>(), user.TenantId, false, deleting: true);
+        if (guard is not null)
+        {
+            return guard;
         }
 
         var deleted = await users.DeleteAsync(user);
@@ -561,6 +577,7 @@ public sealed class TenantAdminController(
 
     private async Task<IdentityResult> SetRolesInternalAsync(ApplicationUser user, IReadOnlyCollection<string> assignedRoles)
     {
+        user.SecurityStamp = Guid.NewGuid().ToString("N");
         var currentRoles = await users.GetRolesAsync(user);
         var remove = currentRoles.Except(assignedRoles, StringComparer.OrdinalIgnoreCase).ToArray();
         var add = assignedRoles.Except(currentRoles, StringComparer.OrdinalIgnoreCase).ToArray();
