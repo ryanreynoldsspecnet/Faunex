@@ -17,7 +17,7 @@ This is the restart point for development. Read this file and the [28 October au
 | Section | Scope | Status | Evidence required to close |
 | --- | --- | --- | --- |
 | 1 | Dependency gate, maintained CI actions, secret-file exclusions, durable handoff | Merged and deployed | PR #28; validate/deploy passed; live homepage 200 |
-| 2 | Account eligibility, session revocation, consistent role policies, first-admin transaction | Implemented locally; PostgreSQL CI pending | Disabled/deleted/reassigned users rejected; correct TenantAdmin/Seller permissions; rollback and role regression tests |
+| 2 | Account eligibility, session revocation, consistent role policies, first-admin transaction | Implemented and verified; awaiting merge approval | PR #34; 65/65 local and PostgreSQL CI tests; clean vulnerability/build/publish checks |
 | 3 | Tenant domains, verified routing/TLS, membership/host boundaries, complete branding | Not started | Two-tenant negative tests; working subdomain/custom domain; unknown hosts fail closed |
 | 4 | Bird listing edit/media/documents, enforced compliance, review and public storefront | Not started | Draft to evidence review to approved tenant listing, with resubmission and protected files |
 | 5 | Timed auction setup, concurrent bid rules, closure and winner/no-sale result | Not started | Invalid/self/late bids rejected; concurrency tests; one persisted authoritative outcome |
@@ -50,6 +50,8 @@ GitHub verification: [final branch validation](https://github.com/ryanreynoldssp
 
 Branch: `fix/pilot-section-2-account-access`. Production remains on Section 1 until a separate Section 2 merge is approved.
 
+Pull request: [#34](https://github.com/ryanreynoldsspecnet/Faunex/pull/34).
+
 - [x] Check current account, lockout, tenant, security stamp, roles and identity claims on authenticated API requests.
 - [x] Reject disabled/inactive accounts at login; lock out five failed passwords for five minutes and reset failure count on success.
 - [x] Rotate security stamps during administrator security changes; reject old tokens after password reset, deletion, reassignment and role changes.
@@ -59,10 +61,12 @@ Branch: `fix/pilot-section-2-account-access`. Production remains on Section 1 un
 - [x] Share the tenant/Identity transaction when creating a tenant and first administrator; test validation failure, late role failure and unexpected exceptions.
 - [x] Synchronize the legacy trading profile before issuing tenant tokens, so listing/bid foreign keys refer to the authenticated user. This profile is not an authorization source.
 - [x] Pass the local 65-test suite, clean Release build, API/Web publish and dependency scan.
-- [ ] Inspect actual PostgreSQL CI results, including concurrent last-admin removal, and open/verify the PR.
+- [x] Inspect actual PostgreSQL CI results, including concurrent last-admin removal, and open/verify the PR.
 - [ ] Merge only with approval, verify production deployment and fresh-login smoke test, then clean the branch.
 
 The HTTP tests reuse production auth/controller registration with isolated data and ephemeral test keys. Local tests use SQLite; Actions starts PostgreSQL 16 and runs these scenarios against unique temporary databases. Tests do not connect to the VPS, send real emails, or mutate real users. A patched SQLite native test dependency is pinned explicitly to keep the advisory gate clear.
+
+Implementation commit `daa0d7f96ad4621598db80fab67cf67894dfda7c` passed [PostgreSQL CI run 40665335413](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40665335413): 65 tests passed, including parallel last-admin deletion and all four onboarding success/failure paths; restore, vulnerability scan, Release build and both publish steps passed with zero warnings/errors. Deployment was correctly skipped. This handoff-only commit follows that implementation run; inspect the latest revision's checks before merging.
 
 Deployment note: tokens issued before the security-stamp claim was introduced are deliberately invalidated. Users must log in again after Section 2 deployment; passwords and existing accounts are not reset. No schema migration is introduced in this section. Staging, domain/member resolution, full listing/compliance/auction behavior and payments are still separate work.
 
