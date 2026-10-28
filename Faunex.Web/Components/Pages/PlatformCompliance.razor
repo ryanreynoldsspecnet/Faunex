@@ -4,7 +4,7 @@
 <PageTitle>Compliance Queue - Faunex</PageTitle>
 <AuthorizeView Roles="PlatformSuperAdmin,PlatformComplianceAdmin">
     <Authorized>
-        <section class="platform-shell">
+        <section class="platform-shell compliance-queue">
             <div class="platform-header platform-header--compact"><div><p class="platform-kicker">Platform operations</p><h1>Compliance Queue</h1></div><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="LoadAsync">Refresh</button></div>
             <form class="review-queue-filters" @onsubmit="SearchAsync" @onsubmit:preventDefault>
                 <div><label class="form-label" for="review-search">Search listings, tenants or sellers</label><input class="form-control" id="review-search" @bind="_search" maxlength="160" /></div>

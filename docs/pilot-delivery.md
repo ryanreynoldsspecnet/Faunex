@@ -147,7 +147,7 @@ PR #37 was user-merged at `2cecd8c8c7377c88c5402a4ed8a79accfa85110b`. [Productio
 
 ## Implemented Section 4B: Protected Listing Files
 
-Branch: `feature/section-4b-protected-uploads`. Do not merge without user approval and green checks for the final revision.
+Merged branch: `feature/section-4b-protected-uploads`, removed locally and remotely after PR #38.
 
 - [x] Add tenant/seller file screens and navigation for JPEG/PNG photos and PDF/image evidence.
 - [x] Keep bytes outside the public web root in persistent API-only storage; use server-generated keys, SHA-256 integrity checks and bounded quotas.
@@ -185,9 +185,15 @@ Branch: `feature/section-4c-compliance-review`. User approved continuing after m
 - [x] Recheck required evidence and every current file's integrity before approval; publish only on approval.
 - [x] Persist actor/time/from/to/notes/revision history atomically with status changes, including submission, edits and file changes. No history-edit endpoint; application writes reject modification/deletion of tracked history records.
 - [x] Show tenant/seller status/history and submission/resubmission. Suspended listings can be returned for changes by a reviewer; they do not resume publication automatically.
-- [ ] Verify local/real PostgreSQL concurrency, migrations, scanner, browser workflow, vulnerability/build/publish gates; record PR and exact results.
+- [x] Verify local/real PostgreSQL concurrency, migrations, scanner, browser workflow, vulnerability/build/publish gates; record PR and exact results below. Recheck final handoff revision before merge.
 - [ ] Merge with approval, verify production deploy and business acceptance using disposable tenant data.
 
 History begins at this deployment; do not invent or backfill old decisions. The latest 200 events are displayed, with all events retained in the database while the listing exists. This is status/revision history, not a complete immutable snapshot of prior listing content or a legal certification. SQL maintenance or cascade removal of a listing is outside the application append-only guard. Retention/backup policies remain operational acceptance work. Reviewer notes are visible to the owning seller and tenant administrators, so do not enter confidential internal-only comments.
 
 Old submission endpoints remain compatible when no revision is supplied, but still enforce current status, ownership, evidence and optimistic concurrency. New UI submission sends the revision. Review decision requests without Revision are now rejected; old approve/reject clients must reload and update. Requirement-management UI remains deferred. Auction lifecycle/payment implementation is still Sections 5/6, not part of 4C.
+
+Pull request: [#39](https://github.com/ryanreynoldsspecnet/Faunex/pull/39), not merged. Implementation `eb6ae95474b9e1a1ae7efcc35017ca1164262b2d` passed [CI 40747419892](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40747419892): all 162 tests executed/passed, including PostgreSQL queue search/status/pagination, competing reviewers (one committed decision, one 409, one history decision), full correction/resubmission/approval, required and missing optional-file checks, inactive-tenant/auction guards, role/tenant denials, append-only history and real ClamAV regression. All migrations, vulnerability/Caddy/build/publish checks passed; deploy correctly skipped. Local: 154 passed, eight explicitly skipped provider/scanner cases; no pending model changes and no flagged NuGet advisories. A final UI-spacing/handoff commit follows; inspect that revision's actual checks before merge.
+
+Edge/Playwright used separate isolated tenant and platform reviewer sessions. It created a bird draft, uploaded a photo/PDF, submitted, downloaded private PDF evidence as the reviewer, confirmed no reviewer file-delete controls, requested a ring-number correction, showed rejection notes to the tenant, edited/resubmitted, approved and rendered the public gallery. A second stale reviewer page received a conflict; suspension revoked a fresh public photo GET (404). Desktop 1440px and mobile 390px captures were inspected; no page errors or page-level overflow. Tables scroll horizontally on small screens. All writes, review detail/history reads and file authorization used the real local API with test-only storage/scanner doubles; existing grid/tenant detail/public detail and the queue used external SQLite rendering shims for unsupported date/decimal sorts. Real query/migration/authorization behavior is covered in PostgreSQL CI. No production accounts, email or files were changed.
+
+Next after user-approved merge: inspect master validate/deploy, demonstrate the review journey on disposable Stormbird data, and finish live scanner/upload/restart acceptance. Once the Section 4 business acceptance checks are signed off, proceed to **Section 5: timed-auction setup, bid rules, closure and winner/no-sale result**, keeping tenant PayFast readiness work active. Separate custom-domain and off-server restore acceptance remain open; do not describe all pilot work as complete.

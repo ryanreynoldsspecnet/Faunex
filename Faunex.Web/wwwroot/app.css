@@ -1018,6 +1018,7 @@ h1:focus {
 .listing-photo-gallery__thumbnails img { width: 100%; height: 100%; object-fit: cover; }
 @media (max-width: 640px) { .file-upload-bar > div { width: 100%; } .file-upload-bar > button { width: 100%; } }
 .review-queue-filters { display:flex; align-items:end; gap:16px; margin-bottom:24px; }
+.compliance-queue .platform-header h1, .review-workspace .platform-header h1 { font-size:32px; }
 .review-queue-filters > div:first-child { flex:1; min-width:0; }
 .review-queue-filters > div:nth-child(2) { flex:0 0 210px; }
 .review-pagination { display:flex; align-items:center; justify-content:flex-end; gap:16px; margin-top:20px; }

@@ -4,7 +4,7 @@
 <PageTitle>Listing Review - Faunex</PageTitle>
 <AuthorizeView Roles="PlatformSuperAdmin,PlatformComplianceAdmin">
     <Authorized>
-        <section class="platform-shell">
+        <section class="platform-shell review-workspace">
             <div class="platform-header platform-header--compact"><div><p class="platform-kicker">@_detail?.TenantName</p><h1>@(_detail?.Listing.Title ?? "Listing Review")</h1></div><div class="bird-editor-actions"><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="LoadAsync">Reload Review</button><a class="btn btn-outline-secondary" href="/platform/compliance">Back to queue</a></div></div>
             @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
             @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
