@@ -393,6 +393,9 @@ namespace Faunex.Infrastructure.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("StoredFileId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
@@ -414,6 +417,9 @@ namespace Faunex.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ListingId");
+
+                    b.HasIndex("StoredFileId")
+                        .IsUnique();
 
                     b.ToTable("ListingDocuments");
                 });
@@ -446,6 +452,71 @@ namespace Faunex.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("ListingDocumentRequirements");
+                });
+
+            modelBuilder.Entity("Faunex.Domain.Entities.ListingFile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsPhoto")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("Length")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ListingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OriginalSha256")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ListingId");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ListingId");
+
+                    b.ToTable("ListingFiles");
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.LivestockDetails", b =>
@@ -725,7 +796,14 @@ namespace Faunex.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Faunex.Domain.Entities.ListingFile", "StoredFile")
+                        .WithOne()
+                        .HasForeignKey("Faunex.Domain.Entities.ListingDocument", "StoredFileId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Listing");
+
+                    b.Navigation("StoredFile");
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.ListingDocumentRequirement", b =>
@@ -735,6 +813,17 @@ namespace Faunex.Infrastructure.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Faunex.Domain.Entities.ListingFile", b =>
+                {
+                    b.HasOne("Faunex.Domain.Entities.Listing", "Listing")
+                        .WithMany()
+                        .HasForeignKey("ListingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Listing");
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.LivestockDetails", b =>

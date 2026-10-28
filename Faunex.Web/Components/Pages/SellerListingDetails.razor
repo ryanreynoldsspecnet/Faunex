@@ -24,6 +24,7 @@ else if (_listing is null)
 }
 else
 {
+    <a class="btn btn-outline-secondary mb-3" href="@($"/seller/listings/{ListingId}/files")">Files</a>
     @if (_listing.AnimalClass.Equals("bird", StringComparison.OrdinalIgnoreCase))
     {
         <a class="btn btn-primary mb-3" href="@($"/seller/listings/{ListingId}/edit")">Edit Listing</a>

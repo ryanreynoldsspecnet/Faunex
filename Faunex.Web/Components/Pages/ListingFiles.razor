@@ -1,0 +1,160 @@
+@page "/tenant/listings/{ListingId:guid}/files"
+@page "/seller/listings/{ListingId:guid}/files"
+@using Faunex.Application.DTOs
+@using Faunex.Domain.Entities
+@implements IAsyncDisposable
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Listing Files - Faunex</PageTitle>
+<AuthorizeView Roles="@(TenantRoute ? "TenantAdmin" : "Seller,TenantAdmin")">
+    <Authorized>
+        <section class="platform-shell listing-files" aria-labelledby="files-title">
+            <div class="platform-header platform-header--compact">
+                <div><p class="platform-kicker">@_snapshot?.Title</p><h1 id="files-title">Listing Files</h1></div>
+                <a class="btn btn-outline-secondary" href="@(TenantRoute ? "/tenant/listings" : "/seller/my-listings")">Back to listings</a>
+            </div>
+            @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+            @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
+            @if (_loading) { <p role="status">Loading files...</p> }
+            else if (_snapshot is not null)
+            {
+                <div class="files-summary"><span class="platform-status">@_snapshot.Status</span><span>@_snapshot.Files.Count / 30 files</span><span>@_snapshot.Files.Count(x => x.IsPhoto) / 10 photos</span></div>
+                @if (_snapshot.CanModify)
+                {
+                    <div class="file-upload-bar">
+                        <div class="btn-group" role="group" aria-label="Upload category">
+                            <button type="button" class="btn @(_photo ? "btn-primary" : "btn-outline-secondary")" aria-pressed="@_photo" disabled="@_busy" @onclick="() => SelectMode(true)">Photo</button>
+                            <button type="button" class="btn @(!_photo ? "btn-primary" : "btn-outline-secondary")" aria-pressed="@(!_photo)" disabled="@_busy" @onclick="() => SelectMode(false)">Document</button>
+                        </div>
+                        @if (!_photo)
+                        {
+                            <div><label for="document-category" class="form-label">Document category</label><select id="document-category" class="form-select" @bind="_documentType" disabled="@_busy">@foreach (var type in Enum.GetValues<ListingDocumentType>().Where(x => x != ListingDocumentType.Unknown)) { <option value="@type">@Label(type)</option> }</select></div>
+                        }
+                        <div><label for="listing-upload" class="form-label">@(_photo ? "Photo (JPEG/PNG, up to 5 MB)" : "Document (PDF up to 10 MB; JPEG/PNG up to 5 MB)")</label><InputFile @key="_inputVersion" id="listing-upload" class="form-control" OnChange="Selected" accept="@(_photo ? ".jpg,.jpeg,.png" : ".pdf,.jpg,.jpeg,.png")" disabled="@_busy" /></div>
+                        <button class="btn btn-primary" type="button" disabled="@(_busy || _selected is null)" @onclick="UploadAsync">@(_busy ? "Processing..." : "Upload")</button>
+                    </div>
+                }
+                else { <div class="alert alert-info" role="status">Files are read-only during review, suspension or auction activity.</div> }
+                <div class="files-section-heading"><h2>Photos</h2><button class="btn btn-outline-secondary btn-sm" disabled="@_busy" @onclick="LoadAsync">Refresh</button></div>
+                @if (!_snapshot.Files.Any(x => x.IsPhoto)) { <p>No photos uploaded.</p> }
+                <div class="private-photo-grid">
+                    @foreach (var file in _snapshot.Files.Where(x => x.IsPhoto))
+                    {
+                        <article class="listing-photo-card" @key="file.Id">
+                            @if (_thumbnails.TryGetValue(file.Id, out var image)) { <img src="@image" alt="@file.FileName" /> }
+                            <strong>@file.FileName</strong><span>@Size(file.Length)</span>
+                            <div class="file-actions"><button class="btn btn-outline-secondary btn-sm" disabled="@_busy" @onclick="() => DownloadAsync(file)">Download</button>@DeleteControls(file)</div>
+                        </article>
+                    }
+                </div>
+                <h2 class="mt-4">Supporting Documents</h2>
+                @if (!_snapshot.Files.Any(x => !x.IsPhoto)) { <p>No supporting documents uploaded.</p> }
+                else
+                {
+                    <div class="platform-table-wrap"><table class="table platform-table"><thead><tr><th>File</th><th>Category</th><th>Size</th><th>Uploaded</th><th>Actions</th></tr></thead><tbody>
+                    @foreach (var file in _snapshot.Files.Where(x => !x.IsPhoto))
+                    {
+                        <tr @key="file.Id"><td>@file.FileName</td><td>@Label(file.DocumentType)</td><td>@Size(file.Length)</td><td>@file.UploadedAt.ToString("dd MMM yyyy HH:mm 'UTC'")</td><td><div class="file-actions"><button class="btn btn-outline-secondary btn-sm" disabled="@_busy" @onclick="() => DownloadAsync(file)">Download</button>@DeleteControls(file)</div></td></tr>
+                    }
+                    </tbody></table></div>
+                }
+            }
+            else { <button class="btn btn-outline-secondary" @onclick="LoadAsync">Retry</button> }
+        </section>
+    </Authorized>
+    <NotAuthorized><h1>Listing Access Required</h1><a href="/login">Login</a></NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter] public Guid ListingId { get; set; }
+    private ListingFilesDto? _snapshot;
+    private readonly Dictionary<Guid, string> _thumbnails = [];
+    private IBrowserFile? _selected;
+    private IJSObjectReference? _module;
+    private string? _error, _notice;
+    private bool _loading, _busy, _photo = true;
+    private int _inputVersion;
+    private Guid? _deleteId;
+    private ListingDocumentType _documentType = ListingDocumentType.CitesPermit;
+    private bool TenantRoute => Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath.StartsWith("/tenant/", StringComparison.Ordinal);
+    private string ApiPath => $"/api/listings/{ListingId}/files";
+    protected override Task OnParametersSetAsync() => LoadAsync();
+    private void SelectMode(bool photo) { _photo = photo; _selected = null; _inputVersion++; }
+    private void Selected(InputFileChangeEventArgs args) { _selected = args.File; _error = null; }
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null; _snapshot = null; _selected = null; _deleteId = null;
+        _thumbnails.Clear(); _inputVersion++;
+        try { _snapshot = await Api.GetAsync<ListingFilesDto>(ApiPath); await ThumbnailsAsync(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+    private async Task ThumbnailsAsync()
+    {
+        _thumbnails.Clear();
+        foreach (var file in _snapshot?.Files.Where(x => x.IsPhoto) ?? [])
+        {
+            try { _thumbnails[file.Id] = "data:image/jpeg;base64," + Convert.ToBase64String(await Api.GetFileBytesAsync($"{ApiPath}/{file.Id}/thumbnail")); }
+            catch (Exception ex) { _error = ex.Message; }
+        }
+    }
+    private async Task UploadAsync()
+    {
+        if (_busy || _selected is null || _snapshot is null) return;
+        _busy = true; _error = _notice = null;
+        try
+        {
+            await using var stream = _selected.OpenReadStream(_photo ? 5 * 1024 * 1024 : 10 * 1024 * 1024);
+            _snapshot = await Api.UploadFileAsync<ListingFilesDto>(ApiPath, stream, _selected.Name, _selected.ContentType, _snapshot.Revision, _photo, _photo ? null : (int)_documentType);
+            _selected = null; _inputVersion++; _notice = "File uploaded.";
+            await ThumbnailsAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+    private RenderFragment DeleteControls(ListingFileDto file) => @<text>
+        @if (_snapshot?.CanModify == true)
+        {
+            @if (_deleteId == file.Id)
+            {
+                <button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => DeleteAsync(file)">Confirm Delete</button>
+                <button class="btn btn-outline-secondary btn-sm" disabled="@_busy" @onclick="() => _deleteId = null">Cancel</button>
+            }
+            else { <button class="btn btn-outline-danger btn-sm" disabled="@_busy" @onclick="() => _deleteId = file.Id">Delete</button> }
+        }
+    </text>;
+    private async Task DeleteAsync(ListingFileDto file)
+    {
+        if (_busy || _snapshot is null) return;
+        _busy = true; _error = _notice = null;
+        try { _snapshot = await Api.DeleteFileAsync<ListingFilesDto>($"{ApiPath}/{file.Id}?revision={_snapshot.Revision}"); _deleteId = null; _notice = "File deleted."; await ThumbnailsAsync(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+    private async Task DownloadAsync(ListingFileDto file)
+    {
+        if (_busy) return;
+        _busy = true; _error = null;
+        try
+        {
+            var bytes = await Api.GetFileBytesAsync($"{ApiPath}/{file.Id}");
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./listing-files.js");
+            await using var stream = new MemoryStream(bytes);
+            using var reference = new DotNetStreamReference(stream, leaveOpen: true);
+            await _module.InvokeVoidAsync("downloadFile", file.FileName, reference);
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+    private static string Size(long bytes) => bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.0} MB" : $"{bytes / 1024d:0.0} KB";
+    private static string Label(ListingDocumentType? type) => type switch
+    {
+        ListingDocumentType.CitesPermit => "CITES permit", ListingDocumentType.VeterinaryCertificate => "Veterinary certificate",
+        ListingDocumentType.HealthCertificate => "Health certificate", ListingDocumentType.TransferOfOwnership => "Transfer of ownership",
+        ListingDocumentType.GamePermit => "Game permit", ListingDocumentType.PoultryHealthCertificate => "Poultry health certificate",
+        ListingDocumentType.TransportPermit => "Transport permit", _ => "Document"
+    };
+    public async ValueTask DisposeAsync() { if (_module is not null) { try { await _module.DisposeAsync(); } catch (JSDisconnectedException) { } } }
+}

@@ -19,7 +19,7 @@ This is the restart point for development. Read this file and the [28 October au
 | 1 | Dependency gate, maintained CI actions, secret-file exclusions, durable handoff | Merged and deployed | PR #28; validate/deploy passed; live homepage 200 |
 | 2 | Account eligibility, session revocation, consistent role policies, first-admin transaction | Merged and deployed; business smoke test pending | PR #34; production run 40669423490 validate/deploy passed |
 | 3 | Tenant domains, verified routing/TLS, membership/host boundaries, complete branding | Merged; Stormbird subdomain confirmed working; custom-domain acceptance pending | PRs #35/#36; deployment 40712476902 passed; user confirmed live homepage |
-| 4 | Bird listing edit/media/documents, enforced compliance, review and public storefront | 4A in progress: bird draft editor and validation | Draft to evidence review to approved tenant listing, with resubmission and protected files |
+| 4 | Bird listing edit/media/documents, enforced compliance, review and public storefront | 4A merged/deployed; 4B protected uploads in progress | Draft to evidence review to approved tenant listing, with resubmission and protected files |
 | 5 | Timed auction setup, concurrent bid rules, closure and winner/no-sale result | Not started | Invalid/self/late bids rejected; concurrency tests; one persisted authoritative outcome |
 | 6 | Tenant PayFast settings, winner order, checkout, verified callbacks, reconciliation | Not started | Sandbox failure/retry/duplicate tests and authorized low-value live payment to tenant account |
 | 7 | Pilot acceptance, operational recovery, monitoring, mobile/desktop journeys | Not started | Business acceptance, restore/restart drill, exact-revision green deploy and rollback procedure |
@@ -81,7 +81,7 @@ Deployment note: tokens issued before the security-stamp claim was introduced ar
 
 ## Section 3: Implemented, Custom-Domain Acceptance Pending
 
-PR #35 was user-merged at `3c4273a567f808ee54e825f6f531a62a13a32ccd`. [Master deployment 40686415138](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40686415138) completed successfully. Local master was synchronized and the merged local branch removed. First live tenant host: `stormbird.faunex.co.za`; the user added DNS and assigned the domain. Anonymous HTTPS loads tenant branding, but the homepage reports a listings error. Do not close live acceptance yet.
+PR #35 was user-merged at `3c4273a567f808ee54e825f6f531a62a13a32ccd`. [Master deployment 40686415138](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40686415138) completed successfully. Local master was synchronized and the merged local branch removed. First live tenant host: `stormbird.faunex.co.za`; the user added DNS and assigned the domain. The initial homepage listings error was resolved by PR #36 below. Separate custom-domain acceptance remains open.
 
 - [x] Add an operator domain registry with search, add, verify, rotate challenge, set primary, disable and delete.
 - [x] Require custom-domain DNS TXT proof with a random, expiring challenge; reject stale in-flight verification.
@@ -116,7 +116,7 @@ Regression coverage adds browse/detail/auction SQL translation checks that run w
 
 Staging, exact-revision deployments, backup/restore evidence and runtime-image freshness remain open operational work from the audit; Section 1 does not claim to complete those items.
 
-## Active Section 4A: Bird Draft Editor
+## Implemented Section 4A: Bird Draft Editor
 
 Branch: `feature/section-4a-bird-listing-editor`. Section 4 is deliberately split into reviewable pieces; this does not claim the upload-to-approval journey is finished.
 
@@ -128,16 +128,46 @@ Branch: `feature/section-4a-bird-listing-editor`. Section 4 is deliberately spli
 - [x] Consolidate submission methods and load animal classifications before checking tenant-specific required evidence. With no configured rules, documents are optional; submission still requires manual review. Missing configured evidence remains PendingDocuments and may be resubmitted.
 - [x] Add nullable bird-detail fields and a listing revision token through an additive migration. Existing rows receive the empty revision and rotate on their first edit.
 - [x] Complete local/real-PostgreSQL regression, browser workflow, vulnerability, publish and migration checks; record PR and exact results below. Recheck final revision CI before merge.
-- [ ] Merge only with approval, verify deployment, and demonstrate draft creation/editing on the tenant host.
+- [x] Verify the user-completed merge and production deployment; synchronize master and remove the merged branch.
+- [ ] User acceptance of draft creation/editing on the production tenant host.
 
 Revision checks rotate on tracked listing changes and compliance submissions/review decisions. Concurrency with auction setup/bidding still belongs to Section 5; this slice rejects auctions already present, not a completed auction state machine. Old API edit clients must reload and send the current Revision. Direct client attempts to change SellerId or publish via IsActive are rejected/ignored respectively.
 
-Business decision on 28 October: the user cannot yet define permit/certificate rules and explicitly requested optional documents until the owners/partners establish the requirements. Replace the old blanket animal requirements with an empty-by-default tenant/animal-class policy. No CITES/veterinary or other animal documents are made mandatory automatically. The policy table supports later configuration; configuration UI and protected uploads follow in 4B. Manual review is still mandatory before publication. Platform approval is not legal certification. Existing stored document metadata is not yet a protected upload store. Do not mark document security or legal compliance complete from this slice.
+Business decision on 28 October: the user cannot yet define permit/certificate rules and explicitly requested optional documents until the owners/partners establish the requirements. Replace the old blanket animal requirements with an empty-by-default tenant/animal-class policy. No CITES/veterinary or other animal documents are made mandatory automatically. The policy table supports later configuration; requirement UI is deferred pending business decisions and protected uploads follow in 4B. Manual review is still mandatory before publication. Platform approval is not legal certification. Existing stored document metadata is not yet a protected upload store. Do not mark document security or legal compliance complete from this slice.
 
-Next within Section 4: **4B protected image/evidence upload and tenant-configurable requirements**, then **4C inspect evidence, record review history/decisions, resubmit and demonstrate publication**. Do not begin auctions/payments merely because the draft editor is merged. Full taxonomy, new animal verticals and commercial billing remain outside this slice.
+Next within Section 4: **4B protected image/evidence uploads**, then **4C reviewer evidence inspection, review history/decisions, resubmission and demonstrated publication**. Tenant requirement controls remain deferred until business rules are agreed; the empty-by-default policy table is already present. Do not begin auctions/payments merely because the draft editor is merged. Full taxonomy, new animal verticals and commercial billing remain outside this slice.
 
 Pull request: [#37](https://github.com/ryanreynoldsspecnet/Faunex/pull/37). Initial implementation `c36ce27012da3e44928050095b5b5326c04ff241` passed [CI 40719976568](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40719976568): all 122 tests executed/passed on PostgreSQL, including concurrent saves, optional/default and missing configured evidence; both migrations, Caddy validation, vulnerability gate, Release build and API/Web publish passed. Deployment correctly skipped.
 
 Browser QA then exposed a decimal RangeAttribute limit parsed using the machine culture, terminating the Blazor circuit. This was fixed using invariant limit parsing and covered under en-ZA, af-ZA, en-US and fr-FR cultures. Final local suite: 123 passed, 3 explicitly skipped PostgreSQL-only cases, 126 total; no model changes pending. The follow-up commit includes this fix and UI spacing; inspect its actual CI evidence in PR #37, not only the initial run.
 
 Edge/Playwright created a draft using the real local API, returned to the tenant list, reopened it, verified ZAR/quantity/ring/microchip fields, edited the listing on mobile, saved and reopened it to confirm persistence. No browser page errors or page-level mobile overflow. Desktop/mobile screenshots were inspected. Test-only SQLite grid rendering materializes before timestamp sorting because SQLite cannot sort DateTimeOffset; this workaround exists only in the external preview fixture, not application code. Production-provider SQL and migrations are validated in PostgreSQL CI. No production users, files, email or data were changed.
+
+PR #37 was user-merged at `2cecd8c8c7377c88c5402a4ed8a79accfa85110b`. [Production run 40724005267](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40724005267) passed validate/deploy, with all 126 tests executing successfully in CI. Read-only Stormbird home/Browse and Faunex home checks returned 200 without marketplace errors. Master was synchronized and the merged branch removed. This verifies deployment, not an authenticated production business acceptance test.
+
+## Active Section 4B: Protected Listing Files
+
+Branch: `feature/section-4b-protected-uploads`. Do not merge without user approval and green checks for the final revision.
+
+- [x] Add tenant/seller file screens and navigation for JPEG/PNG photos and PDF/image evidence.
+- [x] Keep bytes outside the public web root in persistent API-only storage; use server-generated keys, SHA-256 integrity checks and bounded quotas.
+- [x] Validate actual image content, dimensions and decoded pixels; normalize orientation, resize and remove metadata before storing images.
+- [x] Scan every original upload with private-network ClamAV; reject malware and fail closed on unavailable/unknown scan results.
+- [x] Require tenant/owner authorization for private downloads; reserve cross-tenant evidence reads for super-admin/compliance reviewers, not general platform staff.
+- [x] Publish only photos of active, approved listings on the matching verified tenant host. Never publish supporting documents.
+- [x] Enforce revision conflicts and review/auction locks; file changes return listings to inactive Draft.
+- [x] Accept only intact managed evidence for configured requirements, including a fresh check at approval. Legacy URL metadata is not proof.
+- [x] Finish local, real PostgreSQL/scanner CI and desktop/mobile browser verification; record exact PR/check evidence below. Recheck the final handoff revision before merge.
+- [ ] Merge with approval, verify deployment and perform the production file/restart acceptance checklist in [listing file operations](listing-files.md).
+
+VPS capacity confirmed by user: 4 CPU, 8 GB RAM. Scanner capped at 1.5 CPU and 4 GB RAM; no public scanner port. Uploads return a retryable 503 while it initializes or is unavailable; other site functions do not wait for scanner health. Operational resource checks remain necessary after deployment.
+
+Documents remain optional unless a tenant/animal-class policy explicitly requires them. PDFs are antivirus-scanned attachments, not parsed for legal validity or certified as safe. Images are normalized copies; their original bytes are not retained. Full reviewer UI/history and configurable requirement UI are not completed by 4B. Do not close all of Section 4 or start auction/payment implementation from this slice alone.
+
+Pull request: [#38](https://github.com/ryanreynoldsspecnet/Faunex/pull/38), not merged. Implementation `987c739539593bf309f741326b0bf8527704d219` passed [CI 40740289121](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/40740289121): all 153 tests executed/passed on PostgreSQL/Linux, including actual ClamAV clean/EICAR checks, clean photo/PDF uploads through the scanner, concurrent same-revision uploads, private role/tenant denials, missing/corrupt storage, review/auction locks, quotas, EXIF normalization and persistence across storage instances. The initial CI run caught a wrapped PostgreSQL serialization conflict returning 500; the correction traverses the provider exception chain and returns 409, with only one persisted file and cleanup of the losing upload. No gate was bypassed. Caddy validation, vulnerability scan, clean Release build and both publish steps passed; deployment was correctly skipped.
+
+Local verification: 147 tests passed, six PostgreSQL/real-scanner cases explicitly skipped (153 total); no pending model changes; API/Web publish and dependency advisory scan passed. The additive migration creates `ListingFiles` plus a nullable link from existing document metadata. It does not fetch old external URLs or migrate untrusted bytes into managed storage.
+
+Edge/Playwright verification used isolated tenant/admin accounts and the real local upload API/native image processing with test-only in-memory file storage and scanner doubles. It uploaded two photos and a PDF, checked preview images, downloaded the exact PDF bytes, reloaded persisted records, switched public gallery photos, and confirmed that deleting a photo unpublishes and revokes public reads (404). Desktop 1440px and mobile 390px screenshots were inspected; no page errors or page-level overflow. Document tables scroll horizontally on narrow screens. Only the external preview fixture materializes SQLite grid/detail reads and sets an approved fixture state; real PostgreSQL SQL, authorization and scan behavior are covered in CI. This is not production review acceptance or a real VPS restart/restore drill.
+
+Next: obtain merge approval, inspect master validate/deploy, and verify scanner health and a disposable upload on Stormbird. Then continue **4C reviewer evidence inspection and decision history/resubmission**. Requirement UI remains deferred until business rules are agreed. A separate custom-domain acceptance test and operational backup/restore acceptance remain open. No live tenant data was changed during 4B development.

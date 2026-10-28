@@ -117,6 +117,7 @@
                                             <span>@FormatReviewNote(item)</span>
                                         </td>
                                         <td class="platform-row-actions">
+                                            <a class="btn btn-outline-secondary btn-sm" href="@($"/tenant/listings/{item.Id}/files")">Files</a>
                                             <a class="btn btn-outline-secondary btn-sm" href="@($"/tenant/listings/{item.Id}")">View</a>
                                             @if (item.AnimalClass == "bird") { <a class="btn btn-outline-secondary btn-sm" href="@($"/tenant/listings/{item.Id}/edit")">Edit</a> }
                                         </td>

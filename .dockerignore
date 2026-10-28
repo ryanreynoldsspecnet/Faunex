@@ -20,3 +20,4 @@ _verify_publish_api
 _verify_publish_web
 artifacts
 publish
+**/App_Data/

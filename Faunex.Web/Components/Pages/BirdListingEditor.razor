@@ -53,6 +53,7 @@
                     <div class="platform-form-actions">
                         <button class="btn btn-primary" type="submit" disabled="@(_saving || ReadOnly || _species.Count == 0)">@(_saving ? "Saving..." : ListingId.HasValue ? "Save Changes" : "Create Draft")</button>
                         <a class="btn btn-outline-secondary" href="@ListPath">Cancel</a>
+                        @if (_original is not null) { <a class="btn btn-outline-secondary" href="@($"{(TenantRoute ? "/tenant" : "/seller")}/listings/{_original.Id}/files")">Files</a> }
                     </div>
                 </EditForm>
             }

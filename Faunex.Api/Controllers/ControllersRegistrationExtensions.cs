@@ -7,6 +7,9 @@ using Faunex.Infrastructure.Persistence;
 using Faunex.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Faunex.Api.Files;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Faunex.Api.Controllers;
 
@@ -21,6 +24,16 @@ public static class ControllersRegistrationExtensions
         });
 
         services.AddHttpContextAccessor();
+        services.AddOptions<FileUploadOptions>().BindConfiguration("Files");
+        services.AddSingleton<IListingFileStorage, LocalListingFileStorage>();
+        services.AddSingleton<IUploadScanner, ClamAvUploadScanner>();
+        services.AddSingleton<UploadContentValidator>();
+        services.AddScoped<ListingFileService>();
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddConcurrencyLimiter("file-uploads", limiter => { limiter.PermitLimit = 4; limiter.QueueLimit = 0; limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; });
+        });
 
         services.AddScoped<ITenantContext, ClaimsTenantContext>();
 

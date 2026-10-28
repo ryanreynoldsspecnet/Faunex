@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Faunex.Application.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Faunex.Api.Files;
 
 namespace Faunex.Api.Auth;
 
@@ -9,6 +10,13 @@ public sealed class DomainAuthorizationExceptionFilter : IExceptionFilter
 {
     public void OnException(ExceptionContext context)
     {
+        if (context.Exception is FileSecurityException or FileServiceUnavailableException)
+        {
+            context.Result = new ObjectResult(new { error = context.Exception.Message })
+            { StatusCode = context.Exception is FileSecurityException ? 400 : 503 };
+            context.ExceptionHandled = true;
+            return;
+        }
         if (context.Exception is ListingValidationException)
         {
             context.Result = new BadRequestObjectResult(new { error = context.Exception.Message });
