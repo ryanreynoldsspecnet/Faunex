@@ -200,8 +200,8 @@ internal sealed class AccountApiFixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Client.Dispose();
-        await _host.DisposeAsync();
         var root = _host.Environment.ContentRootPath;
+        await _host.DisposeAsync();
         var owned = Path.Combine(Path.GetTempPath(), "faunex-tests") + Path.DirectorySeparatorChar;
         if (Path.GetFullPath(root).StartsWith(owned, StringComparison.OrdinalIgnoreCase) && Directory.Exists(root)) Directory.Delete(root, true);
         await _keepAlive.DisposeAsync();
