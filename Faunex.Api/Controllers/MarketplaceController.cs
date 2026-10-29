@@ -10,7 +10,7 @@ namespace Faunex.Api.Controllers;
 
 [ApiController]
 [Route("api/marketplace")]
-public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainResolver tenantDomainResolver) : ControllerBase
+public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainResolver tenantDomainResolver, TimeProvider clock) : ControllerBase
 {
     [HttpGet("context")]
     public async Task<ActionResult<MarketplaceContextDto>> GetContext([FromQuery] string? host, CancellationToken cancellationToken)
@@ -65,100 +65,40 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
     }
 
     [HttpGet("listings/{listingId:guid}/auctions")]
-    public async Task<ActionResult<IReadOnlyList<AuctionDto>>> GetListingAuctions(Guid listingId, [FromQuery] string? host, CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<PublicAuctionDto>>> GetListingAuctions(Guid listingId, [FromQuery] string? host, CancellationToken cancellationToken)
     {
+        Response.Headers.CacheControl = "no-store";
         var tenantId = await tenantDomainResolver.ResolveTenantIdAsync(host, cancellationToken);
-        if (tenantId is null)
-        {
-            return NotFound();
-        }
-
-        var listingExists = await QueryApprovedListings(tenantId.Value)
-            .AnyAsync(x => x.Listing.Id == listingId, cancellationToken);
-
-        if (!listingExists)
-        {
-            return NotFound();
-        }
-
-        var auctions = await db.Auctions
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(x => x.TenantId == tenantId.Value && x.ListingId == listingId)
-            .OrderByDescending(x => x.CreatedAt)
-            .Select(x => ToAuctionDto(x))
-            .ToListAsync(cancellationToken);
-
-        return Ok(auctions);
+        if (tenantId is null) return NotFound();
+        if (!await db.Listings.IgnoreQueryFilters().AnyAsync(x => x.Id == listingId && x.TenantId == tenantId && x.IsActive
+            && x.Compliance != null && x.Compliance.TenantId == tenantId && x.Compliance.Status == ListingComplianceStatus.Approved, cancellationToken)) return NotFound();
+        var auctions = await PublicAuctionQuery(tenantId.Value).Where(x => x.ListingId == listingId).OrderBy(x => x.Id).ToListAsync(cancellationToken);
+        var now = clock.GetUtcNow();
+        return Ok(auctions.Select(x => Faunex.Application.Services.TimedAuctionRules.Public(x, now)).ToList());
     }
 
     [HttpGet("auctions/{auctionId:guid}/price")]
     public async Task<ActionResult<CurrentPriceDto>> GetAuctionPrice(Guid auctionId, [FromQuery] string? host, CancellationToken cancellationToken)
     {
+        Response.Headers.CacheControl = "no-store";
         var tenantId = await tenantDomainResolver.ResolveTenantIdAsync(host, cancellationToken);
-        if (tenantId is null)
-        {
-            return NotFound();
-        }
-
-        var auctionExists = await PublicAuctionQuery(tenantId.Value)
-            .AnyAsync(x => x.Id == auctionId, cancellationToken);
-
-        if (!auctionExists)
-        {
-            return NotFound();
-        }
-
-        var topBid = await db.Bids
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(x => x.TenantId == tenantId.Value && x.AuctionId == auctionId)
-            .OrderByDescending(x => x.Amount)
-            .Select(x => (decimal?)x.Amount)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        return Ok(new CurrentPriceDto(topBid));
+        if (tenantId is null) return NotFound();
+        var auction = await PublicAuctionQuery(tenantId.Value).SingleOrDefaultAsync(x => x.Id == auctionId, cancellationToken);
+        return auction is null ? NotFound() : Ok(new CurrentPriceDto(auction.LeadingAmount));
     }
 
     [HttpGet("auctions/{auctionId:guid}/bids")]
-    public async Task<ActionResult<PagedResult<BidDto>>> GetAuctionBids(
-        Guid auctionId,
-        [FromQuery] string? host,
-        [FromQuery] int skip = 0,
-        [FromQuery] int take = 20,
-        CancellationToken cancellationToken = default)
+    public async Task<ActionResult<PagedResult<PublicBidDto>>> GetAuctionBids(Guid auctionId, [FromQuery] string? host,
+        [FromQuery] int skip = 0, [FromQuery] int take = 20, CancellationToken cancellationToken = default)
     {
+        Response.Headers.CacheControl = "no-store";
         var tenantId = await tenantDomainResolver.ResolveTenantIdAsync(host, cancellationToken);
-        if (tenantId is null)
-        {
-            return NotFound();
-        }
-
-        var auctionExists = await PublicAuctionQuery(tenantId.Value)
-            .AnyAsync(x => x.Id == auctionId, cancellationToken);
-
-        if (!auctionExists)
-        {
-            return NotFound();
-        }
-
-        skip = Math.Max(0, skip);
-        take = Math.Clamp(take, 1, 100);
-
-        var query = db.Bids
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(x => x.TenantId == tenantId.Value && x.AuctionId == auctionId);
-
+        if (tenantId is null || !await PublicAuctionQuery(tenantId.Value).AnyAsync(x => x.Id == auctionId, cancellationToken)) return NotFound();
+        var query = db.Bids.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenantId && x.AuctionId == auctionId);
         var total = await query.CountAsync(cancellationToken);
-        var items = await query
-            .OrderByDescending(x => x.PlacedAt)
-            .Skip(skip)
-            .Take(take)
-            .Select(x => new BidDto(x.Id, x.AuctionId, x.BidderId, x.Amount, x.CurrencyCode, x.PlacedAt))
-            .ToListAsync(cancellationToken);
-
-        return Ok(new PagedResult<BidDto>(items, total));
+        var items = await query.OrderByDescending(x => x.BidNumber).Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 100))
+            .Select(x => new PublicBidDto(x.Amount, x.CurrencyCode, x.PlacedAt)).ToListAsync(cancellationToken);
+        return Ok(new PagedResult<PublicBidDto>(items, total));
     }
 
     private async Task<Faunex.Domain.Entities.Tenant?> ResolveTenantAsync(string? host, CancellationToken cancellationToken)
@@ -202,15 +142,10 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
                 });
     }
 
-    private IQueryable<Auction> PublicAuctionQuery(Guid tenantId)
-    {
-        var approvedListingIds = QueryApprovedListings(tenantId).Select(x => x.Listing.Id);
-
-        return db.Auctions
-            .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(x => x.TenantId == tenantId && approvedListingIds.Contains(x.ListingId));
-    }
+    private IQueryable<Auction> PublicAuctionQuery(Guid tenantId) => db.Auctions.IgnoreQueryFilters().AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.RulesVersion == 1 && x.Type == AuctionType.Timed && !x.IsSealedBid && x.State != AuctionState.Draft
+            && x.Listing != null && x.Listing.TenantId == tenantId && x.Listing.IsActive && x.Listing.Compliance != null
+            && x.Listing.Compliance.TenantId == tenantId && x.Listing.Compliance.Status == ListingComplianceStatus.Approved);
 
     private async Task<IReadOnlyList<ListingDto>> ToListingDtosAsync(IReadOnlyList<Listing> listings, CancellationToken cancellationToken)
     {
@@ -317,19 +252,6 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
             primaryDomain,
             domains);
     }
-
-    private static AuctionDto ToAuctionDto(Auction auction) =>
-        new(
-            auction.Id,
-            auction.ListingId,
-            auction.Type,
-            auction.StartsAt,
-            auction.EndsAt,
-            auction.StartingPrice,
-            auction.ReservePrice,
-            auction.BuyNowPrice,
-            auction.IsSealedBid,
-            auction.IsClosed);
 
     private sealed class ApprovedListingRow
     {

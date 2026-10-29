@@ -41,6 +41,8 @@ public static class ControllersRegistrationExtensions
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
 
         services.AddScoped<IAuctionService, AuctionService>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddScoped<AuctionSettlement>();
         services.AddScoped<IBidService, BidService>();
         services.AddScoped<IBirdListingService, BirdListingService>();
         services.AddScoped<IListingQueryService, ListingQueryService>();

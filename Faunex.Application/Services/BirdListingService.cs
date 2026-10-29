@@ -32,7 +32,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
 
         if (!tenantContext.IsPlatformAdmin && !IsBuyer(tenantContext))
             ServiceAuthorization.EnsureSellerOrTenantAdminOwnsSellerId(tenantContext, listing.SellerId);
-        return MapToDto(listing, await dbContext.Auctions.AnyAsync(x => x.ListingId == listingId, cancellationToken));
+        return MapToDto(listing, await dbContext.Auctions.AnyAsync(x => x.ListingId == listingId && (x.RulesVersion != 1 || x.State != Faunex.Domain.Enums.AuctionState.Draft), cancellationToken));
     }
 
     public async Task<IReadOnlyList<BirdListingDto>> GetBySellerIdAsync(Guid sellerId, CancellationToken cancellationToken = default)
@@ -128,7 +128,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             throw new ListingEditConflictException("This listing changed. Reload it before saving.");
         if (entity.Compliance?.Status is ListingComplianceStatus.UnderReview or ListingComplianceStatus.Suspended)
             throw new ListingEditConflictException("This listing cannot be edited in its current review state.");
-        if (await dbContext.Auctions.AnyAsync(x => x.ListingId == entity.Id, cancellationToken))
+        if (await dbContext.Auctions.AnyAsync(x => x.ListingId == entity.Id && (x.RulesVersion != 1 || x.State != Faunex.Domain.Enums.AuctionState.Draft), cancellationToken))
             throw new ListingEditConflictException("Listings with auction activity cannot be edited.");
         await ValidateAsync(input, cancellationToken);
         entity.Title = input.Title.Trim();
@@ -303,7 +303,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             throw new ListingValidationException("Provide a reason of up to 2000 characters for changes or suspension.");
         if (!await dbContext.Tenants.AnyAsync(x => x.Id == listing.TenantId && x.IsActive, ct))
             throw new ListingEditConflictException("The tenant is inactive. A review decision cannot be recorded.");
-        if (await dbContext.Auctions.AnyAsync(x => x.ListingId == listing.Id, ct))
+        if (await dbContext.Auctions.AnyAsync(x => x.ListingId == listing.Id && (x.RulesVersion != 1 || x.State != Faunex.Domain.Enums.AuctionState.Draft), ct))
             throw new ListingEditConflictException("Listings with auction activity require the auction workflow before further review changes.");
     }
 
@@ -480,7 +480,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
 
         if (revision.HasValue && revision != listing.Revision)
             throw new ListingEditConflictException("This listing changed. Reload before submitting.");
-        if (await dbContext.Auctions.AnyAsync(x => x.ListingId == listing.Id, cancellationToken))
+        if (await dbContext.Auctions.AnyAsync(x => x.ListingId == listing.Id && (x.RulesVersion != 1 || x.State != Faunex.Domain.Enums.AuctionState.Draft), cancellationToken))
             throw new ListingEditConflictException("Listings with auction activity cannot be resubmitted.");
         listing.IsActive = false;
         listing.UpdatedAt = DateTimeOffset.UtcNow;

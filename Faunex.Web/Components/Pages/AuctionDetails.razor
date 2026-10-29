@@ -1,464 +1,105 @@
 @page "/auctions/{ListingId:guid}"
-@using System.Security.Claims
-@using Microsoft.AspNetCore.Components.Authorization
+@using Faunex.Application.DTOs
+@implements IAsyncDisposable
 @inject Faunex.Web.Api.FaunexApiClient Api
 @inject NavigationManager Nav
-
-<h3>Auction details</h3>
-
-@if (_isPlatformHost)
-{
-    <div class="alert alert-info" role="status">
-        Auctions are shown on tenant marketplace domains. Faunex is the platform workspace for tenant setup and administration.
-    </div>
-
-    <a class="btn btn-primary" href="/login">Platform Login</a>
-}
-else if (_isLoading)
-{
-    <p>Loading...</p>
-}
-else if (_error is not null)
-{
-    <div class="alert alert-danger" role="alert">@_error</div>
-}
-else if (_item is null)
-{
-    <div class="alert alert-warning" role="alert">Listing not found.</div>
-}
-else
-{
-    <div class="mb-3">
-        <h4>@_item.Title</h4>
-
-        @if (_auctionId is null)
-        {
-            <span class="badge badge-secondary d-inline-block mt-1">No auction for this listing</span>
-        }
-        else if (_auction?.IsClosed == true)
-        {
-            <span class="badge badge-danger d-inline-block mt-1">Auction closed</span>
-        }
+@inject AuthenticationStateProvider Auth
+<PageTitle>Auction - Faunex</PageTitle>
+<section class="platform-shell auction-workspace">
+    <div class="platform-header platform-header--compact"><div><p class="platform-kicker">Timed auction</p><h1>@(_listing?.Title ?? "Auction")</h1></div><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="RefreshAsync">Refresh</button></div>
+    @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+    @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
+    @if (_loading) { <p role="status">Loading auction...</p> }
+    else if (_listing is not null)
+    {
+        <ListingPhotoGallery ListingId="ListingId" Title="@_listing.Title" />
+        @if (_auction is null) { <p>No published timed auction.</p> }
         else
         {
-            <span class="badge badge-success d-inline-block mt-1">Open for bidding</span>
-        }
-
-        <div>
-            <strong>Price</strong>
-            <div>@FormatPrice(_item)</div>
-        </div>
-
-        @if (!string.IsNullOrWhiteSpace(_item.Description))
-        {
-            <div class="mt-3">
-                <strong>Description</strong>
-                <p>@_item.Description</p>
-            </div>
-        }
-    </div>
-
-    <div class="mb-3">
-        @if (_auctionId is null)
-        {
-            <h5>Current bid</h5>
-            <p>No auction found for this listing.</p>
-        }
-        else if (_isAuctionLoading)
-        {
-            <h5>Current bid</h5>
-            <p>Loading auction...</p>
-        }
-        else if (_auctionError is not null)
-        {
-            <h5>Current bid</h5>
-            <div class="alert alert-danger" role="alert">@_auctionError</div>
-        }
-        else if (_currentPrice is null)
-        {
-            <h5>Starting price</h5>
-            <p>@FormatMoney(_item.StartingPrice, _item.CurrencyCode)</p>
-            <div class="text-muted"><small>No bids have been placed yet.</small></div>
-        }
-        else
-        {
-            <h5>Current highest bid</h5>
-            <p>@FormatMoney(_currentPrice.Value, _item.CurrencyCode)</p>
-        }
-
-        <h5>Bid history</h5>
-        @if (_auctionId is null)
-        {
-            <p>-</p>
-        }
-        else if (_isAuctionLoading)
-        {
-            <p>Loading bid history...</p>
-        }
-        else if (_bidsPage is null || _bidsPage.Items is null || _bidsPage.Items.Count == 0)
-        {
-            <p>No bids yet.</p>
-        }
-        else
-        {
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var bid in _bidsPage.Items)
-                    {
-                        <tr>
-                            <td>@FormatMoney(bid.Amount, _item.CurrencyCode)</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-
-            <div>
-                <button class="btn btn-secondary" @onclick="PrevPageAsync" disabled="@(!_canPrev || _isPaging)">Previous</button>
-                <button class="btn btn-secondary" @onclick="NextPageAsync" disabled="@(!_canNext || _isPaging)">Next</button>
-            </div>
-        }
-    </div>
-
-    <AuthorizeView>
-        <NotAuthorized>
-            <div class="alert alert-info">
-                Login to place a bid
-            </div>
-        </NotAuthorized>
-        <Authorized>
-            @if (_isBuyer)
+            <div class="files-summary my-3"><span class="platform-status">@_auction.State</span>@if (_auction.Outcome is not null) { <strong>Result: @_auction.Outcome</strong> }</div>
+            <dl class="review-facts my-4">
+                <dt>Start (SAST)</dt><dd>@Time(_auction.StartsAt)</dd><dt>End (SAST)</dt><dd>@Time(_auction.EndsAt)</dd>
+                <dt>Starting price</dt><dd>@Money(_auction.StartingPrice)</dd><dt>Highest bid</dt><dd>@(_auction.CurrentPrice is { } top ? Money(top) : "No bids")</dd>
+                <dt>Increment</dt><dd>@Money(_auction.MinimumIncrement)</dd><dt>Minimum next bid</dt><dd>@Money(Minimum)</dd><dt>Server update</dt><dd>@Time(_auction.ServerTime)</dd>
+            </dl>
+            @if (_buyer && _auction.State == "Live")
             {
-                @if (_auction is null)
-                {
-                    <div class="text-muted">This listing does not have an active auction.</div>
-                }
-                else
-                {
-                    <div class="mb-3" style="max-width: 320px;">
-                        <label class="form-label">Bid amount</label>
-                        <input class="form-control" type="number" step="0.01" min="0" @bind="_bidAmount" disabled="@(_isSubmitting || _auction.IsClosed)" />
-
-                        @if (_auction.IsClosed)
-                        {
-                            <button class="btn btn-secondary mt-2" disabled>
-                                Auction closed
-                            </button>
-                            <div class="text-muted"><small>Bidding is no longer available for this auction.</small></div>
-                        }
-                        else
-                        {
-                            <button class="btn btn-primary mt-2" @onclick="PlaceBidAsync" disabled="@(_isSubmitting || _bidAmount <= 0 || _auctionId is null)">
-                                @(_isSubmitting ? "Placing bid..." : "Place Bid")
-                            </button>
-                        }
-
-                        @if (_bidSuccess is not null)
-                        {
-                            <div class="alert alert-success mt-2">@_bidSuccess</div>
-                        }
-
-                        @if (_bidError is not null)
-                        {
-                            <div class="alert alert-danger mt-2">@_bidError</div>
-                        }
-                    </div>
-                }
+                <form class="auction-bid-form" @onsubmit="BidAsync" @onsubmit:preventDefault><label class="form-label" for="bid-amount">Bid amount (@_listing.CurrencyCode)</label><div class="file-actions"><input id="bid-amount" class="form-control" type="number" min="@Minimum" max="999999999" step="0.01" @bind="_amount" disabled="@_busy" required /><button class="btn btn-primary" type="submit" disabled="@_busy">@(_busy ? "Submitting..." : "Place Bid")</button></div></form>
             }
-            else
+            else if (!_signedIn) { <a class="btn btn-primary" href="/login">Login</a> }
+            <h2 class="mt-4">Bid History</h2>
+            @if (_bids?.Items.Count > 0)
             {
-                <div class="alert alert-secondary">
-                    Only buyers can place bids
-                </div>
+                <div class="platform-table-wrap"><table class="table platform-table"><thead><tr><th>Amount</th><th>Accepted (SAST)</th></tr></thead><tbody>@foreach (var bid in _bids.Items) { <tr><td>@Money(bid.Amount)</td><td>@Time(bid.PlacedAt)</td></tr> }</tbody></table></div>
+                <div class="review-pagination"><button class="btn btn-outline-secondary" disabled="@(_skip == 0 || _busy)" @onclick="PreviousAsync">Previous</button><span>@_bids.Total bid(s)</span><button class="btn btn-outline-secondary" disabled="@(_skip + 20 >= _bids.Total || _busy)" @onclick="NextAsync">Next</button></div>
             }
-        </Authorized>
-    </AuthorizeView>
-}
-
+            else { <p>No bids yet.</p> }
+        }
+    }
+</section>
 @code {
     [Parameter] public Guid ListingId { get; set; }
-
-    private bool _isLoading;
-    private bool _isPlatformHost;
-    private string _host = string.Empty;
-    private string? _error;
-    private Faunex.Application.DTOs.ListingDto? _item;
-
-    private bool _isAuctionLoading;
-    private string? _auctionError;
-    private Guid? _auctionId;
-    private Faunex.Application.DTOs.AuctionDto? _auction;
-    private decimal? _currentPrice;
-
+    private ListingDto? _listing;
+    private PublicAuctionDto? _auction;
+    private PagedResult<PublicBidDto>? _bids;
+    private bool _buyer, _signedIn, _loading, _busy;
+    private decimal _amount;
     private int _skip;
-    private const int _take = 20;
-    private bool _isPaging;
-
-    private Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>? _bidsPage;
-
-    private bool _isBuyer;
-
-    private decimal _bidAmount;
-    private bool _isSubmitting;
-    private string? _bidSuccess;
-    private string? _bidError;
-
-    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
-
+    private string? _error, _notice;
+    private readonly CancellationTokenSource _stop = new();
+    private Task? _poll;
+    private decimal Minimum => _auction is null ? 0 : _auction.CurrentPrice is { } top ? top + _auction.MinimumIncrement : _auction.StartingPrice;
+    private string HostQuery => "host=" + Uri.EscapeDataString(Nav.ToAbsoluteUri(Nav.Uri).IdnHost);
     protected override async Task OnParametersSetAsync()
     {
-        await LoadAsync();
-    }
-
-    private async Task LoadAsync()
-    {
-        _isLoading = true;
-        _error = null;
-        _item = null;
-
-        _isAuctionLoading = false;
-        _auctionError = null;
-        _auctionId = null;
-        _auction = null;
-        _currentPrice = null;
-        _bidsPage = null;
-        _skip = 0;
-        _isPaging = false;
-
-        _isBuyer = false;
-
-        _bidAmount = 0;
-        _isSubmitting = false;
-        _bidSuccess = null;
-        _bidError = null;
-        _host = Nav.ToAbsoluteUri(Nav.Uri).Host;
-        _isPlatformHost = PlatformHostRules.IsPlatformHost(_host);
-
-        if (_isPlatformHost)
-        {
-            _isLoading = false;
-            return;
-        }
-
+        _loading = true; _listing = null; _auction = null; _bids = null; _error = _notice = null; _skip = 0;
         try
         {
-            var host = MarketplaceRoutes.HostQuery(_host);
-            _item = await Api.GetAsync<Faunex.Application.DTOs.ListingDto>($"/api/marketplace/listings/{ListingId}?host={host}");
-
-            var authState = AuthenticationStateTask is null ? null : await AuthenticationStateTask;
-            var user = authState?.User;
-
-            _isBuyer = user?.Identity?.IsAuthenticated == true
-                && (user.IsInRole("Buyer") || user.Claims.Any(c => c.Type == "role" && c.Value == "Buyer"));
-
-            if (_item is not null)
+            var user = (await Auth.GetAuthenticationStateAsync()).User;
+            _signedIn = user.Identity?.IsAuthenticated == true; _buyer = user.IsInRole("Buyer");
+            _listing = await Api.GetAsync<ListingDto>($"/api/marketplace/listings/{ListingId}?{HostQuery}");
+            await RefreshAsync(); _amount = Minimum;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+    protected override Task OnAfterRenderAsync(bool firstRender) { if (firstRender) _poll = PollAsync(); return Task.CompletedTask; }
+    private async Task PollAsync()
+    {
+        try
+        {
+            while (true)
             {
-                await LoadAuctionAsync(resetPaging: true);
+                await Task.Delay(TimeSpan.FromSeconds(5), _stop.Token);
+                await InvokeAsync(async () => { if (!_busy && !_loading) { await RefreshAsync(); StateHasChanged(); } });
             }
         }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
-        finally
-        {
-            _isLoading = false;
-        }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
     }
-
-    private async Task LoadAuctionAsync(bool resetPaging)
+    private async Task RefreshAsync()
     {
-        if (_item is null)
-        {
-            return;
-        }
-
-        _isAuctionLoading = true;
-        _auctionError = null;
-
-        if (resetPaging)
-        {
-            _skip = 0;
-        }
-
+        if (_listing is null) return;
         try
         {
-            var host = MarketplaceRoutes.HostQuery(_host);
-            var auctions = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.AuctionDto>>($"/api/marketplace/listings/{_item.Id}/auctions?host={host}");
-            _auction = auctions?.FirstOrDefault();
-            _auctionId = _auction?.Id;
-
-            if (_auctionId is null)
-            {
-                _currentPrice = null;
-                _bidsPage = null;
-                return;
-            }
-
-            _currentPrice = await LoadCurrentPriceAsync(_auctionId.Value);
-            _bidsPage = await LoadBidsPageAsync(_auctionId.Value, _skip, _take);
+            var auctions = await Api.GetAsync<List<PublicAuctionDto>>($"/api/marketplace/listings/{ListingId}/auctions?{HostQuery}") ?? [];
+            if (auctions.Count > 1) throw new InvalidOperationException("Auction setup requires reconciliation.");
+            _auction = auctions.SingleOrDefault();
+            _bids = _auction is null ? null : await Api.GetAsync<PagedResult<PublicBidDto>>($"/api/marketplace/auctions/{_auction.Id}/bids?{HostQuery}&skip={_skip}&take=20");
+            _error = null;
         }
-        catch (Exception ex)
-        {
-            _auctionError = ex.Message;
-        }
-        finally
-        {
-            _isAuctionLoading = false;
-        }
+        catch (Exception ex) { _error = ex.Message; _auction = null; _bids = null; }
     }
-
-    private sealed class CurrentPriceDto
+    private async Task BidAsync()
     {
-        public decimal? CurrentPrice { get; set; }
+        if (_busy || _auction?.State != "Live") return;
+        _busy = true; _error = _notice = null;
+        try { await Api.PostAsync("/api/buyer/bids", new CreateBidRequest(ListingId, _amount)); _skip = 0; await RefreshAsync(); _notice = "Bid accepted."; _amount = Minimum; }
+        catch (Exception ex) { await RefreshAsync(); _error = ex.Message; }
+        finally { _busy = false; }
     }
-
-    private static bool HasNext(Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto> page, int skip, int take)
-    {
-        return skip + take < page.Total;
-    }
-
-    private bool _canPrev => _skip > 0;
-
-    private bool _canNext
-    {
-        get
-        {
-            if (_bidsPage is null)
-            {
-                return false;
-            }
-
-            return HasNext(_bidsPage, _skip, _take);
-        }
-    }
-
-    private async Task<decimal?> LoadCurrentPriceAsync(Guid auctionId)
-    {
-        var host = MarketplaceRoutes.HostQuery(_host);
-        var dto = await Api.GetAsync<CurrentPriceDto>($"/api/marketplace/auctions/{auctionId}/price?host={host}");
-        return dto?.CurrentPrice;
-    }
-
-    private Task<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>?> LoadBidsPageAsync(Guid auctionId, int skip, int take)
-    {
-        var host = MarketplaceRoutes.HostQuery(_host);
-        return Api.GetAsync<Faunex.Application.DTOs.PagedResult<Faunex.Application.DTOs.BidDto>>($"/api/marketplace/auctions/{auctionId}/bids?host={host}&skip={skip}&take={take}");
-    }
-
-    private async Task PrevPageAsync()
-    {
-        if (_auctionId is null || _isPaging || !_canPrev)
-        {
-            return;
-        }
-
-        _isPaging = true;
-        try
-        {
-            _skip = Math.Max(0, _skip - _take);
-            _bidsPage = await LoadBidsPageAsync(_auctionId.Value, _skip, _take);
-        }
-        catch (Exception ex)
-        {
-            _auctionError = ex.Message;
-        }
-        finally
-        {
-            _isPaging = false;
-        }
-    }
-
-    private async Task NextPageAsync()
-    {
-        if (_auctionId is null || _isPaging || !_canNext)
-        {
-            return;
-        }
-
-        _isPaging = true;
-        try
-        {
-            _skip += _take;
-            _bidsPage = await LoadBidsPageAsync(_auctionId.Value, _skip, _take);
-        }
-        catch (Exception ex)
-        {
-            _auctionError = ex.Message;
-        }
-        finally
-        {
-            _isPaging = false;
-        }
-    }
-
-    private async Task RefreshAfterBidAsync()
-    {
-        if (_auctionId is null)
-        {
-            return;
-        }
-
-        try
-        {
-            _currentPrice = await LoadCurrentPriceAsync(_auctionId.Value);
-            _skip = 0;
-            _bidsPage = await LoadBidsPageAsync(_auctionId.Value, _skip, _take);
-        }
-        catch (Exception ex)
-        {
-            _auctionError = ex.Message;
-        }
-    }
-
-    private async Task PlaceBidAsync()
-    {
-        if (_item is null)
-        {
-            return;
-        }
-
-        _bidSuccess = null;
-        _bidError = null;
-
-        if (_bidAmount <= 0)
-        {
-            _bidError = "Bid amount must be greater than zero.";
-            return;
-        }
-
-        _isSubmitting = true;
-
-        try
-        {
-            await Api.PostAsync("/api/buyer/bids", new Faunex.Application.DTOs.CreateBidRequest(_item.Id, _bidAmount));
-            _bidSuccess = "Bid placed successfully";
-
-            await RefreshAfterBidAsync();
-        }
-        catch (Exception ex)
-        {
-            _bidError = ex.Message;
-        }
-        finally
-        {
-            _isSubmitting = false;
-        }
-    }
-
-    private static string FormatPrice(Faunex.Application.DTOs.ListingDto item)
-    {
-        var price = item.BuyNowPrice ?? item.StartingPrice;
-        return FormatMoney(price, item.CurrencyCode);
-    }
-
-    private static string FormatMoney(decimal? amount, string? currencyCode)
-        => $"{amount:0.##} {DefaultCurrencyCode(currencyCode)}";
-
-    private static string DefaultCurrencyCode(string? currencyCode)
-        => string.IsNullOrWhiteSpace(currencyCode) ? "ZAR" : currencyCode;
+    private async Task PreviousAsync() { _skip = Math.Max(0, _skip - 20); await RefreshAsync(); }
+    private async Task NextAsync() { _skip += 20; await RefreshAsync(); }
+    private string Money(decimal value) => $"{value:0.00} {_listing?.CurrencyCode}";
+    private static string Time(DateTimeOffset? value) => value?.ToOffset(TimeSpan.FromHours(2)).ToString("dd MMM yyyy HH:mm:ss") ?? "-";
+    public async ValueTask DisposeAsync() { _stop.Cancel(); if (_poll is not null) { try { await _poll; } catch (OperationCanceledException) { } } _stop.Dispose(); }
 }

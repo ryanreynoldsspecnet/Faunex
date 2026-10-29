@@ -28,8 +28,17 @@ namespace Faunex.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("BidCount")
+                        .HasColumnType("integer");
+
                     b.Property<decimal?>("BuyNowPrice")
                         .HasColumnType("numeric");
+
+                    b.Property<string>("CancellationReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -43,17 +52,42 @@ namespace Faunex.Infrastructure.Migrations
                     b.Property<bool>("IsSealedBid")
                         .HasColumnType("boolean");
 
+                    b.Property<decimal?>("LeadingAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid?>("LeadingBidId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LeadingBidderId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ListingId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("MinimumIncrement")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Outcome")
+                        .HasColumnType("text");
+
                     b.Property<decimal?>("ReservePrice")
                         .HasColumnType("numeric");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("RulesVersion")
+                        .HasColumnType("integer");
 
                     b.Property<decimal>("StartingPrice")
                         .HasColumnType("numeric");
 
                     b.Property<DateTimeOffset?>("StartsAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -64,9 +98,17 @@ namespace Faunex.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("WinnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("WinningBidId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ListingId");
+
+                    b.HasIndex("RulesVersion", "State", "EndsAt");
 
                     b.ToTable("Auctions");
                 });
@@ -82,6 +124,9 @@ namespace Faunex.Infrastructure.Migrations
 
                     b.Property<Guid>("AuctionId")
                         .HasColumnType("uuid");
+
+                    b.Property<int>("BidNumber")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("BidderId")
                         .HasColumnType("uuid");
@@ -104,9 +149,11 @@ namespace Faunex.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AuctionId");
-
                     b.HasIndex("BidderId");
+
+                    b.HasIndex("AuctionId", "BidNumber")
+                        .IsUnique()
+                        .HasFilter("\"BidNumber\" > 0");
 
                     b.ToTable("Bids");
                 });

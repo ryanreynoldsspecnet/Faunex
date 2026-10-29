@@ -49,7 +49,7 @@ public sealed class UserPermissionsIntegrationTests
     }
 
     [Theory]
-    [InlineData(FaunexRoles.TenantAdmin, HttpStatusCode.BadRequest)]
+    [InlineData(FaunexRoles.TenantAdmin, HttpStatusCode.NotFound)]
     [InlineData(FaunexRoles.Seller, HttpStatusCode.Forbidden)]
     [InlineData(FaunexRoles.Buyer, HttpStatusCode.Forbidden)]
     public async Task Only_tenant_admin_can_open_and_close_auctions(string role, HttpStatusCode expected)
@@ -57,7 +57,7 @@ public sealed class UserPermissionsIntegrationTests
         await using var app = await AccountApiFixture.CreateAsync();
         var user = await app.AddUserAsync(await app.AddTenantAsync(), role);
         using var client = app.AuthenticatedClient(await app.TokenAsync(user));
-        // Missing auction produces 400 only after the correct role passes authorization.
+        // Missing auction produces 404 only after the correct role passes authorization.
         Assert.Equal(expected, (await client.PostAsJsonAsync($"/api/auctions/{Guid.NewGuid()}/open", new { })).StatusCode);
         Assert.Equal(expected, (await client.PostAsJsonAsync($"/api/auctions/{Guid.NewGuid()}/close", new { })).StatusCode);
     }

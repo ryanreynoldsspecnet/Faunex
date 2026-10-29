@@ -22,7 +22,7 @@ public sealed class DomainAuthorizationExceptionFilter : IExceptionFilter
             context.Result = new BadRequestObjectResult(new { error = context.Exception.Message });
             context.ExceptionHandled = true;
         }
-        else if (context.Exception is ListingEditConflictException or DbUpdateConcurrencyException)
+        else if (context.Exception is ListingEditConflictException or DbUpdateConcurrencyException || IsBidConflict(context.Exception))
         {
             context.Result = new ConflictObjectResult(new { error = context.Exception is ListingEditConflictException
                 ? context.Exception.Message : "This record changed while you were saving. Reload it and try again." });
@@ -40,4 +40,6 @@ public sealed class DomainAuthorizationExceptionFilter : IExceptionFilter
             context.ExceptionHandled = true;
         }
     }
+    private static bool IsBidConflict(Exception ex) => ex is Npgsql.PostgresException { SqlState: "23505", ConstraintName: "IX_Bids_AuctionId_BidNumber" }
+        || (ex.InnerException is not null && IsBidConflict(ex.InnerException));
 }

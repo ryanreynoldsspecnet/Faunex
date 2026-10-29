@@ -53,7 +53,7 @@ public sealed class ListingReviewQueries(ApplicationDbContext db, ITenantContext
             .OrderByDescending(x => x.Id).Take(200).ToListAsync(ct);
         var animalClass = listing.BirdDetails is not null ? "bird" : listing.LivestockDetails is not null ? "livestock" : listing.GameAnimalDetails is not null ? "game" : listing.PoultryDetails is not null ? "poultry" : "unknown";
         var required = await db.ListingDocumentRequirements.AsNoTracking().Where(x => x.TenantId == listing.TenantId && x.AnimalClass == animalClass).Select(x => x.DocumentType).ToListAsync(ct);
-        var auctions = await db.Auctions.AnyAsync(x => x.ListingId == id && x.TenantId == listing.TenantId, ct);
+        var auctions = await db.Auctions.AnyAsync(x => x.ListingId == id && x.TenantId == listing.TenantId && (x.RulesVersion != 1 || x.State != Faunex.Domain.Enums.AuctionState.Draft), ct);
         var state = listing.Compliance?.Status ?? ListingComplianceStatus.Draft;
         var files = await db.ListingFiles.CountAsync(x => x.ListingId == id && x.TenantId == listing.TenantId && x.DeletedAt == null, ct);
         return new(new(id, listing.TenantId, listing.SellerId, animalClass, listing.BirdDetails?.SpeciesId, listing.Title, listing.Description,
