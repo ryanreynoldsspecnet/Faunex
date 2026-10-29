@@ -18,11 +18,13 @@ public sealed class SellerListingsController(IBirdListingService birdListings) :
     }
 
     [HttpPost("{listingId:guid}/submit")]
-    public async Task<IActionResult> Submit(Guid listingId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Submit(Guid listingId, [FromBody] SubmitRequest request, CancellationToken cancellationToken)
     {
-        await birdListings.SubmitForComplianceAsync(listingId, cancellationToken);
+        await birdListings.SubmitForComplianceAsync(listingId, cancellationToken, request.Revision);
         return NoContent();
     }
+
+    public sealed record SubmitRequest(Guid? Revision);
 
     [HttpPost("bird")]
     public async Task<ActionResult<ListingDto>> CreateBirdListing([FromBody] CreateBirdListingRequest request, CancellationToken cancellationToken)

@@ -1,0 +1,73 @@
+@page "/platform/compliance/listings/{ListingId:guid}"
+@using Faunex.Application.DTOs
+@inject Faunex.Web.Api.FaunexApiClient Api
+<PageTitle>Listing Review - Faunex</PageTitle>
+<AuthorizeView Roles="PlatformSuperAdmin,PlatformComplianceAdmin">
+    <Authorized>
+        <section class="platform-shell review-workspace">
+            <div class="platform-header platform-header--compact"><div><p class="platform-kicker">@_detail?.TenantName</p><h1>@(_detail?.Listing.Title ?? "Listing Review")</h1></div><div class="bird-editor-actions"><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="LoadAsync">Reload Review</button><a class="btn btn-outline-secondary" href="/platform/compliance">Back to queue</a></div></div>
+            @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+            @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
+            @if (_loading) { <p role="status">Loading review...</p> }
+            else if (_detail is not null)
+            {
+                <div class="files-summary"><span class="platform-status">@_detail.Status</span><span>@(_detail.Listing.IsActive == true ? "Published" : "Unpublished")</span><span>@_detail.FileCount file(s)</span><a class="btn btn-outline-secondary" href="@($"/platform/compliance/listings/{ListingId}/files")">Inspect Files</a></div>
+                <div class="review-detail-grid">
+                    <dl class="review-facts"><dt>Tenant</dt><dd>@_detail.TenantName</dd><dt>Seller</dt><dd>@_detail.SellerName</dd><dt>Animal class</dt><dd>@_detail.Listing.AnimalClass</dd><dt>Species</dt><dd>@(_detail.Species ?? "-")</dd><dt>Price</dt><dd>@(_detail.Listing.BuyNowPrice ?? _detail.Listing.StartingPrice) @_detail.Listing.CurrencyCode</dd><dt>Quantity</dt><dd>@_detail.Listing.Quantity</dd><dt>Location</dt><dd>@(_detail.Listing.Location ?? "-")</dd></dl>
+                    <dl class="review-facts"><dt>Ring</dt><dd>@(_detail.RingNumber ?? "-")</dd><dt>Microchip</dt><dd>@(_detail.MicrochipNumber ?? "-")</dd><dt>Sex</dt><dd>@(_detail.Sex ?? "-")</dd><dt>Hatch date</dt><dd>@(_detail.HatchDate?.ToString("dd MMM yyyy") ?? "-")</dd><dt>Required documents</dt><dd>@(_detail.RequiredDocuments.Count == 0 ? "None configured" : string.Join(", ", _detail.RequiredDocuments))</dd></dl>
+                </div>
+                <h2>Description</h2><p class="review-notes">@(_detail.Listing.Description ?? "No description.")</p>
+                @if (!string.IsNullOrWhiteSpace(_detail.ReviewNotes)) { <h2>Latest Review Notes</h2><p class="review-notes">@_detail.ReviewNotes</p> }
+                @if (_detail.CanReview && _detail.Status is "UnderReview" or "PendingDocuments" or "Approved" or "Suspended")
+                {
+                    <section class="review-decision">
+                        <h2>Decision</h2><label class="form-label" for="review-notes">Notes</label><textarea class="form-control" id="review-notes" rows="3" maxlength="2000" @bind="_notes" disabled="@_busy"></textarea>
+                        <div class="file-actions mt-3">
+                            @if (_detail.Status == "UnderReview") { <button class="btn btn-success" disabled="@_busy" @onclick='() => _action = "approve"'>Approve</button> }
+                            @if (_detail.Status is "UnderReview" or "PendingDocuments" or "Suspended") { <button class="btn btn-outline-danger" disabled="@_busy" @onclick='() => _action = "reject"'>Request Changes</button> }
+                            @if (_detail.Status == "Approved") { <button class="btn btn-outline-danger" disabled="@_busy" @onclick='() => _action = "suspend"'>Suspend</button> }
+                        </div>
+                        @if (_action is not null)
+                        {
+                            <div class="review-confirm mt-3">
+                                @if (_action == "approve") { <label><input type="checkbox" @bind="_checked" disabled="@_busy" /> Listing and available supporting files reviewed</label> }
+                                <div class="file-actions mt-2"><button class="btn @(_action == "approve" ? "btn-success" : "btn-danger")" disabled="@(_busy || (_action == "approve" && !_checked))" @onclick="DecideAsync">@(_busy ? "Saving..." : _action == "approve" ? "Confirm Approval" : _action == "reject" ? "Confirm Changes" : "Confirm Suspension")</button><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="Cancel">Cancel</button></div>
+                            </div>
+                        }
+                    </section>
+                }
+                else if (!_detail.CanReview) { <div class="alert alert-info">Review changes are unavailable while the tenant is inactive or this listing has auction activity.</div> }
+                <ReviewHistoryTable Items="_detail.History" />
+            }
+        </section>
+    </Authorized>
+    <NotAuthorized><h1>Review Access Required</h1><a href="/login">Login</a></NotAuthorized>
+</AuthorizeView>
+@code {
+    [Parameter] public Guid ListingId { get; set; }
+    private ListingReviewDto? _detail;
+    private string? _error, _notice, _action;
+    private string _notes = "";
+    private bool _busy, _loading, _checked;
+    protected override Task OnParametersSetAsync() => LoadAsync();
+    private void Cancel() { _action = null; _checked = false; }
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null; _detail = null; _notes = ""; Cancel();
+        try { _detail = await Api.GetAsync<ListingReviewDto>($"/api/platform/compliance/listings/{ListingId}"); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+    private async Task DecideAsync()
+    {
+        if (_detail is null || _action is null || _busy || (_action == "approve" && !_checked)) return;
+        _busy = true; _error = _notice = null;
+        try
+        {
+            await Api.PostAsync($"/api/platform/compliance/listings/{ListingId}/{_action}", new { _detail.Revision, Notes = _notes });
+            await LoadAsync(); _notice = "Decision recorded.";
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

@@ -1,0 +1,46 @@
+@using Faunex.Application.DTOs
+@inject Faunex.Web.Api.FaunexApiClient Api
+<section class="listing-review-panel">
+    <div class="files-section-heading"><h2>Review Status</h2><button type="button" class="btn btn-outline-secondary btn-sm" disabled="@_busy" @onclick="LoadAsync">Refresh Review</button></div>
+    @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+    @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
+    @if (_detail is not null)
+    {
+        <p><span class="platform-status">@_detail.Status</span></p>
+        @if (!string.IsNullOrWhiteSpace(_detail.ReviewNotes)) { <p class="review-notes">@_detail.ReviewNotes</p> }
+        <p><strong>Required documents:</strong> @(_detail.RequiredDocuments.Count == 0 ? "None configured" : string.Join(", ", _detail.RequiredDocuments))</p>
+        @if (_detail.Status == "PendingDocuments") { <div class="alert alert-warning" role="status">Required evidence is missing or unavailable.</div> }
+        @if (_detail.CanSubmit) { <button class="btn btn-primary mb-3" type="button" disabled="@_busy" @onclick="SubmitAsync">@(_busy ? "Submitting..." : _detail.Status == "Rejected" ? "Resubmit for Review" : "Submit for Review")</button> }
+        <ReviewHistoryTable Items="_detail.History" />
+    }
+    else if (_busy) { <p role="status">Loading review...</p> }
+</section>
+@code {
+    [Parameter] public Guid ListingId { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    private ListingReviewDto? _detail;
+    private Guid _loadedId;
+    private bool _busy;
+    private string? _error, _notice;
+    protected override async Task OnParametersSetAsync() { if (_loadedId != ListingId) { _loadedId = ListingId; await LoadAsync(); } }
+    private async Task LoadAsync()
+    {
+        _busy = true; _error = null; _detail = null;
+        try { _detail = await Api.GetAsync<ListingReviewDto>($"/api/listings/{ListingId}/review"); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+    private async Task SubmitAsync()
+    {
+        if (_detail is null || _busy) return;
+        _busy = true; _error = _notice = null;
+        try
+        {
+            await Api.PostAsync($"/api/seller/listings/{ListingId}/submit", new { _detail.Revision });
+            await LoadAsync(); _notice = _detail?.Status == "UnderReview" ? "Submitted for review." : "Submission checked; required evidence is still missing or unavailable.";
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

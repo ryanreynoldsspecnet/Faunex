@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Faunex.Domain.Entities;
 using Faunex.Domain.Enums;
 using Faunex.Application.Interfaces;
+using Faunex.Application.Authorization;
 
 namespace Faunex.Infrastructure.Persistence;
 
@@ -35,25 +36,58 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<ListingDocument> ListingDocuments { get; set; } = null!;
     public DbSet<ListingDocumentRequirement> ListingDocumentRequirements { get; set; } = null!;
     public DbSet<ListingFile> ListingFiles { get; set; } = null!;
+    public DbSet<ListingReviewEvent> ListingReviewEvents { get; set; } = null!;
 
     private Guid? CurrentTenantId => _tenantContext.TenantId;
 
     private bool IsPlatformAdmin => _tenantContext.IsPlatformAdmin;
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (ChangeTracker.Entries<ListingReviewEvent>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Review history is append-only.");
+        var changes = ChangeTracker.Entries<ListingCompliance>()
+            .Where(x => x.State == EntityState.Added || (x.State == EntityState.Modified
+                && (x.Property(y => y.Status).IsModified || x.Property(y => y.LastUpdatedAt).IsModified)))
+            .ToList();
+        foreach (var change in changes)
+        {
+            if (change.Entity.Listing is null)
+                await change.Reference(x => x.Listing).LoadAsync(cancellationToken);
+            if (change.Entity.Listing is { } listing && Entry(listing).State != EntityState.Added)
+                listing.UpdatedAt = DateTimeOffset.UtcNow;
+        }
         foreach (var entry in ChangeTracker.Entries<Listing>().Where(x => x.State == EntityState.Modified))
         {
             entry.Entity.Revision = Guid.NewGuid();
             entry.Entity.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        return base.SaveChangesAsync(cancellationToken);
+        foreach (var change in changes)
+        {
+            var listing = change.Entity.Listing ?? throw new InvalidOperationException("Review history requires its listing.");
+            var actorId = (_tenantContext as ITenantContextWithActor)?.ActorId;
+            ListingReviewEvents.Add(new ListingReviewEvent
+            {
+                TenantId = listing.TenantId, ListingId = listing.Id, Listing = listing, Revision = listing.Revision,
+                FromStatus = change.State == EntityState.Added ? null : change.OriginalValues.GetValue<ListingComplianceStatus>(nameof(ListingCompliance.Status)),
+                ToStatus = change.Entity.Status, ActorId = actorId,
+                ActorKind = actorId is null ? "System" : IsPlatformAdmin ? "Platform reviewer" : "Tenant user",
+                Notes = change.Entity.Status is ListingComplianceStatus.Approved or ListingComplianceStatus.Rejected or ListingComplianceStatus.Suspended
+                    ? change.Entity.ReviewNotes : null
+            });
+        }
+        return await base.SaveChangesAsync(cancellationToken);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<Listing>().Property(x => x.Revision).IsConcurrencyToken();
+        modelBuilder.Entity<ListingReviewEvent>().HasOne(x => x.Listing).WithMany().HasForeignKey(x => x.ListingId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ListingReviewEvent>().HasIndex(x => new { x.TenantId, x.ListingId, x.Id });
+        modelBuilder.Entity<ListingReviewEvent>().HasIndex(x => new { x.ListingId, x.Revision }).IsUnique();
+        modelBuilder.Entity<ListingReviewEvent>().Property(x => x.Notes).HasMaxLength(2000);
+        modelBuilder.Entity<ListingReviewEvent>().HasQueryFilter(x => IsPlatformAdmin || (CurrentTenantId != null && x.TenantId == CurrentTenantId));
         modelBuilder.Entity<ListingFile>().HasOne(x => x.Listing).WithMany().HasForeignKey(x => x.ListingId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<ListingFile>().HasIndex(x => x.StorageKey).IsUnique();
         modelBuilder.Entity<ListingFile>().HasIndex(x => new { x.TenantId, x.ListingId });

@@ -6,6 +6,7 @@ namespace Faunex.Application.Interfaces;
 public interface IApplicationDbContext
 {
     DbSet<Listing> Listings { get; }
+    DbSet<Tenant> Tenants { get; }
     DbSet<BirdSpecies> BirdSpeciesSet { get; }
     DbSet<Auction> Auctions { get; }
     DbSet<Bid> Bids { get; }
@@ -20,6 +21,7 @@ public interface IApplicationDbContext
     DbSet<ListingDocument> ListingDocuments { get; }
     DbSet<ListingDocumentRequirement> ListingDocumentRequirements { get; }
     DbSet<ListingFile> ListingFiles { get; }
+    DbSet<ListingReviewEvent> ListingReviewEvents { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

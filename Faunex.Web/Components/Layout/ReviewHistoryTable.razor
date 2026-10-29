@@ -1,0 +1,14 @@
+@using Faunex.Application.DTOs
+<h2>Review History</h2>
+@if (Items.Count == 0) { <p>No review history recorded.</p> }
+else
+{
+    <div class="platform-table-wrap"><table class="table platform-table review-history"><thead><tr><th>When (UTC)</th><th>From</th><th>To</th><th>Actor</th><th>Notes</th></tr></thead><tbody>
+    @foreach (var item in Items)
+    {
+        <tr @key="item.Id"><td>@item.OccurredAt.ToString("dd MMM yyyy HH:mm:ss")</td><td>@(item.FromStatus ?? "New")</td><td>@item.ToStatus</td><td><span>@item.ActorKind</span>@if (item.ActorId is { } actor) { <small class="d-block" title="@actor">@actor.ToString("N")[..8]</small> }</td><td class="review-notes">@(item.Notes ?? "-")</td></tr>
+    }
+    </tbody></table></div>
+    @if (Items.Count == 200) { <p class="text-muted">Latest 200 events.</p> }
+}
+@code { [Parameter, EditorRequired] public IReadOnlyList<ReviewEventDto> Items { get; set; } = []; }

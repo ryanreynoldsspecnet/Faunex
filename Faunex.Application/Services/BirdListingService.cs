@@ -208,7 +208,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
     public Task SubmitForReviewAsync(Guid listingId, CancellationToken cancellationToken = default) =>
         SubmitForComplianceAsync(listingId, cancellationToken);
 
-    public async Task ApproveListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default)
+    public async Task ApproveListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default, Guid? revision = null)
     {
         EnsurePlatformComplianceReviewer();
 
@@ -227,17 +227,27 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
 
         var compliance = listing.Compliance ?? throw new InvalidOperationException("Listing compliance is required.");
 
+        await ValidateReviewAsync(listing, revision, notes, false, cancellationToken);
+
         if (compliance.Status != ListingComplianceStatus.UnderReview)
         {
-            throw new InvalidOperationException("Listing compliance must be UnderReview to approve.");
+            throw new ListingEditConflictException("Only listings under review can be approved.");
         }
 
         var required = await GetRequiredDocumentTypesAsync(listing, cancellationToken);
         if (required.Count > 0 && required.Except(await ManagedEvidenceTypesAsync(listing, cancellationToken)).Any())
             throw new ListingValidationException("Required supporting files are missing or unavailable. Approval is blocked.");
 
+        var files = await dbContext.ListingFiles.AsNoTracking().Where(x => x.ListingId == listingId && x.TenantId == listing.TenantId && x.DeletedAt == null).ToListAsync(cancellationToken);
+        foreach (var file in files)
+        {
+            var bytes = await fileStorage.ReadAsync(file.StorageKey, cancellationToken);
+            if (bytes is null || bytes.LongLength != file.Length || Convert.ToHexString(SHA256.HashData(bytes)) != file.Sha256)
+                throw new ListingValidationException("An uploaded file is missing or has failed its integrity check. Approval is blocked.");
+        }
+
         compliance.Status = ListingComplianceStatus.Approved;
-        compliance.ReviewNotes = notes;
+        compliance.ReviewNotes = Clean(notes);
         compliance.ReviewedAt = DateTimeOffset.UtcNow;
         compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
         compliance.ReviewedByUserId = ((ITenantContextWithActor)tenantContext).ActorId;
@@ -248,7 +258,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task RejectListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default)
+    public async Task RejectListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default, Guid? revision = null)
     {
         EnsurePlatformComplianceReviewer();
 
@@ -263,13 +273,15 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
 
         var compliance = listing.Compliance ?? throw new InvalidOperationException("Listing compliance is required.");
 
-        if (compliance.Status != ListingComplianceStatus.UnderReview && compliance.Status != ListingComplianceStatus.PendingDocuments)
+        await ValidateReviewAsync(listing, revision, notes, true, cancellationToken);
+
+        if (compliance.Status is not (ListingComplianceStatus.UnderReview or ListingComplianceStatus.PendingDocuments or ListingComplianceStatus.Suspended))
         {
-            throw new InvalidOperationException("Listing compliance must be UnderReview or PendingDocuments to reject.");
+            throw new ListingEditConflictException("Only listings under review, pending documents or suspended can be returned for changes.");
         }
 
         compliance.Status = ListingComplianceStatus.Rejected;
-        compliance.ReviewNotes = notes;
+        compliance.ReviewNotes = Clean(notes);
         compliance.ReviewedAt = DateTimeOffset.UtcNow;
         compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
         compliance.ReviewedByUserId = ((ITenantContextWithActor)tenantContext).ActorId;
@@ -280,8 +292,20 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public Task SuspendListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default) =>
-        ReviewAsync(listingId, ListingComplianceStatus.Suspended, notes, cancellationToken);
+    public Task SuspendListingAsync(Guid listingId, string? notes, CancellationToken cancellationToken = default, Guid? revision = null) =>
+        ReviewAsync(listingId, ListingComplianceStatus.Suspended, notes, revision, cancellationToken);
+
+    private async Task ValidateReviewAsync(Listing listing, Guid? revision, string? notes, bool reasonRequired, CancellationToken ct)
+    {
+        if (revision is null) throw new ListingValidationException("Reload the listing and send its current revision.");
+        if (revision != listing.Revision) throw new ListingEditConflictException("This listing changed. Reload before recording a decision.");
+        if (notes?.Length > 2000 || (reasonRequired && string.IsNullOrWhiteSpace(notes)))
+            throw new ListingValidationException("Provide a reason of up to 2000 characters for changes or suspension.");
+        if (!await dbContext.Tenants.AnyAsync(x => x.Id == listing.TenantId && x.IsActive, ct))
+            throw new ListingEditConflictException("The tenant is inactive. A review decision cannot be recorded.");
+        if (await dbContext.Auctions.AnyAsync(x => x.ListingId == listing.Id, ct))
+            throw new ListingEditConflictException("Listings with auction activity require the auction workflow before further review changes.");
+    }
 
     private void EnsurePlatformComplianceReviewer()
     {
@@ -405,7 +429,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         return listings;
     }
 
-    public async Task SubmitForComplianceAsync(Guid listingId, CancellationToken cancellationToken = default)
+    public async Task SubmitForComplianceAsync(Guid listingId, CancellationToken cancellationToken = default, Guid? revision = null)
     {
         if (tenantContext.IsPlatformAdmin)
         {
@@ -454,6 +478,10 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             }
         }
 
+        if (revision.HasValue && revision != listing.Revision)
+            throw new ListingEditConflictException("This listing changed. Reload before submitting.");
+        if (await dbContext.Auctions.AnyAsync(x => x.ListingId == listing.Id, cancellationToken))
+            throw new ListingEditConflictException("Listings with auction activity cannot be resubmitted.");
         listing.IsActive = false;
         listing.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -511,7 +539,7 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
         return available;
     }
 
-    private async Task ReviewAsync(Guid listingId, ListingComplianceStatus newStatus, string? notes, CancellationToken cancellationToken)
+    private async Task ReviewAsync(Guid listingId, ListingComplianceStatus newStatus, string? notes, Guid? revision, CancellationToken cancellationToken)
     {
         EnsurePlatformComplianceReviewer();
 
@@ -526,8 +554,12 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
 
         var compliance = listing.Compliance ?? throw new InvalidOperationException("Listing compliance is required.");
 
+        await ValidateReviewAsync(listing, revision, notes, true, cancellationToken);
+        if (compliance.Status != ListingComplianceStatus.Approved)
+            throw new ListingEditConflictException("Only an approved listing can be suspended.");
+
         compliance.Status = newStatus;
-        compliance.ReviewNotes = notes;
+        compliance.ReviewNotes = Clean(notes);
         compliance.ReviewedAt = DateTimeOffset.UtcNow;
         compliance.LastUpdatedAt = DateTimeOffset.UtcNow;
         compliance.ReviewedByUserId = ((ITenantContextWithActor)tenantContext).ActorId;

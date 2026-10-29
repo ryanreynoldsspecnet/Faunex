@@ -42,9 +42,9 @@
                     <Authorized>
                         <NavLink class="nav-link" href="/platform" Match="NavLinkMatch.All">Platform</NavLink>
                         <NavLink class="nav-link" href="/platform/users">Users</NavLink>
-                        <NavLink class="nav-link" href="/platform/compliance">Compliance Queue</NavLink>
                     </Authorized>
                 </AuthorizeView>
+                <AuthorizeView Roles="PlatformSuperAdmin,PlatformComplianceAdmin"><Authorized><NavLink class="nav-link" href="/platform/compliance">Compliance Queue</NavLink></Authorized></AuthorizeView>
             </div>
 
             <div class="navbar-nav ms-auto">

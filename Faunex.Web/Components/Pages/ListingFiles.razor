@@ -1,5 +1,6 @@
 @page "/tenant/listings/{ListingId:guid}/files"
 @page "/seller/listings/{ListingId:guid}/files"
+@page "/platform/compliance/listings/{ListingId:guid}/files"
 @using Faunex.Application.DTOs
 @using Faunex.Domain.Entities
 @implements IAsyncDisposable
@@ -8,12 +9,12 @@
 @inject IJSRuntime JS
 
 <PageTitle>Listing Files - Faunex</PageTitle>
-<AuthorizeView Roles="@(TenantRoute ? "TenantAdmin" : "Seller,TenantAdmin")">
+<AuthorizeView Roles="@(ReviewRoute ? "PlatformSuperAdmin,PlatformComplianceAdmin" : TenantRoute ? "TenantAdmin" : "Seller,TenantAdmin")">
     <Authorized>
         <section class="platform-shell listing-files" aria-labelledby="files-title">
             <div class="platform-header platform-header--compact">
                 <div><p class="platform-kicker">@_snapshot?.Title</p><h1 id="files-title">Listing Files</h1></div>
-                <a class="btn btn-outline-secondary" href="@(TenantRoute ? "/tenant/listings" : "/seller/my-listings")">Back to listings</a>
+                <a class="btn btn-outline-secondary" href="@(ReviewRoute ? $"/platform/compliance/listings/{ListingId}" : TenantRoute ? "/tenant/listings" : "/seller/my-listings")">@(ReviewRoute ? "Back to review" : "Back to listings")</a>
             </div>
             @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
             @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
@@ -36,7 +37,7 @@
                         <button class="btn btn-primary" type="button" disabled="@(_busy || _selected is null)" @onclick="UploadAsync">@(_busy ? "Processing..." : "Upload")</button>
                     </div>
                 }
-                else { <div class="alert alert-info" role="status">Files are read-only during review, suspension or auction activity.</div> }
+                else { <div class="alert alert-info" role="status">@(ReviewRoute ? "Review access is read-only." : "Files are read-only during review, suspension or auction activity.")</div> }
                 <div class="files-section-heading"><h2>Photos</h2><button class="btn btn-outline-secondary btn-sm" disabled="@_busy" @onclick="LoadAsync">Refresh</button></div>
                 @if (!_snapshot.Files.Any(x => x.IsPhoto)) { <p>No photos uploaded.</p> }
                 <div class="private-photo-grid">
@@ -79,6 +80,7 @@
     private Guid? _deleteId;
     private ListingDocumentType _documentType = ListingDocumentType.CitesPermit;
     private bool TenantRoute => Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath.StartsWith("/tenant/", StringComparison.Ordinal);
+    private bool ReviewRoute => Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath.StartsWith("/platform/compliance/", StringComparison.Ordinal);
     private string ApiPath => $"/api/listings/{ListingId}/files";
     protected override Task OnParametersSetAsync() => LoadAsync();
     private void SelectMode(bool photo) { _photo = photo; _selected = null; _inputVersion++; }

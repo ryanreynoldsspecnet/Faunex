@@ -519,6 +519,53 @@ namespace Faunex.Infrastructure.Migrations
                     b.ToTable("ListingFiles");
                 });
 
+            modelBuilder.Entity("Faunex.Domain.Entities.ListingReviewEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorKind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("FromStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ListingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Revision")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ToStatus")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ListingId", "Revision")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ListingId", "Id");
+
+                    b.ToTable("ListingReviewEvents");
+                });
+
             modelBuilder.Entity("Faunex.Domain.Entities.LivestockDetails", b =>
                 {
                     b.Property<Guid>("ListingId")
@@ -816,6 +863,17 @@ namespace Faunex.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.ListingFile", b =>
+                {
+                    b.HasOne("Faunex.Domain.Entities.Listing", "Listing")
+                        .WithMany()
+                        .HasForeignKey("ListingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Listing");
+                });
+
+            modelBuilder.Entity("Faunex.Domain.Entities.ListingReviewEvent", b =>
                 {
                     b.HasOne("Faunex.Domain.Entities.Listing", "Listing")
                         .WithMany()
