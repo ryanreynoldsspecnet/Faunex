@@ -17,7 +17,7 @@ public sealed class TimedAuctionTests
     public async Task Draft_publication_bid_boundaries_minimums_and_private_public_contracts_are_enforced()
     {
         await using var test = await AuctionCase.CreateAsync(150m);
-        Assert.Empty((await test.Files.App.Client.GetFromJsonAsync<List<PublicAuctionDto>>($"/api/marketplace/listings/{test.Id}/auctions"))!);
+        Assert.Empty((await test.Files.App.Client.GetFromJsonAsync<List<PublicAuctionDto>>($"/api/marketplace/listings/{test.Id}/auctions{test.HostQuery}"))!);
         using var buyer = await test.BuyerAsync();
         Assert.Equal(HttpStatusCode.Conflict, (await test.Bid(buyer, 100m)).StatusCode);
         await test.Publish();
@@ -29,11 +29,11 @@ public sealed class TimedAuctionTests
         Assert.True((await test.Bid(buyer, 100m)).IsSuccessStatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await test.Bid(buyer, 109.99m)).StatusCode);
         Assert.True((await test.Bid(buyer, 110m)).IsSuccessStatusCode);
-        var publicResponse = await test.Files.App.Client.GetAsync($"/api/marketplace/listings/{test.Id}/auctions");
+        var publicResponse = await test.Files.App.Client.GetAsync($"/api/marketplace/listings/{test.Id}/auctions{test.HostQuery}");
         var json = await publicResponse.Content.ReadAsStringAsync();
         Assert.DoesNotContain("reserve", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("winnerId", json, StringComparison.OrdinalIgnoreCase);
-        var bids = await test.Files.App.Client.GetAsync($"/api/marketplace/auctions/{test.AuctionId}/bids");
+        var bids = await test.Files.App.Client.GetAsync($"/api/marketplace/auctions/{test.AuctionId}/bids{test.HostQuery}");
         Assert.DoesNotContain("bidderId", await bids.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(HttpStatusCode.Forbidden, (await buyer.GetAsync($"/api/auctions/{test.AuctionId}")).StatusCode);
         var current = await test.Snapshot();
@@ -170,9 +170,9 @@ public sealed class TimedAuctionTests
             var entity = await db.Auctions.IgnoreQueryFilters().SingleAsync(x => x.Id == test.AuctionId);
             entity.RulesVersion = 0; entity.IsSealedBid = true; await db.SaveChangesAsync();
         }
-        Assert.Empty((await test.Files.App.Client.GetFromJsonAsync<List<PublicAuctionDto>>($"/api/marketplace/listings/{test.Id}/auctions"))!);
-        Assert.Equal(HttpStatusCode.NotFound, (await test.Files.App.Client.GetAsync($"/api/marketplace/auctions/{test.AuctionId}/bids")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await test.Files.App.Client.GetAsync($"/api/marketplace/auctions/{test.AuctionId}/price")).StatusCode);
+        Assert.Empty((await test.Files.App.Client.GetFromJsonAsync<List<PublicAuctionDto>>($"/api/marketplace/listings/{test.Id}/auctions{test.HostQuery}"))!);
+        Assert.Equal(HttpStatusCode.NotFound, (await test.Files.App.Client.GetAsync($"/api/marketplace/auctions/{test.AuctionId}/bids{test.HostQuery}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await test.Files.App.Client.GetAsync($"/api/marketplace/auctions/{test.AuctionId}/price{test.HostQuery}")).StatusCode);
         using var buyer = await test.BuyerAsync(); test.Clock.Set(test.Starts);
         Assert.Equal(HttpStatusCode.Conflict, (await test.Bid(buyer, 100m)).StatusCode);
     }
@@ -213,6 +213,7 @@ internal sealed class AuctionCase : IAsyncDisposable
     public FileCase Files { get; private init; } = null!;
     public HttpClient Admin { get; private init; } = null!;
     public Guid Id => Files.Id;
+    public string HostQuery => "?host=" + AccountApiFixture.TenantHost(Files.Tenant);
     public Guid AuctionId { get; private init; }
     public TestAuctionClock Clock => Files.App.Server.Services.GetRequiredService<TestAuctionClock>();
     public DateTimeOffset Starts { get; private init; }

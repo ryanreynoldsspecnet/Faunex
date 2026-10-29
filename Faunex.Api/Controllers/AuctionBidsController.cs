@@ -25,7 +25,7 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
         {
             return Forbid();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (ex is not ListingEditConflictException)
         {
             return BadRequest(new { error = ex.Message });
         }
@@ -43,7 +43,7 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
         {
             return Forbid();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (ex is not ListingEditConflictException)
         {
             return BadRequest(new { error = ex.Message });
         }
@@ -76,7 +76,7 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
         {
             return Forbid();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (ex is not ListingEditConflictException)
         {
             return BadRequest(new { error = ex.Message });
         }
@@ -95,7 +95,7 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
         {
             return Forbid();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (ex is not ListingEditConflictException)
         {
             return BadRequest(new { error = ex.Message });
         }

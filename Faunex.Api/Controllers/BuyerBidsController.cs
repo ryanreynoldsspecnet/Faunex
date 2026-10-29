@@ -22,7 +22,7 @@ public sealed class BuyerBidsController(IBidService bids) : ControllerBase
         {
             return Forbid();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (ex is not ListingEditConflictException)
         {
             return BadRequest(new { error = ex.Message });
         }
