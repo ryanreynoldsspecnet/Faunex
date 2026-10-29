@@ -15,14 +15,15 @@
     else if (_review is not null)
     {
         <div class="files-summary"><span class="platform-status">@(_auction?.State ?? "Not configured")</span><span>Approved start: @_review.Listing.StartingPrice @_review.Listing.CurrencyCode</span></div>
+        @if (_auction?.CurrencyCode is { Length: > 0 } configured && configured != _review.Listing.CurrencyCode) { <div class="alert alert-warning">Configured currency: @configured. Listing currency: @_review.Listing.CurrencyCode.</div> }
         @if (_review.Status != "Approved" || _review.Listing.IsActive != true || _review.Listing.BuyNowPrice.HasValue) { <div class="alert alert-info">An active, approved auction listing is required for setup.</div> }
         else
         {
             <form @onsubmit="SaveAsync" @onsubmit:preventDefault>
                 <fieldset disabled="@(_busy || !Editable)">
                     <div class="auction-terms-grid">
-                        <div><label class="form-label" for="auction-start">Start (SAST, UTC+02:00)</label><input id="auction-start" class="form-control" type="datetime-local" @bind="_start" @bind:format="yyyy-MM-ddTHH:mm" required /></div>
-                        <div><label class="form-label" for="auction-end">End (SAST, UTC+02:00)</label><input id="auction-end" class="form-control" type="datetime-local" @bind="_end" @bind:format="yyyy-MM-ddTHH:mm" required /></div>
+                        <div><label class="form-label" for="auction-start">Start (SAST, UTC+02:00)</label><input id="auction-start" class="form-control" type="datetime-local" step="1" @bind="_start" @bind:format="yyyy-MM-ddTHH:mm:ss" required /></div>
+                        <div><label class="form-label" for="auction-end">End (SAST, UTC+02:00)</label><input id="auction-end" class="form-control" type="datetime-local" step="1" @bind="_end" @bind:format="yyyy-MM-ddTHH:mm:ss" required /></div>
                         <div><label class="form-label" for="auction-increment">Minimum increment (@_review.Listing.CurrencyCode)</label><input id="auction-increment" class="form-control" type="number" min="0.01" max="999999999" step="0.01" @bind="_increment" required /></div>
                         <div><label class="form-label" for="auction-reserve">Private reserve (@_review.Listing.CurrencyCode, optional)</label><input id="auction-reserve" class="form-control" type="number" min="0.01" max="999999999" step="0.01" @bind="_reserve" /></div>
                     </div>
@@ -75,9 +76,9 @@
             var auctions = await Api.GetAsync<List<AuctionDto>>($"/api/auctions/by-listing/{ListingId}") ?? [];
             if (auctions.Count > 1) throw new InvalidOperationException("Multiple legacy auctions require administrator reconciliation.");
             _auction = auctions.SingleOrDefault();
-            _start = (_auction?.StartsAt ?? DateTimeOffset.UtcNow.AddMinutes(15)).ToOffset(TimeSpan.FromHours(2)).DateTime;
-            _end = (_auction?.EndsAt ?? DateTimeOffset.UtcNow.AddHours(1)).ToOffset(TimeSpan.FromHours(2)).DateTime;
-            _increment = _auction?.MinimumIncrement ?? 10m; _reserve = _auction?.ReservePrice;
+            _start = DateTimeOffset.FromUnixTimeSeconds((_auction?.StartsAt ?? DateTimeOffset.UtcNow.AddMinutes(15)).ToUnixTimeSeconds()).ToOffset(TimeSpan.FromHours(2)).DateTime;
+            _end = DateTimeOffset.FromUnixTimeSeconds((_auction?.EndsAt ?? DateTimeOffset.UtcNow.AddHours(1)).ToUnixTimeSeconds()).ToOffset(TimeSpan.FromHours(2)).DateTime;
+            _increment = _auction?.MinimumIncrement is > 0 ? _auction.MinimumIncrement : 10m; _reserve = _auction?.ReservePrice;
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }

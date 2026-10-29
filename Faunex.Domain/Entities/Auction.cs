@@ -9,6 +9,7 @@ public sealed class Auction : BaseEntity
     public int RulesVersion { get; set; }
     public AuctionState State { get; set; }
     public decimal MinimumIncrement { get; set; } = 10m;
+    public string CurrencyCode { get; set; } = "";
     public Guid? LeadingBidId { get; set; }
     public Guid? LeadingBidderId { get; set; }
     public decimal? LeadingAmount { get; set; }

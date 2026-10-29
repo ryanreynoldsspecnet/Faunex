@@ -20,5 +20,6 @@ public sealed record AuctionDto(
     decimal? CurrentPrice = null,
     string? Outcome = null,
     Guid? WinnerId = null,
-    DateTimeOffset? ClosedAt = null
+    DateTimeOffset? ClosedAt = null,
+    string? CurrencyCode = null
 );

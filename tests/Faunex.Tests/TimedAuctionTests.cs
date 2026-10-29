@@ -177,6 +177,62 @@ public sealed class TimedAuctionTests
         Assert.Equal(HttpStatusCode.Conflict, (await test.Bid(buyer, 100m)).StatusCode);
     }
 
+    [Fact]
+    public async Task Foreign_tenants_cannot_read_config_bid_manage_or_read_public_auction_data()
+    {
+        await using var test = await AuctionCase.CreateAsync(); await test.Publish(); test.Clock.Set(test.Starts);
+        var terms = await test.Snapshot();
+        var foreign = await test.Files.App.AddTenantAsync();
+        using var admin = test.Files.App.AuthenticatedClient(await test.Files.App.TokenAsync(await test.Files.App.AddUserAsync(foreign, FaunexRoles.TenantAdmin)));
+        using var buyer = test.Files.App.AuthenticatedClient(await test.Files.App.TokenAsync(await test.Files.App.AddUserAsync(foreign, FaunexRoles.Buyer)));
+        Assert.Equal(HttpStatusCode.NotFound, (await test.Bid(buyer, 100m)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync($"/api/auctions/{test.AuctionId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsJsonAsync($"/api/auctions/{test.AuctionId}", terms)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsJsonAsync($"/api/auctions/{test.AuctionId}/open", new { terms.Revision })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsJsonAsync($"/api/auctions/{test.AuctionId}/close", new { terms.Revision })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsJsonAsync($"/api/auctions/{test.AuctionId}/cancel", new { terms.Revision, Reason = "Foreign cancellation" })).StatusCode);
+        var host = AccountApiFixture.TenantHost(foreign);
+        Assert.Equal(HttpStatusCode.NotFound, (await test.Files.App.Client.GetAsync($"/api/marketplace/listings/{test.Id}/auctions?host={host}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await test.Files.App.Client.GetAsync($"/api/marketplace/auctions/{test.AuctionId}/bids?host={host}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await test.Files.App.Client.GetAsync($"/api/marketplace/auctions/{test.AuctionId}/price?host={host}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Changed_listing_currency_requires_explicit_term_resave_without_conversion()
+    {
+        await using var test = await AuctionCase.CreateAsync(150m);
+        using (var scope = test.Files.App.Server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            (await db.Listings.IgnoreQueryFilters().SingleAsync(x => x.Id == test.Id)).CurrencyCode = "USD";
+            await db.SaveChangesAsync();
+        }
+        var terms = await test.Snapshot(); Assert.Equal("ZAR", terms.CurrencyCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await test.Admin.PostAsJsonAsync($"/api/auctions/{test.AuctionId}/open", new { terms.Revision })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await test.Admin.PutAsJsonAsync($"/api/auctions/{test.AuctionId}", terms)).StatusCode);
+        var updated = await test.Snapshot(); Assert.Equal("USD", updated.CurrencyCode); Assert.Equal(150m, updated.ReservePrice);
+        await test.Publish(); test.Clock.Set(test.Starts);
+        using var buyer = await test.BuyerAsync();
+        var response = await buyer.PostAsJsonAsync($"/api/auctions/{test.AuctionId}/bids", new { Amount = 100m });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode); Assert.Equal("USD", (await response.Content.ReadFromJsonAsync<BidDto>())!.CurrencyCode);
+    }
+
+    [Fact]
+    public async Task Compatibility_bid_response_is_the_callers_exact_bid_even_when_timestamps_tie()
+    {
+        await using var test = await AuctionCase.CreateAsync(); await test.Publish(); test.Clock.Set(test.Starts);
+        Guid? previous = null;
+        foreach (var amount in new[] { 100m, 110m })
+        {
+            var user = await test.Files.App.AddUserAsync(test.Files.Tenant, FaunexRoles.Buyer);
+            using var buyer = test.Files.App.AuthenticatedClient(await test.Files.App.TokenAsync(user));
+            var response = await buyer.PostAsJsonAsync($"/api/auctions/{test.AuctionId}/bids", new { Amount = amount });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var bid = (await response.Content.ReadFromJsonAsync<BidDto>())!;
+            Assert.Equal(user.Id, bid.BidderId); Assert.Equal(amount, bid.Amount); Assert.NotEqual(previous, bid.Id); previous = bid.Id;
+        }
+    }
+
     [PostgresFact]
     public async Task Two_settlement_workers_record_one_result_even_if_tenant_is_inactive()
     {

@@ -27,6 +27,7 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
         var auctions = await dbContext.Auctions.Where(x => x.ListingId == listing.Id && x.TenantId == listing.TenantId).Take(2).ToListAsync(ct);
         if (auctions.Count != 1) throw new ListingEditConflictException("A single configured auction is required.");
         var auction = auctions[0];
+        if (auction.CurrencyCode != listing.CurrencyCode) throw new ListingEditConflictException("Auction currency requires reconciliation.");
         var now = clock.GetUtcNow();
         if (auction.RulesVersion != 1 || auction.Type != AuctionType.Timed || auction.IsSealedBid || auction.IsClosed
             || auction.State != AuctionState.Scheduled || auction.StartsAt is null || auction.EndsAt is null
@@ -35,7 +36,7 @@ public sealed class BidService(IApplicationDbContext dbContext, ITenantContext t
         var minimum = auction.LeadingAmount is { } top ? top + auction.MinimumIncrement : auction.StartingPrice;
         if (request.Amount < minimum) throw new ListingValidationException($"The minimum bid is {minimum:0.00} {listing.CurrencyCode}. Reload the auction.");
         var bid = new Bid { TenantId = auction.TenantId, AuctionId = auction.Id, BidderId = actor,
-            BidNumber = auction.BidCount + 1, Amount = request.Amount, CurrencyCode = listing.CurrencyCode,
+            BidNumber = auction.BidCount + 1, Amount = request.Amount, CurrencyCode = auction.CurrencyCode,
             PlacedAt = now, CreatedAt = now, UpdatedAt = now };
         dbContext.Bids.Add(bid);
         auction.LeadingBidId = bid.Id; auction.LeadingBidderId = actor; auction.LeadingAmount = bid.Amount; auction.BidCount++;

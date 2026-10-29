@@ -26,7 +26,7 @@ public sealed class AuctionSettlement(IApplicationDbContext db, TimeProvider clo
         var bids = db.Bids.IgnoreQueryFilters().Where(x => x.TenantId == auction.TenantId && x.AuctionId == auction.Id);
         var leading = auction.LeadingBidId is { } id ? await bids.SingleOrDefaultAsync(x => x.Id == id, ct) : null;
         if (await bids.CountAsync(ct) != auction.BidCount
-            || (auction.LeadingBidId != null && (leading is null || leading.Amount != auction.LeadingAmount || leading.BidderId != auction.LeadingBidderId || leading.BidNumber != auction.BidCount))
+            || (auction.LeadingBidId != null && (leading is null || leading.Amount != auction.LeadingAmount || leading.CurrencyCode != auction.CurrencyCode || leading.BidderId != auction.LeadingBidderId || leading.BidNumber != auction.BidCount))
             || (leading is null && await bids.AnyAsync(ct)))
             throw new ListingValidationException("Auction bid state requires reconciliation; no result has been recorded.");
         var sold = leading is not null && (auction.ReservePrice is null || leading.Amount >= auction.ReservePrice);

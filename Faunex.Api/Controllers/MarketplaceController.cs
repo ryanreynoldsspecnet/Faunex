@@ -144,7 +144,7 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
 
     private IQueryable<Auction> PublicAuctionQuery(Guid tenantId) => db.Auctions.IgnoreQueryFilters().AsNoTracking()
         .Where(x => x.TenantId == tenantId && x.RulesVersion == 1 && x.Type == AuctionType.Timed && !x.IsSealedBid && x.State != AuctionState.Draft
-            && x.Listing != null && x.Listing.TenantId == tenantId && x.Listing.IsActive && x.Listing.Compliance != null
+            && x.Listing != null && x.Listing.TenantId == tenantId && x.CurrencyCode == x.Listing.CurrencyCode && x.Listing.IsActive && x.Listing.Compliance != null
             && x.Listing.Compliance.TenantId == tenantId && x.Listing.Compliance.Status == ListingComplianceStatus.Approved);
 
     private async Task<IReadOnlyList<ListingDto>> ToListingDtosAsync(IReadOnlyList<Listing> listings, CancellationToken cancellationToken)

@@ -44,6 +44,7 @@ public sealed class AuctionService(IApplicationDbContext dbContext, ITenantConte
     private void Validate(AuctionDto input, Listing listing)
     {
         TimedAuctionRules.Approved(listing);
+        if (listing.CurrencyCode is not ("ZAR" or "USD")) throw new ListingValidationException("A supported listing currency is required.");
         if (input.ListingRevision is null) throw new ListingValidationException("Reload the listing and send its revision.");
         if (input.ListingRevision != listing.Revision) throw new ListingEditConflictException("The listing changed. Reload before saving auction terms.");
         if (input.Type != AuctionType.Timed || input.IsSealedBid || input.BuyNowPrice.HasValue)
@@ -56,11 +57,12 @@ public sealed class AuctionService(IApplicationDbContext dbContext, ITenantConte
             || input.EndsAt - input.StartsAt < TimeSpan.FromMinutes(1) || input.EndsAt - input.StartsAt > TimeSpan.FromDays(30))
             throw new ListingValidationException("Choose a future start and an end between one minute and 30 days after it.");
     }
-    private static void Terms(Auction entity, AuctionDto input)
+    private static void Terms(Auction entity, AuctionDto input, Listing listing)
     {
         entity.Type = AuctionType.Timed; entity.RulesVersion = 1; entity.State = AuctionState.Draft; entity.IsClosed = true;
         entity.StartsAt = input.StartsAt!.Value.ToUniversalTime(); entity.EndsAt = input.EndsAt!.Value.ToUniversalTime();
         entity.StartingPrice = input.StartingPrice; entity.ReservePrice = input.ReservePrice; entity.MinimumIncrement = input.MinimumIncrement;
+        entity.CurrencyCode = listing.CurrencyCode;
         entity.IsSealedBid = false; entity.BuyNowPrice = null;
     }
     public async Task<Guid> CreateAsync(AuctionDto input, CancellationToken cancellationToken = default)
@@ -71,7 +73,7 @@ public sealed class AuctionService(IApplicationDbContext dbContext, ITenantConte
         if (await dbContext.Auctions.AnyAsync(x => x.ListingId == listing.Id, cancellationToken))
             throw new ListingEditConflictException("This listing already has an auction. Reload its workspace.");
         var auction = new Auction { TenantId = listing.TenantId, ListingId = listing.Id };
-        Terms(auction, input); dbContext.Auctions.Add(auction);
+        Terms(auction, input, listing); dbContext.Auctions.Add(auction);
         // The listing revision serializes setup against duplicate setup, file edits and unpublication.
         TimedAuctionRules.Touch(auction, listing, clock.GetUtcNow());
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -87,7 +89,7 @@ public sealed class AuctionService(IApplicationDbContext dbContext, ITenantConte
         if ((auction.RulesVersion == 1 && auction.State != AuctionState.Draft) || auction.Outcome != null
             || await dbContext.Bids.AnyAsync(x => x.AuctionId == auction.Id, cancellationToken))
             throw new ListingEditConflictException("Published terms and auctions with bids cannot be edited.");
-        Validate(input, listing); Terms(auction, input);
+        Validate(input, listing); Terms(auction, input, listing);
         TimedAuctionRules.Touch(auction, listing, clock.GetUtcNow());
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -97,6 +99,7 @@ public sealed class AuctionService(IApplicationDbContext dbContext, ITenantConte
         var auction = await AuctionAsync(id, cancellationToken);
         var listing = await ListingAsync(auction.ListingId, cancellationToken);
         TimedAuctionRules.Revision(auction, revision); TimedAuctionRules.Approved(listing);
+        if (auction.CurrencyCode != listing.CurrencyCode) throw new ListingEditConflictException("Listing currency changed. Save the auction terms again; no conversion is performed.");
         if (auction.RulesVersion != 1 || auction.State != AuctionState.Draft)
             throw new ListingEditConflictException("Only a configured draft auction can be published.");
         Validate(Map(auction, listing), listing);
@@ -130,5 +133,5 @@ public sealed class AuctionService(IApplicationDbContext dbContext, ITenantConte
     }
     private AuctionDto Map(Auction a, Listing l) => new(a.Id, a.ListingId, a.Type, a.StartsAt, a.EndsAt, a.StartingPrice,
         a.ReservePrice, a.BuyNowPrice, a.IsSealedBid, a.IsClosed, a.MinimumIncrement, a.Revision, l.Revision,
-        TimedAuctionRules.State(a, clock.GetUtcNow()), a.LeadingAmount, a.Outcome, a.WinnerId, a.ClosedAt);
+        TimedAuctionRules.State(a, clock.GetUtcNow()), a.LeadingAmount, a.Outcome, a.WinnerId, a.ClosedAt, a.CurrencyCode);
 }
