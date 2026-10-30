@@ -15,6 +15,7 @@
                 </div>
 
                 <div class="bird-editor-actions">
+                    <a class="btn btn-outline-secondary" href="@($"/tenant/listings/{ListingId}/auction")">Auction</a>
                     <a class="btn btn-outline-secondary" href="@($"/tenant/listings/{ListingId}/files")">Files</a>
                     @if (_listing?.AnimalClass == "bird") { <a class="btn btn-primary" href="@($"/tenant/listings/{ListingId}/edit")">Edit Listing</a> }
                     <a class="btn btn-outline-secondary" href="/tenant/listings">Back to listings</a>

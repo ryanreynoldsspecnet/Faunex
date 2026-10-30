@@ -1,0 +1,115 @@
+@page "/tenant/listings/{ListingId:guid}/auction"
+@page "/seller/listings/{ListingId:guid}/auction"
+@using Faunex.Application.DTOs
+@using Faunex.Domain.Enums
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+<PageTitle>Auction Setup - Faunex</PageTitle>
+<AuthorizeView Roles="TenantAdmin,Seller"><Authorized>
+<section class="platform-shell auction-workspace">
+    <div class="platform-header platform-header--compact"><div><p class="platform-kicker">Timed auction</p><h1>@(_review?.Listing.Title ?? "Auction Setup")</h1></div><div class="bird-editor-actions"><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="LoadAsync">Refresh</button><a class="btn btn-outline-secondary" href="@Back">Back to listings</a></div></div>
+    @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+    @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
+    @if (_loading) { <p role="status">Loading auction...</p> }
+    else if (_review is not null)
+    {
+        <div class="files-summary"><span class="platform-status">@(_auction?.State ?? "Not configured")</span><span>Approved start: @_review.Listing.StartingPrice @_review.Listing.CurrencyCode</span></div>
+        @if (_auction?.CurrencyCode is { Length: > 0 } configured && configured != _review.Listing.CurrencyCode) { <div class="alert alert-warning">Configured currency: @configured. Listing currency: @_review.Listing.CurrencyCode.</div> }
+        @if (_review.Status != "Approved" || _review.Listing.IsActive != true || _review.Listing.BuyNowPrice.HasValue) { <div class="alert alert-info">An active, approved auction listing is required for setup.</div> }
+        else
+        {
+            <form @onsubmit="SaveAsync" @onsubmit:preventDefault>
+                <fieldset disabled="@(_busy || !Editable)">
+                    <div class="auction-terms-grid">
+                        <div><label class="form-label" for="auction-start">Start (SAST, UTC+02:00)</label><input id="auction-start" class="form-control" type="datetime-local" step="1" @bind="_start" @bind:format="yyyy-MM-ddTHH:mm:ss" required /></div>
+                        <div><label class="form-label" for="auction-end">End (SAST, UTC+02:00)</label><input id="auction-end" class="form-control" type="datetime-local" step="1" @bind="_end" @bind:format="yyyy-MM-ddTHH:mm:ss" required /></div>
+                        <div><label class="form-label" for="auction-increment">Minimum increment (@_review.Listing.CurrencyCode)</label><input id="auction-increment" class="form-control" type="number" min="0.01" max="999999999" step="0.01" @bind="_increment" required /></div>
+                        <div><label class="form-label" for="auction-reserve">Private reserve (@_review.Listing.CurrencyCode, optional)</label><input id="auction-reserve" class="form-control" type="number" min="0.01" max="999999999" step="0.01" @bind="_reserve" /></div>
+                    </div>
+                </fieldset>
+                @if (Editable) { <button class="btn btn-primary mt-3" type="submit" disabled="@_busy">@(_busy ? "Saving..." : "Save Auction Draft")</button> }
+            </form>
+        }
+        @if (_auction is not null)
+        {
+            <dl class="review-facts my-4"><dt>Highest bid</dt><dd>@(_auction.CurrentPrice?.ToString("0.00") ?? "No bids")</dd><dt>Result</dt><dd>@(_auction.Outcome ?? "Not finalised")</dd>@if (_auction.WinnerId is { } winner) { <dt>Winner ID</dt><dd>@winner</dd> }<dt>Closed (SAST)</dt><dd>@(_auction.ClosedAt?.ToOffset(TimeSpan.FromHours(2)).ToString("dd MMM yyyy HH:mm") ?? "-")</dd></dl>
+            @if (_admin)
+            {
+                <div class="file-actions">
+                    @if (_auction.State == "Draft") { <button class="btn btn-success" disabled="@_busy" @onclick='() => _action = "open"'>Publish Auction</button> }
+                    @if (_auction.State == "AwaitingResult") { <button class="btn btn-primary" disabled="@_busy" @onclick='() => _action = "close"'>Finalise Result</button> }
+                    @if (_auction.State is "Draft" or "Scheduled") { <button class="btn btn-outline-danger" disabled="@_busy" @onclick='() => _action = "cancel"'>Cancel Auction</button> }
+                </div>
+                @if (_action is not null)
+                {
+                    <div class="review-confirm mt-3">
+                        @if (_action == "cancel") { <label class="form-label" for="cancel-reason">Cancellation reason</label><textarea id="cancel-reason" class="form-control" maxlength="500" @bind="_reason"></textarea> }
+                        <div class="file-actions mt-2"><button class="btn btn-primary" disabled="@_busy" @onclick="ActAsync">Confirm @(_action == "open" ? "Publication" : _action == "close" ? "Result" : "Cancellation")</button><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="() => _action = null">Keep Editing</button></div>
+                    </div>
+                }
+            }
+        }
+    }
+</section>
+</Authorized><NotAuthorized><h1>Listing Access Required</h1><a href="/login">Login</a></NotAuthorized></AuthorizeView>
+@code {
+    [Parameter] public Guid ListingId { get; set; }
+    private ListingReviewDto? _review;
+    private AuctionDto? _auction;
+    private DateTime _start, _end;
+    private decimal _increment = 10m;
+    private decimal? _reserve;
+    private string? _error, _notice, _action;
+    private string _reason = "";
+    private bool _busy, _loading, _admin;
+    private bool Editable => _auction is null || _auction.State is "Draft" or "NeedsConfiguration";
+    private string Back => Nav.Uri.Contains("/tenant/", StringComparison.Ordinal) ? "/tenant/listings" : "/seller/my-listings";
+    protected override Task OnParametersSetAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null; _review = null; _auction = null; _action = null;
+        try
+        {
+            _admin = (await Auth.GetAuthenticationStateAsync()).User.IsInRole("TenantAdmin");
+            _review = await Api.GetAsync<ListingReviewDto>($"/api/listings/{ListingId}/review");
+            var auctions = await Api.GetAsync<List<AuctionDto>>($"/api/auctions/by-listing/{ListingId}") ?? [];
+            if (auctions.Count > 1) throw new InvalidOperationException("Multiple legacy auctions require administrator reconciliation.");
+            _auction = auctions.SingleOrDefault();
+            _start = DateTimeOffset.FromUnixTimeSeconds((_auction?.StartsAt ?? DateTimeOffset.UtcNow.AddMinutes(15)).ToUnixTimeSeconds()).ToOffset(TimeSpan.FromHours(2)).DateTime;
+            _end = DateTimeOffset.FromUnixTimeSeconds((_auction?.EndsAt ?? DateTimeOffset.UtcNow.AddHours(1)).ToUnixTimeSeconds()).ToOffset(TimeSpan.FromHours(2)).DateTime;
+            _increment = _auction?.MinimumIncrement is > 0 ? _auction.MinimumIncrement : 10m; _reserve = _auction?.ReservePrice;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+    private async Task SaveAsync()
+    {
+        if (_review is null || _busy) return;
+        _busy = true; _error = _notice = null;
+        try
+        {
+            var dto = new AuctionDto(_auction?.Id ?? Guid.Empty, ListingId, AuctionType.Timed,
+                new DateTimeOffset(DateTime.SpecifyKind(_start, DateTimeKind.Unspecified), TimeSpan.FromHours(2)).ToUniversalTime(),
+                new DateTimeOffset(DateTime.SpecifyKind(_end, DateTimeKind.Unspecified), TimeSpan.FromHours(2)).ToUniversalTime(),
+                _review.Listing.StartingPrice!.Value, _reserve, null, false, true, _increment, _auction?.Revision, _review.Revision);
+            if (_auction is null) await Api.PostAsync("/api/auctions", dto); else await Api.PutAsync($"/api/auctions/{_auction.Id}", dto);
+            await LoadAsync(); _notice = "Auction draft saved.";
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+    private async Task ActAsync()
+    {
+        if (_auction is null || _action is null || _busy) return;
+        _busy = true; _error = _notice = null;
+        try
+        {
+            if (_action == "cancel") await Api.PostAsync($"/api/auctions/{_auction.Id}/cancel", new { _auction.Revision, Reason = _reason });
+            else await Api.PostAsync($"/api/auctions/{_auction.Id}/{_action}", new { _auction.Revision });
+            await LoadAsync(); _notice = "Auction updated.";
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

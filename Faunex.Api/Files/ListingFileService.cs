@@ -39,7 +39,7 @@ public sealed class ListingFileService(ApplicationDbContext db, ITenantContext t
 
     private async Task<bool> CanModifyAsync(Listing listing, CancellationToken ct) => !Reviewer
         && listing.Compliance?.Status is not (ListingComplianceStatus.UnderReview or ListingComplianceStatus.Suspended)
-        && !await db.Auctions.IgnoreQueryFilters().AnyAsync(x => x.TenantId == listing.TenantId && x.ListingId == listing.Id, ct);
+        && !await db.Auctions.IgnoreQueryFilters().AnyAsync(x => x.TenantId == listing.TenantId && x.ListingId == listing.Id && (x.RulesVersion != 1 || x.State != Faunex.Domain.Enums.AuctionState.Draft), ct);
 
     private async Task EnsureEditableAsync(Listing listing, Guid revision, CancellationToken ct)
     {

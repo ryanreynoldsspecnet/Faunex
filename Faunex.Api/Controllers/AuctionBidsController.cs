@@ -25,7 +25,7 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
         {
             return Forbid();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (ex is not ListingEditConflictException)
         {
             return BadRequest(new { error = ex.Message });
         }
@@ -43,7 +43,7 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
         {
             return Forbid();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (ex is not ListingEditConflictException)
         {
             return BadRequest(new { error = ex.Message });
         }
@@ -65,18 +65,18 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
 
     [Authorize(Policy = "TenantAdminOnly")]
     [HttpPost("open")]
-    public async Task<IActionResult> Open(Guid auctionId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Open(Guid auctionId, [FromBody] LifecycleRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            await auctions.OpenAuctionAsync(auctionId, cancellationToken);
+            await auctions.OpenAuctionAsync(auctionId, cancellationToken, request.Revision);
             return NoContent();
         }
         catch (UnauthorizedAccessException)
         {
             return Forbid();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (ex is not ListingEditConflictException)
         {
             return BadRequest(new { error = ex.Message });
         }
@@ -84,20 +84,22 @@ public sealed class AuctionBidsController(IBidService bids, IAuctionService auct
 
     [Authorize(Policy = "TenantAdminOnly")]
     [HttpPost("close")]
-    public async Task<IActionResult> Close(Guid auctionId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Close(Guid auctionId, [FromBody] LifecycleRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            await auctions.CloseAsync(auctionId, cancellationToken);
+            await auctions.CloseAsync(auctionId, cancellationToken, request.Revision);
             return NoContent();
         }
         catch (UnauthorizedAccessException)
         {
             return Forbid();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (ex is not ListingEditConflictException)
         {
             return BadRequest(new { error = ex.Message });
         }
     }
 }
+
+public sealed record LifecycleRequest(Guid? Revision);

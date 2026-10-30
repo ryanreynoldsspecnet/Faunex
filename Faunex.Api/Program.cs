@@ -8,6 +8,7 @@ using Faunex.Api.Email;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddFaunexApiControllers();
+builder.Services.AddHostedService<Faunex.Api.Auctions.AuctionClosingWorker>();
 
 builder.Services.Configure<SmtpEmailOptions>(options =>
 {

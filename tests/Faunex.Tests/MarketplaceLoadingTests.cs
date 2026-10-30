@@ -22,7 +22,7 @@ public sealed class MarketplaceLoadingTests
     public void Approved_listing_composition_translates_on_production_provider(string operation)
     {
         using var db = new ApplicationDbContextFactory().CreateDbContext([]);
-        var controller = new MarketplaceController(db, new TenantDomainResolver(db));
+        var controller = new MarketplaceController(db, new TenantDomainResolver(db), TimeProvider.System);
         // Compile the production query without connecting to a database; custom projections
         // must remain composable for listing ordering, detail filters and auction subqueries.
         var query = (IQueryable)typeof(MarketplaceController)

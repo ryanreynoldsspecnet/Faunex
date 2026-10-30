@@ -42,9 +42,18 @@ public sealed class AuctionsController(IAuctionService auctions) : ControllerBas
 
     [Authorize(Policy = "TenantAdminOnly")]
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(Guid id, [FromQuery] Guid? revision, CancellationToken cancellationToken)
     {
-        await auctions.CloseAsync(id, cancellationToken);
+        await auctions.CloseAsync(id, cancellationToken, revision);
+        return NoContent();
+    }
+
+    public sealed record CancelRequest(Guid Revision, string Reason);
+    [Authorize(Policy = "TenantAdminOnly")]
+    [HttpPost("{id:guid}/cancel")]
+    public async Task<IActionResult> Cancel(Guid id, [FromBody] CancelRequest request, CancellationToken cancellationToken)
+    {
+        await auctions.CancelAsync(id, request.Revision, request.Reason, cancellationToken);
         return NoContent();
     }
 }

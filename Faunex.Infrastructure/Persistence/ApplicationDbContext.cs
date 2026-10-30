@@ -62,6 +62,11 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
             entry.Entity.Revision = Guid.NewGuid();
             entry.Entity.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        foreach (var entry in ChangeTracker.Entries<Auction>().Where(x => x.State == EntityState.Modified))
+        {
+            entry.Entity.Revision = Guid.NewGuid();
+            entry.Entity.UpdatedAt = DateTimeOffset.UtcNow;
+        }
         foreach (var change in changes)
         {
             var listing = change.Entity.Listing ?? throw new InvalidOperationException("Review history requires its listing.");
@@ -83,6 +88,9 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<Listing>().Property(x => x.Revision).IsConcurrencyToken();
+        modelBuilder.Entity<Auction>().Property(x => x.Revision).IsConcurrencyToken();
+        modelBuilder.Entity<Bid>().HasIndex(x => new { x.AuctionId, x.BidNumber }).IsUnique().HasFilter("\"BidNumber\" > 0");
+        modelBuilder.Entity<Auction>().HasIndex(x => new { x.RulesVersion, x.State, x.EndsAt });
         modelBuilder.Entity<ListingReviewEvent>().HasOne(x => x.Listing).WithMany().HasForeignKey(x => x.ListingId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<ListingReviewEvent>().HasIndex(x => new { x.TenantId, x.ListingId, x.Id });
         modelBuilder.Entity<ListingReviewEvent>().HasIndex(x => new { x.ListingId, x.Revision }).IsUnique();

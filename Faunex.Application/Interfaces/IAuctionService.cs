@@ -10,6 +10,7 @@ public interface IAuctionService
     Task<Guid> CreateAsync(AuctionDto auction, CancellationToken cancellationToken = default);
     Task UpdateAsync(AuctionDto auction, CancellationToken cancellationToken = default);
 
-    Task OpenAuctionAsync(Guid auctionId, CancellationToken cancellationToken = default);
-    Task CloseAsync(Guid auctionId, CancellationToken cancellationToken = default);
+    Task OpenAuctionAsync(Guid auctionId, CancellationToken cancellationToken = default, Guid? revision = null);
+    Task CloseAsync(Guid auctionId, CancellationToken cancellationToken = default, Guid? revision = null);
+    Task CancelAsync(Guid auctionId, Guid revision, string reason, CancellationToken cancellationToken = default);
 }

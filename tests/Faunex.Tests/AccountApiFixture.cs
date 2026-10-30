@@ -73,7 +73,9 @@ internal sealed class AccountApiFixture : IAsyncDisposable
         }
         DbConnection keepAlive = databaseName is null ? new SqliteConnection(connectionString) : new NpgsqlConnection(connectionString);
         await keepAlive.OpenAsync();
-        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Development" });
+        var contentRoot = Path.Combine(Path.GetTempPath(), "faunex-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(contentRoot);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Development", ContentRootPath = contentRoot });
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -85,6 +87,8 @@ internal sealed class AccountApiFixture : IAsyncDisposable
         var services = builder.Services;
         services.AddDataProtection().UseEphemeralDataProtectionProvider();
         services.AddFaunexApiControllers();
+        services.AddSingleton<TestAuctionClock>();
+        services.AddSingleton<TimeProvider>(sp => sp.GetRequiredService<TestAuctionClock>());
         services.AddControllers().AddApplicationPart(typeof(AuthController).Assembly);
         services.RemoveAll<DbContextOptions<ApplicationIdentityDbContext>>();
         services.RemoveAll<IDbContextOptionsConfiguration<ApplicationIdentityDbContext>>();
@@ -196,7 +200,10 @@ internal sealed class AccountApiFixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Client.Dispose();
+        var root = _host.Environment.ContentRootPath;
         await _host.DisposeAsync();
+        var owned = Path.Combine(Path.GetTempPath(), "faunex-tests") + Path.DirectorySeparatorChar;
+        if (Path.GetFullPath(root).StartsWith(owned, StringComparison.OrdinalIgnoreCase) && Directory.Exists(root)) Directory.Delete(root, true);
         await _keepAlive.DisposeAsync();
         if (_databaseName is not null && _adminConnectionString is not null)
         {
