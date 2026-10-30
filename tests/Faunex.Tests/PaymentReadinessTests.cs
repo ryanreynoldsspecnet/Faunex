@@ -127,6 +127,16 @@ public sealed class PaymentReadinessTests
     {
         await using var test = await AuctionCase.CreateAsync(); await test.Publish(); test.Clock.Set(test.Starts);
         using var winner = await test.BuyerAsync(); Assert.True((await test.Bid(winner, 100m)).IsSuccessStatusCode); test.Clock.Set(test.Ends);
+        await RecordPreOrderResult(test);
+        var response = await winner.PostAsJsonAsync($"/api/orders/from-auction/{test.AuctionId}", new { }); Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var order = (await response.Content.ReadFromJsonAsync<AuctionOrderDto>())!;
+        Assert.Equal(order, await (await winner.PostAsJsonAsync($"/api/orders/from-auction/{test.AuctionId}", new { })).Content.ReadFromJsonAsync<AuctionOrderDto>());
+        var bad = new Auction { RulesVersion = 1, Outcome = "Sold" };
+        Assert.Throws<ListingEditConflictException>(() => WinnerOrderFactory.Create(bad, new Listing(), new Bid(), test.Ends));
+    }
+
+    private static async Task RecordPreOrderResult(AuctionCase test)
+    {
         // Represent a result committed by Section 5 before orders existed.
         using (var scope = test.Files.App.Server.Services.CreateScope())
         {
@@ -134,11 +144,20 @@ public sealed class PaymentReadinessTests
             auction.State = Faunex.Domain.Enums.AuctionState.Closed; auction.IsClosed = true; auction.ClosedAt = test.Ends;
             auction.Outcome = "Sold"; auction.WinnerId = auction.LeadingBidderId; auction.WinningBidId = auction.LeadingBidId; await db.SaveChangesAsync();
         }
-        var response = await winner.PostAsJsonAsync($"/api/orders/from-auction/{test.AuctionId}", new { }); Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var order = (await response.Content.ReadFromJsonAsync<AuctionOrderDto>())!;
-        Assert.Equal(order, await (await winner.PostAsJsonAsync($"/api/orders/from-auction/{test.AuctionId}", new { })).Content.ReadFromJsonAsync<AuctionOrderDto>());
-        var bad = new Auction { RulesVersion = 1, Outcome = "Sold" };
-        Assert.Throws<ListingEditConflictException>(() => WinnerOrderFactory.Create(bad, new Listing(), new Bid(), test.Ends));
+    }
+
+    [PostgresFact]
+    public async Task Competing_recovery_requests_cannot_duplicate_a_winner_order()
+    {
+        await using var test = await AuctionCase.CreateAsync(); await test.Publish(); test.Clock.Set(test.Starts);
+        using var winner = await test.BuyerAsync(); Assert.True((await test.Bid(winner, 100m)).IsSuccessStatusCode); test.Clock.Set(test.Ends);
+        await RecordPreOrderResult(test);
+        var path = $"/api/orders/from-auction/{test.AuctionId}";
+        var responses = await Task.WhenAll(winner.PostAsJsonAsync(path, new { }), winner.PostAsJsonAsync(path, new { }));
+        Assert.Contains(responses, x => x.StatusCode == HttpStatusCode.OK);
+        Assert.All(responses, x => Assert.True(x.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict));
+        Assert.Single((await winner.GetFromJsonAsync<PagedResult<AuctionOrderDto>>("/api/orders"))!.Items);
+        foreach (var response in responses) response.Dispose();
     }
 
     [PostgresFact]

@@ -3,6 +3,7 @@
 @page "/buyer/orders/from-auction/{AuctionId:guid}"
 @using Faunex.Application.DTOs
 @inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
 <PageTitle>Order - Faunex</PageTitle>
 <AuthorizeView Roles="Buyer,TenantAdmin"><Authorized>
 <section class="platform-shell orders-workspace">
@@ -27,7 +28,7 @@
     private async Task LoadAsync()
     {
         _loading = true; _error = null; _order = null;
-        try { _order = AuctionId != Guid.Empty ? await Api.PostAsync<object, AuctionOrderDto>($"/api/orders/from-auction/{AuctionId}", new { }) : await Api.GetAsync<AuctionOrderDto>($"/api/orders/{OrderId}"); }
+        try { _order = Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath.StartsWith("/buyer/orders/from-auction/", StringComparison.Ordinal) ? await Api.PostAsync<object, AuctionOrderDto>($"/api/orders/from-auction/{AuctionId}", new { }) : await Api.GetAsync<AuctionOrderDto>($"/api/orders/{OrderId}"); }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }
     }

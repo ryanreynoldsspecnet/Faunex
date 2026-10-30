@@ -85,7 +85,13 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
                     ? change.Entity.ReviewNotes : null
             });
         }
-        return await base.SaveChangesAsync(cancellationToken);
+        try { return await base.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
+            { SqlState: "23505", ConstraintName: "IX_AuctionOrders_AuctionId" })
+        {
+            // A competing closer/recovery request already created this auction's order.
+            throw new DbUpdateConcurrencyException("The winner order changed. Reload the auction result.", ex);
+        }
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
