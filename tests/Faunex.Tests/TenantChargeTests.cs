@@ -101,6 +101,7 @@ public sealed class TenantChargeTests
         Assert.Equal(HttpStatusCode.Conflict, (await winner.PostAsJsonAsync(path + "/finalise", new AcceptPriceRequest(selection, 1m))).StatusCode);
         var response = await winner.PostAsJsonAsync(path + "/finalise", new AcceptPriceRequest(selection, 235m)); Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var quote = (await response.Content.ReadFromJsonAsync<OrderQuoteDto>())!;
+        Assert.Equal(0, quote.AcceptedAt.UtcTicks % TimeSpan.TicksPerMicrosecond);
         var repeat = (await (await winner.PostAsJsonAsync(path + "/finalise", new AcceptPriceRequest(selection, 235m))).Content.ReadFromJsonAsync<OrderQuoteDto>())!;
         Assert.Equal(quote.Id, repeat.Id); Assert.Equal(quote.AcceptedAt, repeat.AcceptedAt);
         Assert.Equal(HttpStatusCode.Conflict, (await winner.PostAsJsonAsync(path + "/finalise", new AcceptPriceRequest(Select(catalog, true, false), 110m))).StatusCode);

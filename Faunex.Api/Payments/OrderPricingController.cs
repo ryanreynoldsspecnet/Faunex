@@ -47,7 +47,9 @@ public sealed class OrderPricingController(ApplicationDbContext db, ITenantConte
             if (existing.PricingJson != ChargePricing.Serialize(pricing)) throw new ListingEditConflictException("This order's final pricing has already been accepted and cannot be changed.");
             return ChargePricing.Quote(existing);
         }
-        var now = clock.GetUtcNow();
+        var now = clock.GetUtcNow().ToUniversalTime();
+        // PostgreSQL persists microseconds; the initial response must match the durable timestamp.
+        now = new DateTimeOffset(now.Ticks - now.Ticks % TimeSpan.TicksPerMicrosecond, TimeSpan.Zero);
         var quote = new OrderPriceQuote { TenantId = order.TenantId, OrderId = id, AcceptedBy = order.BuyerId,
             PricingJson = ChargePricing.Serialize(pricing), CreatedAt = now, UpdatedAt = now };
         db.OrderPriceQuotes.Add(quote); await db.SaveChangesAsync(ct); return ChargePricing.Quote(quote);
