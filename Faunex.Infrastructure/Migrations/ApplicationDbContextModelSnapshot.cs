@@ -37,6 +37,9 @@ namespace Faunex.Infrastructure.Migrations
                     b.Property<string>("CancellationReason")
                         .HasColumnType("text");
 
+                    b.Property<string>("ChargeTermsJson")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset?>("ClosedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -131,6 +134,9 @@ namespace Faunex.Infrastructure.Migrations
 
                     b.Property<Guid>("BuyerId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ChargeTermsJson")
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -688,6 +694,41 @@ namespace Faunex.Infrastructure.Migrations
                     b.ToTable("LivestockDetails");
                 });
 
+            modelBuilder.Entity("Faunex.Domain.Entities.OrderPriceQuote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AcceptedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PricingJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("OrderPriceQuotes");
+                });
+
             modelBuilder.Entity("Faunex.Domain.Entities.PoultryDetails", b =>
                 {
                     b.Property<Guid>("ListingId")
@@ -771,6 +812,44 @@ namespace Faunex.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Tenants");
+                });
+
+            modelBuilder.Entity("Faunex.Domain.Entities.TenantChargeCatalog", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("OptionsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("Revision")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Terms")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WriteStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TenantId");
+
+                    b.ToTable("TenantChargeCatalogs");
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.TenantDomain", b =>
@@ -1059,6 +1138,21 @@ namespace Faunex.Infrastructure.Migrations
                     b.Navigation("Listing");
                 });
 
+            modelBuilder.Entity("Faunex.Domain.Entities.OrderPriceQuote", b =>
+                {
+                    b.HasOne("Faunex.Domain.Entities.AuctionOrder", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Faunex.Domain.Entities.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Faunex.Domain.Entities.PoultryDetails", b =>
                 {
                     b.HasOne("Faunex.Domain.Entities.Listing", "Listing")
@@ -1068,6 +1162,15 @@ namespace Faunex.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Listing");
+                });
+
+            modelBuilder.Entity("Faunex.Domain.Entities.TenantChargeCatalog", b =>
+                {
+                    b.HasOne("Faunex.Domain.Entities.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.TenantDomain", b =>

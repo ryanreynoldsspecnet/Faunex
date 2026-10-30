@@ -1020,6 +1020,17 @@ h1:focus {
 .review-queue-filters { display:flex; align-items:end; gap:16px; margin-bottom:24px; }
 .auction-workspace h1 { font-size:32px; }
 .payment-settings h1, .orders-workspace h1 { font-size:32px; }
+.charge-workspace h1 { font-size:32px; }
+.charge-workspace h2, .order-pricing h2, .auction-charges h2 { font-size:22px; }
+.charge-workspace fieldset { min-width:0; }
+.charge-workspace .platform-form-grid > div { min-width:0; }
+.charge-terms, .charge-editor, .order-pricing, .auction-charges { padding:24px 0; border-bottom:1px solid #d5dedb; margin-bottom:24px; }
+.charge-table { min-width:760px; }
+.charge-table td:first-child { max-width:320px; overflow-wrap:anywhere; }
+.charge-choice { margin-top:16px; }
+.charge-choice span, .charge-choice small, .price-breakdown small, .auction-charges small { display:block; overflow-wrap:anywhere; }
+.order-pricing select { max-width:650px; }
+.price-breakdown dt, .auction-charges dt { min-width:0; overflow-wrap:anywhere; }
 .payment-settings fieldset { min-width:0; }
 .payment-settings .platform-form-grid > div { min-width:0; }
 .orders-workspace .platform-table { min-width:600px; }

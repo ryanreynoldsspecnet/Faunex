@@ -17,6 +17,7 @@ public static class WinnerOrderFactory
             throw new ListingEditConflictException("The auction result requires reconciliation before an order can be created.");
         return new AuctionOrder { TenantId = auction.TenantId, AuctionId = auction.Id, ListingId = listing.Id,
             WinningBidId = bid.Id, BuyerId = bid.BidderId, SellerId = listing.SellerId, Title = listing.Title,
-            Quantity = listing.Quantity, Amount = bid.Amount, CurrencyCode = auction.CurrencyCode, CreatedAt = now, UpdatedAt = now };
+            Quantity = listing.Quantity, Amount = bid.Amount, CurrencyCode = auction.CurrencyCode, ChargeTermsJson = auction.ChargeTermsJson,
+            CreatedAt = now, UpdatedAt = now };
     }
 }

@@ -22,6 +22,11 @@
                 <dt>Starting price</dt><dd>@Money(_auction.StartingPrice)</dd><dt>Highest bid</dt><dd>@(_auction.CurrentPrice is { } top ? Money(top) : "No bids")</dd>
                 <dt>Increment</dt><dd>@Money(_auction.MinimumIncrement)</dd><dt>Minimum next bid</dt><dd>@Money(Minimum)</dd><dt>Server update</dt><dd>@Time(_auction.ServerTime)</dd>
             </dl>
+            @if (_auction.Charges is { } charges)
+            {
+                <section class="auction-charges"><h2>Recorded Delivery &amp; Charges</h2><p class="review-notes">@charges.Terms</p><dl class="review-facts">@foreach (var option in charges.Options) { <dt>@option.Name</dt><dd>@option.Amount.ToString("0.00") @charges.CurrencyCode - @(option.Kind == "Delivery" ? "Delivery / collection choice" : option.Kind == "RequiredExtra" ? "Required per lot" : "Optional per lot")<small>@option.Description</small></dd> }</dl></section>
+            }
+            else { <p class="alert alert-warning">No pricing terms recorded. Online checkout unavailable for this auction.</p> }
             @if (_buyer && _auction.State == "Live")
             {
                 <form class="auction-bid-form" @onsubmit="BidAsync" @onsubmit:preventDefault><label class="form-label" for="bid-amount">Bid amount (@_listing.CurrencyCode)</label><div class="file-actions"><input id="bid-amount" class="form-control" type="number" min="@Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture)" max="999999999" step="0.01" @bind="_amount" disabled="@_busy" required /><button class="btn btn-primary" type="submit" disabled="@_busy">@(_busy ? "Submitting..." : "Place Bid")</button></div></form>

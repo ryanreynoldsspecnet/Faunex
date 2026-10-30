@@ -103,6 +103,8 @@ public sealed class AuctionService(IApplicationDbContext dbContext, ITenantConte
         if (auction.RulesVersion != 1 || auction.State != AuctionState.Draft)
             throw new ListingEditConflictException("Only a configured draft auction can be published.");
         Validate(Map(auction, listing), listing);
+        var catalog = await dbContext.TenantChargeCatalogs.SingleOrDefaultAsync(x => x.TenantId == listing.TenantId, cancellationToken);
+        auction.ChargeTermsJson = ChargePricing.Freeze(catalog, listing.CurrencyCode);
         auction.State = AuctionState.Scheduled; auction.IsClosed = false; TimedAuctionRules.Touch(auction, listing, clock.GetUtcNow());
         await dbContext.SaveChangesAsync(cancellationToken);
     }

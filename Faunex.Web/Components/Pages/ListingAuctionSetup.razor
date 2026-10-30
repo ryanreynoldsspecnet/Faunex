@@ -15,6 +15,7 @@
     else if (_review is not null)
     {
         <div class="files-summary"><span class="platform-status">@(_auction?.State ?? "Not configured")</span><span>Approved start: @_review.Listing.StartingPrice @_review.Listing.CurrencyCode</span></div>
+        @if (_admin) { <a class="btn btn-outline-secondary mb-3" href="/tenant/charges">Delivery &amp; Charge Options</a> }
         @if (_auction?.CurrencyCode is { Length: > 0 } configured && configured != _review.Listing.CurrencyCode) { <div class="alert alert-warning">Configured currency: @configured. Listing currency: @_review.Listing.CurrencyCode.</div> }
         @if (_review.Status != "Approved" || _review.Listing.IsActive != true || _review.Listing.BuyNowPrice.HasValue) { <div class="alert alert-info">An active, approved auction listing is required for setup.</div> }
         else

@@ -11,6 +11,7 @@ public interface IApplicationDbContext
     DbSet<Auction> Auctions { get; }
     DbSet<Bid> Bids { get; }
     DbSet<AuctionOrder> AuctionOrders { get; }
+    DbSet<TenantChargeCatalog> TenantChargeCatalogs { get; }
     DbSet<Document> Documents { get; }
 
     DbSet<BirdDetails> BirdDetails { get; }

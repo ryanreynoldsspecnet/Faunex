@@ -26,5 +26,6 @@ public static class TimedAuctionRules
         : auction.State == AuctionState.Scheduled ? now < auction.StartsAt ? "Scheduled" : now >= auction.EndsAt ? "AwaitingResult" : "Live"
         : auction.State.ToString();
     public static PublicAuctionDto Public(Auction a, DateTimeOffset now) => new(a.Id, a.ListingId, a.StartsAt, a.EndsAt,
-        a.StartingPrice, a.MinimumIncrement, a.LeadingAmount, State(a, now), a.State is AuctionState.Closed or AuctionState.Cancelled || now >= a.EndsAt, a.Outcome, now);
+        a.StartingPrice, a.MinimumIncrement, a.LeadingAmount, State(a, now), a.State is AuctionState.Closed or AuctionState.Cancelled || now >= a.EndsAt, a.Outcome, now,
+        a.ChargeTermsJson is { } json ? ChargePricing.Read<ChargeTermsDto>(json) : null);
 }

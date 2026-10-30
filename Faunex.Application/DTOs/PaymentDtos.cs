@@ -6,4 +6,4 @@ public sealed record SavePayFastSettingsRequest(Guid Revision, string MerchantId
     string Environment = "Sandbox");
 public sealed record AuctionOrderDto(Guid Id, Guid AuctionId, Guid ListingId, string Title, int Quantity,
     decimal Amount, string CurrencyCode, DateTimeOffset CreatedAt, string Status = "AwaitingPayment", bool CheckoutAvailable = false,
-    string PricingStatus = "ChargesNotFinalised");
+    string PricingStatus = "ChargesNotFinalised", OrderQuoteDto? Quote = null);

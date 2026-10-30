@@ -1,0 +1,72 @@
+@using Faunex.Application.DTOs
+@inject Faunex.Web.Api.FaunexApiClient Api
+<section class="order-pricing">
+    <h2>Delivery &amp; Extras</h2>
+    @if (Quote is not null)
+    {
+        <span class="platform-status">Pricing finalised</span>
+        <PriceBreakdown Pricing="Quote.Pricing" />
+    }
+    else if (CanChoose)
+    {
+        @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+        @if (_loading) { <p role="status">Loading recorded charge options...</p> }
+        else if (_terms is not null)
+        {
+            <p class="review-notes">@_terms.Terms</p>
+            <form @onsubmit="PreviewAsync" @onsubmit:preventDefault><fieldset disabled="@_busy">
+                <label class="form-label" for="order-delivery">Delivery or collection</label><select id="order-delivery" class="form-select" @bind="_delivery" @bind:after="SelectionChanged" required><option value="@Guid.Empty">Select an option</option>@foreach (var option in _terms.Options.Where(x => x.Kind == "Delivery")) { <option value="@option.Id">@option.Name - @option.Amount.ToString("0.00") @_terms.CurrencyCode</option> }</select>
+                @foreach (var option in _terms.Options.Where(x => x.Kind == "Delivery" && x.Id == _delivery)) { <p class="mt-2">@option.Description</p> }
+                @foreach (var option in _terms.Options.Where(x => x.Kind == "RequiredExtra")) { <div class="charge-choice"><strong>@option.Name - @option.Amount.ToString("0.00") @_terms.CurrencyCode</strong><span>Required per lot</span><span>@option.Description</span></div> }
+                @foreach (var option in _terms.Options.Where(x => x.Kind == "OptionalExtra")) { <label class="form-check charge-choice"><input class="form-check-input" type="checkbox" checked="@_optional.Contains(option.Id)" @onchange="e => Toggle(option.Id, (bool)e.Value!)" /> @option.Name - @option.Amount.ToString("0.00") @_terms.CurrencyCode <small>@option.Description</small></label> }
+                <button class="btn btn-primary mt-3" type="submit">Review Total</button>
+            </fieldset></form>
+            @if (_preview is not null)
+            {
+                <div class="review-confirm"><PriceBreakdown Pricing="_preview" /><label class="form-check mt-3"><input id="accept-pricing" class="form-check-input" type="checkbox" @bind="_confirmed" /> I accept this itemised total and the recorded pricing terms.</label><button class="btn btn-primary mt-3" disabled="@(_busy || !_confirmed)" @onclick="AcceptAsync">Confirm Final Total</button></div>
+            }
+        }
+    }
+    else { <p>Awaiting the winning buyer's delivery and extras selection.</p> }
+</section>
+@code {
+    [Parameter] public Guid OrderId { get; set; }
+    [Parameter] public OrderQuoteDto? Quote { get; set; }
+    [Parameter] public bool CanChoose { get; set; }
+    [Parameter] public EventCallback Updated { get; set; }
+    private ChargeTermsDto? _terms;
+    private PriceBreakdownDto? _preview;
+    private Guid _delivery, _loadedOrder;
+    private readonly HashSet<Guid> _optional = [];
+    private bool _busy, _loading, _confirmed;
+    private string? _error;
+    protected override async Task OnParametersSetAsync()
+    {
+        if (OrderId == _loadedOrder) return;
+        _loadedOrder = OrderId; _preview = null; _optional.Clear(); _delivery = Guid.Empty; _error = null; _terms = null;
+        if (!CanChoose || Quote is not null) return;
+        _loading = true;
+        try { _terms = await Api.GetAsync<ChargeTermsDto>($"/api/orders/{OrderId}/pricing/options"); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+    private void SelectionChanged() { _preview = null; _confirmed = false; }
+    private void Toggle(Guid id, bool selected) { if (selected) _optional.Add(id); else _optional.Remove(id); SelectionChanged(); }
+    private PriceSelectionRequest Selection() => new(_terms!.Revision, _delivery, _optional.ToList());
+    private async Task PreviewAsync()
+    {
+        if (_busy || _terms is null) return;
+        _busy = true; _error = null; _confirmed = false; _preview = null;
+        try { _preview = await Api.PostAsync<PriceSelectionRequest, PriceBreakdownDto>($"/api/orders/{OrderId}/pricing/preview", Selection()); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+    private async Task AcceptAsync()
+    {
+        if (_busy || !_confirmed || _preview is null) return;
+        _busy = true; _error = null;
+        try { await Api.PostAsync<AcceptPriceRequest, OrderQuoteDto>($"/api/orders/{OrderId}/pricing/finalise", new(Selection(), _preview.Total)); await Updated.InvokeAsync(); }
+        catch (Exception ex) { _error = ex.Message; _confirmed = false; }
+        finally { _busy = false; }
+    }
+}

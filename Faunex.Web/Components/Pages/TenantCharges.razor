@@ -1,0 +1,80 @@
+@page "/tenant/charges"
+@using Faunex.Application.DTOs
+@inject Faunex.Web.Api.FaunexApiClient Api
+<PageTitle>Delivery &amp; Extra Charges - Faunex</PageTitle>
+<AuthorizeView Roles="TenantAdmin"><Authorized>
+<section class="platform-shell charge-workspace">
+    <div class="platform-header platform-header--compact"><div><p class="platform-kicker">Tenant pricing</p><h1>Delivery &amp; Extra Charges</h1></div><a class="btn btn-outline-secondary" href="/tenant/payments">Payments</a></div>
+    @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+    @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
+    @if (_loading) { <p role="status">Loading charge options...</p> }
+    else if (_catalog is not null)
+    {
+        <div class="files-summary"><span class="platform-status">@(_catalog.IsPublished ? "Published for new auctions" : "Draft")</span></div>
+        <form class="charge-terms" @onsubmit="SaveTermsAsync" @onsubmit:preventDefault>
+            <fieldset disabled="@_busy"><div class="platform-form-grid">
+                <div><label class="form-label" for="charge-currency">Currency</label><select id="charge-currency" class="form-select" @bind="_currency"><option>ZAR</option><option>USD</option></select></div>
+                <div class="platform-form-grid__wide"><label class="form-label" for="charge-terms">Pricing and tax terms</label><textarea id="charge-terms" class="form-control" rows="3" maxlength="1000" @bind="_terms"></textarea></div>
+            </div><label class="form-check mt-3"><input id="charge-published" class="form-check-input" type="checkbox" @bind="_published" /> Use for new auctions</label>
+            <div class="platform-form-actions"><button class="btn btn-primary" type="submit">Save Pricing Terms</button><button class="btn btn-outline-secondary" type="button" @onclick="LoadAsync">Reload</button></div></fieldset>
+        </form>
+        <div class="files-section-heading"><div><label class="form-label" for="charge-search">Search options</label><input id="charge-search" class="form-control" @bind="_search" @bind:event="oninput" maxlength="200" /></div><button class="btn btn-primary" disabled="@_busy" @onclick="Add">Add Option</button></div>
+        @if (_editing)
+        {
+            <form class="charge-editor" @onsubmit="SaveOptionAsync" @onsubmit:preventDefault><h2>@(_editIndex < 0 ? "Add Option" : "Edit Option")</h2><fieldset disabled="@_busy"><div class="platform-form-grid">
+                <div><label class="form-label" for="charge-name">Name</label><input id="charge-name" class="form-control" maxlength="100" required @bind="_name" /></div>
+                <div><label class="form-label" for="charge-kind">Type</label><select id="charge-kind" class="form-select" @bind="_kind"><option value="Delivery">Delivery / collection</option><option value="RequiredExtra">Required extra</option><option value="OptionalExtra">Optional extra</option></select></div>
+                <div><label class="form-label" for="charge-amount">Fixed price per lot (@_currency)</label><input id="charge-amount" class="form-control" type="number" min="0" max="999999999" step="0.01" required @bind="_amount" /></div>
+                <div><label class="form-label" for="charge-description">Conditions / description</label><input id="charge-description" class="form-control" maxlength="500" @bind="_description" /></div>
+            </div><label class="form-check mt-3"><input class="form-check-input" type="checkbox" @bind="_active" /> Active</label><div class="platform-form-actions"><button class="btn btn-primary" type="submit">Save Option</button><button class="btn btn-outline-secondary" type="button" @onclick="() => _editing = false">Cancel</button></div></fieldset></form>
+        }
+        @if (_remove is not null)
+        {
+            <div class="review-confirm"><p>Remove @_remove.Name from future auctions?</p><div class="file-actions"><button class="btn btn-danger" disabled="@_busy" @onclick="RemoveAsync">Confirm Removal</button><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="() => _remove = null">Cancel</button></div></div>
+        }
+        @if (_catalog.Options.Count == 0) { <p>No charge options configured.</p> }
+        else
+        {
+            <div class="platform-table-wrap"><table class="table platform-table charge-table"><thead><tr><th>Name</th><th>Type</th><th>Per lot</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+                @foreach (var option in _catalog.Options.Where(x => x.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+                {
+                    <tr><td>@option.Name<br /><small>@option.Description</small></td><td>@Kind(option.Kind)</td><td>@option.Amount.ToString("0.00") @_catalog.CurrencyCode</td><td>@(option.IsActive ? "Active" : "Inactive")</td><td><div class="file-actions"><button class="btn btn-sm btn-outline-secondary" disabled="@_busy" @onclick="() => Edit(option)">Edit</button><button class="btn btn-sm btn-outline-danger" disabled="@_busy" @onclick="() => _remove = option">Remove</button></div></td></tr>
+                }
+            </tbody></table></div>
+        }
+    }
+</section>
+</Authorized><NotAuthorized><p>You do not have access to tenant pricing.</p></NotAuthorized></AuthorizeView>
+@code {
+    private ChargeCatalogDto? _catalog;
+    private string _currency = "ZAR", _terms = "", _search = "", _name = "", _kind = "Delivery", _description = "";
+    private bool _published, _loading, _busy, _editing, _active = true;
+    private decimal _amount;
+    private int _editIndex = -1;
+    private ChargeOptionDto? _remove;
+    private string? _error, _notice;
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private void Apply(ChargeCatalogDto value) { _catalog = value; _currency = value.CurrencyCode; _terms = value.Terms; _published = value.IsPublished; }
+    private async Task LoadAsync() { _loading = true; _error = _notice = null; _editing = false; _remove = null; try { Apply((await Api.GetAsync<ChargeCatalogDto>("/api/tenant/charges"))!); } catch (Exception ex) { _error = ex.Message; } finally { _loading = false; } }
+    private static string Kind(string value) => value switch { "Delivery" => "Delivery / collection", "RequiredExtra" => "Required extra", _ => "Optional extra" };
+    private void Add() { _editing = true; _editIndex = -1; _name = _description = ""; _kind = "Delivery"; _amount = 0; _active = true; _error = _notice = null; }
+    private void Edit(ChargeOptionDto value) { _editing = true; _editIndex = _catalog!.Options.ToList().IndexOf(value); _name = value.Name; _kind = value.Kind; _description = value.Description; _amount = value.Amount; _active = value.IsActive; _error = _notice = null; }
+    private async Task<bool> SaveAsync(IReadOnlyList<ChargeOptionDto> options)
+    {
+        if (_busy || _catalog is null) return false;
+        _busy = true; _error = _notice = null;
+        try { Apply((await Api.PutAsync<ChargeCatalogDto, ChargeCatalogDto>("/api/tenant/charges", new(_catalog.Revision, _published, _currency, _terms, options)))!); _notice = "Pricing saved for future auctions. Published auction terms are unchanged."; return true; }
+        catch (Exception ex) { _error = ex.Message; return false; }
+        finally { _busy = false; }
+    }
+    private async Task SaveTermsAsync() { if (_catalog is not null && await SaveAsync(_catalog.Options)) { _editing = false; _remove = null; } }
+    private async Task SaveOptionAsync()
+    {
+        if (_catalog is null) return;
+        var options = _catalog.Options.ToList();
+        var item = new ChargeOptionDto(_editIndex < 0 ? Guid.Empty : options[_editIndex].Id, _name, _kind, _amount, _description, _active);
+        if (_editIndex < 0) options.Add(item); else options[_editIndex] = item;
+        if (await SaveAsync(options)) _editing = false;
+    }
+    private async Task RemoveAsync() { if (_catalog is not null && _remove is not null && await SaveAsync(_catalog.Options.Where(x => x.Id != _remove.Id).ToList())) { _remove = null; _editing = false; } }
+}
