@@ -1,0 +1,37 @@
+@page "/buyer/orders"
+@page "/tenant/orders"
+@using Faunex.Application.DTOs
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+<PageTitle>Orders - Faunex</PageTitle>
+<AuthorizeView Roles="Buyer,TenantAdmin"><Authorized>
+<section class="platform-shell orders-workspace">
+    <div class="platform-header platform-header--compact"><div><p class="platform-kicker">Auction results</p><h1>@(IsTenant ? "Tenant Orders" : "My Orders")</h1></div>@if (IsTenant) { <a class="btn btn-outline-secondary" href="/tenant/payments">PayFast Settings</a> }</div>
+    <form class="platform-list-toolbar" @onsubmit="SearchAsync" @onsubmit:preventDefault><div><label for="order-search" class="form-label">Search orders</label><input id="order-search" class="form-control" maxlength="200" @bind="_search" /></div><button class="btn btn-outline-secondary" disabled="@_loading" type="submit">Search</button></form>
+    @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+    @if (_loading) { <p role="status">Loading orders...</p> }
+    else if (_result is not null)
+    {
+        @if (_result.Total == 0) { <p>No orders found.</p> }
+        else
+        {
+            <div class="platform-table-wrap"><table class="table platform-table"><thead><tr><th>Listing</th><th>Lot subtotal</th><th>Status</th><th>Actions</th></tr></thead><tbody>@foreach (var order in _result.Items) { <tr><td>@order.Title</td><td>@order.Amount.ToString("0.00") @order.CurrencyCode</td><td>Charges not finalised</td><td><a href="@(Prefix + "/" + order.Id)">View</a></td></tr> }</tbody></table></div>
+            <div class="review-pagination"><button class="btn btn-outline-secondary" disabled="@(_skip == 0)" @onclick="PreviousAsync">Previous</button><span>@_result.Total order(s)</span><button class="btn btn-outline-secondary" disabled="@(_skip + 25 >= _result.Total)" @onclick="NextAsync">Next</button></div>
+        }
+    }
+</section>
+</Authorized><NotAuthorized><p>Login with your buyer or tenant administrator account to view orders.</p></NotAuthorized></AuthorizeView>
+@code {
+    private string _search = "";
+    private int _skip;
+    private bool _loading;
+    private string? _error;
+    private PagedResult<AuctionOrderDto>? _result;
+    private bool IsTenant => Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath.StartsWith("/tenant/", StringComparison.Ordinal);
+    private string Prefix => IsTenant ? "/tenant/orders" : "/buyer/orders";
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync() { _loading = true; _error = null; try { _result = await Api.GetAsync<PagedResult<AuctionOrderDto>>($"/api/orders?search={Uri.EscapeDataString(_search)}&skip={_skip}&take=25"); } catch (Exception ex) { _error = ex.Message; } finally { _loading = false; } }
+    private async Task SearchAsync() { _skip = 0; await LoadAsync(); }
+    private async Task PreviousAsync() { _skip = Math.Max(0, _skip - 25); await LoadAsync(); }
+    private async Task NextAsync() { _skip += 25; await LoadAsync(); }
+}

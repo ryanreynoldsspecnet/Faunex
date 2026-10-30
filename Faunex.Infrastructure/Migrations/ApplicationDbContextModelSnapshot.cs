@@ -117,6 +117,64 @@ namespace Faunex.Infrastructure.Migrations
                     b.ToTable("Auctions");
                 });
 
+            modelBuilder.Entity("Faunex.Domain.Entities.AuctionOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("AuctionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BuyerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ListingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SellerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("WinningBidId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuctionId")
+                        .IsUnique();
+
+                    b.HasIndex("ListingId");
+
+                    b.HasIndex("WinningBidId");
+
+                    b.HasIndex("TenantId", "BuyerId", "Id");
+
+                    b.ToTable("AuctionOrders");
+                });
+
             modelBuilder.Entity("Faunex.Domain.Entities.Bid", b =>
                 {
                     b.Property<Guid>("Id")
@@ -761,6 +819,34 @@ namespace Faunex.Infrastructure.Migrations
                     b.ToTable("TenantDomains");
                 });
 
+            modelBuilder.Entity("Faunex.Domain.Entities.TenantPaymentSettings", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MerchantId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProtectedCredentials")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TenantId");
+
+                    b.ToTable("TenantPaymentSettings");
+                });
+
             modelBuilder.Entity("Faunex.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -804,6 +890,33 @@ namespace Faunex.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Listing");
+                });
+
+            modelBuilder.Entity("Faunex.Domain.Entities.AuctionOrder", b =>
+                {
+                    b.HasOne("Faunex.Domain.Entities.Auction", null)
+                        .WithMany()
+                        .HasForeignKey("AuctionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Faunex.Domain.Entities.Listing", null)
+                        .WithMany()
+                        .HasForeignKey("ListingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Faunex.Domain.Entities.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Faunex.Domain.Entities.Bid", null)
+                        .WithMany()
+                        .HasForeignKey("WinningBidId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.Bid", b =>
@@ -966,6 +1079,15 @@ namespace Faunex.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Faunex.Domain.Entities.TenantPaymentSettings", b =>
+                {
+                    b.HasOne("Faunex.Domain.Entities.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.Listing", b =>

@@ -59,6 +59,7 @@ services:
     volumes:
       - dataprotection_keys:/root/.aspnet/DataProtection-Keys
       - listing_files:/var/lib/faunex/listing-files
+      - payment_keys:/var/lib/faunex/payment-keys
     depends_on:
       - db
       - clamav
@@ -98,3 +99,4 @@ volumes:
   caddy_config:
   listing_files:
   clamav_data:
+  payment_keys:

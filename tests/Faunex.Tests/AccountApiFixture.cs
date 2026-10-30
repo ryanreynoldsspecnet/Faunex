@@ -87,6 +87,7 @@ internal sealed class AccountApiFixture : IAsyncDisposable
         var services = builder.Services;
         services.AddDataProtection().UseEphemeralDataProtectionProvider();
         services.AddFaunexApiControllers();
+        services.AddSingleton<Faunex.Api.Payments.IPaymentSecretProtector>(new Faunex.Api.Payments.PaymentSecretProtector(new EphemeralDataProtectionProvider()));
         services.AddSingleton<TestAuctionClock>();
         services.AddSingleton<TimeProvider>(sp => sp.GetRequiredService<TestAuctionClock>());
         services.AddControllers().AddApplicationPart(typeof(AuthController).Assembly);

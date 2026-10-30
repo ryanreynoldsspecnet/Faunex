@@ -254,6 +254,8 @@ public sealed class TimedAuctionTests
         using var finalScope = test.Files.App.Server.Services.CreateScope();
         var result = await finalScope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Auctions.IgnoreQueryFilters().SingleAsync(x => x.Id == test.AuctionId);
         Assert.Equal("Sold", result.Outcome); Assert.NotNull(result.WinningBidId); Assert.NotNull(result.WinnerId);
+        var order = await finalScope.ServiceProvider.GetRequiredService<ApplicationDbContext>().AuctionOrders.IgnoreQueryFilters().SingleAsync();
+        Assert.Equal(result.Id, order.AuctionId); Assert.Equal(result.WinnerId, order.BuyerId); Assert.Equal(100m, order.Amount);
     }
 }
 

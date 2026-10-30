@@ -27,6 +27,7 @@
                 <form class="auction-bid-form" @onsubmit="BidAsync" @onsubmit:preventDefault><label class="form-label" for="bid-amount">Bid amount (@_listing.CurrencyCode)</label><div class="file-actions"><input id="bid-amount" class="form-control" type="number" min="@Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture)" max="999999999" step="0.01" @bind="_amount" disabled="@_busy" required /><button class="btn btn-primary" type="submit" disabled="@_busy">@(_busy ? "Submitting..." : "Place Bid")</button></div></form>
             }
             else if (!_signedIn) { <a class="btn btn-primary" href="/login">Login</a> }
+            @if (_buyer && _auction.Outcome == "Sold") { <a class="btn btn-outline-primary" href="@($"/buyer/orders/from-auction/{_auction.Id}")">My Winner Order</a> }
             <h2 class="mt-4">Bid History</h2>
             @if (_bids?.Items.Count > 0)
             {
