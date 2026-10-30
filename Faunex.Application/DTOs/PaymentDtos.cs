@@ -5,4 +5,5 @@ public sealed record PayFastSettingsDto(string MerchantId, bool HasCredentials, 
 public sealed record SavePayFastSettingsRequest(Guid Revision, string MerchantId, string? MerchantKey, string? Passphrase,
     string Environment = "Sandbox");
 public sealed record AuctionOrderDto(Guid Id, Guid AuctionId, Guid ListingId, string Title, int Quantity,
-    decimal Amount, string CurrencyCode, DateTimeOffset CreatedAt, string Status = "AwaitingPayment", bool CheckoutAvailable = false);
+    decimal Amount, string CurrencyCode, DateTimeOffset CreatedAt, string Status = "AwaitingPayment", bool CheckoutAvailable = false,
+    string PricingStatus = "ChargesNotFinalised");

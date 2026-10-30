@@ -105,6 +105,7 @@ public sealed class PaymentReadinessTests
         if (!sold) { Assert.Equal(HttpStatusCode.NotFound, (await winner.PostAsJsonAsync($"/api/orders/from-auction/{test.AuctionId}", new { })).StatusCode); return; }
         var order = Assert.Single(orders.Items);
         Assert.Equal(amount!.Value, order.Amount); Assert.Equal("ZAR", order.CurrencyCode); Assert.Equal("AwaitingPayment", order.Status); Assert.False(order.CheckoutAvailable);
+        Assert.Equal("ChargesNotFinalised", order.PricingStatus);
         var repeated = await winner.PostAsJsonAsync($"/api/orders/from-auction/{test.AuctionId}", new { Amount = 0.01m, BuyerId = Guid.NewGuid() });
         Assert.Equal(order, await repeated.Content.ReadFromJsonAsync<AuctionOrderDto>());
         Assert.Equal(order, await test.Admin.GetFromJsonAsync<AuctionOrderDto>($"/api/orders/{order.Id}"));

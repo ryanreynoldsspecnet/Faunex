@@ -15,7 +15,7 @@
         @if (_result.Total == 0) { <p>No orders found.</p> }
         else
         {
-            <div class="platform-table-wrap"><table class="table platform-table"><thead><tr><th>Listing</th><th>Lot total</th><th>Status</th><th>Actions</th></tr></thead><tbody>@foreach (var order in _result.Items) { <tr><td>@order.Title</td><td>@order.Amount.ToString("0.00") @order.CurrencyCode</td><td>Awaiting payment</td><td><a href="@(Prefix + "/" + order.Id)">View</a></td></tr> }</tbody></table></div>
+            <div class="platform-table-wrap"><table class="table platform-table"><thead><tr><th>Listing</th><th>Lot subtotal</th><th>Status</th><th>Actions</th></tr></thead><tbody>@foreach (var order in _result.Items) { <tr><td>@order.Title</td><td>@order.Amount.ToString("0.00") @order.CurrencyCode</td><td>Charges not finalised</td><td><a href="@(Prefix + "/" + order.Id)">View</a></td></tr> }</tbody></table></div>
             <div class="review-pagination"><button class="btn btn-outline-secondary" disabled="@(_skip == 0)" @onclick="PreviousAsync">Previous</button><span>@_result.Total order(s)</span><button class="btn btn-outline-secondary" disabled="@(_skip + 25 >= _result.Total)" @onclick="NextAsync">Next</button></div>
         }
     }
