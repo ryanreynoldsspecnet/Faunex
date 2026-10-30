@@ -59,8 +59,11 @@ public sealed class PayFastService(ApplicationDbContext db, ITenantContext tenan
         var attempt = await db.PayFastAttempts.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == id && x.TenantId == order.TenantId, ct);
         if (attempt is not null)
         {
+            if (attempt.Environment != "Sandbox" || attempt.CurrencyCode != "ZAR" || attempt.Amount != pricing.Total || attempt.QuoteId != quote.Id)
+                throw new ListingEditConflictException("The stored payment intent requires reconciliation.");
             if (attempt.Status != "Pending") throw new ListingEditConflictException("This sandbox payment is confirmed or requires review. Do not pay it again.");
             if (attempt.SettingsRevision != settings.Revision) throw new ListingEditConflictException("The merchant settings changed after checkout was prepared. Tenant review is required.");
+            if (new Uri(attempt.ReturnUrl).IdnHost != origin.Host) throw new ListingEditConflictException("This checkout was prepared on another marketplace hostname. Tenant review is required.");
             return Form(attempt);
         }
         if (origin.Host is null || await origin.TenantIdAsync(ct) != order.TenantId) throw new UnauthorizedAccessException();
