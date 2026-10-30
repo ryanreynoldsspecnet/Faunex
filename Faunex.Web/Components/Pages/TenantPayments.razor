@@ -10,7 +10,7 @@
     @if (_loading) { <p role="status">Loading payment settings...</p> }
     else if (_settings is not null)
     {
-        <div class="files-summary"><span class="platform-status">Sandbox</span><span>@(_settings.HasCredentials ? "Credentials stored" : "Not configured")</span><span>Checkout not yet available</span></div>
+        <div class="files-summary"><span class="platform-status">Sandbox</span><span>@(_settings.HasCredentials ? "Credentials stored" : "Not configured")</span><span>@(_settings.CheckoutAvailable ? "Sandbox checkout enabled" : "Sandbox checkout unavailable")</span></div>
         <form @onsubmit="SaveAsync" @onsubmit:preventDefault>
             <fieldset disabled="@_busy">
                 <div class="platform-form-grid">
@@ -50,7 +50,7 @@
         try
         {
             _settings = await Api.PutAsync<SavePayFastSettingsRequest, PayFastSettingsDto>("/api/tenant/payments/payfast", new(_settings.Revision, _merchantId, _key, _passphrase));
-            _notice = "Sandbox settings saved. Checkout remains unavailable.";
+            _notice = "Sandbox settings saved.";
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _key = _passphrase = ""; _show = false; _busy = false; }

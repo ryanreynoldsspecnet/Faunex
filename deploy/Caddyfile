@@ -9,7 +9,21 @@
 
 faunex.co.za {
     encode zstd gzip
-    reverse_proxy faunex-web:8080
+    handle /payments/payfast/notify {
+        request_body {
+            max_size 16KB
+        }
+        rewrite * /api/payments/payfast/notify
+        reverse_proxy faunex-api:8080 {
+            header_up -Authorization
+            header_up -Cookie
+            header_up X-Faunex-PayFast-Source {http.request.remote.host}
+            header_up X-Faunex-PayFast-Ingress "{$FAUNEX_PAYMENTS_INGRESS_TOKEN:disabled}"
+        }
+    }
+    handle {
+        reverse_proxy faunex-web:8080
+    }
 }
 
 www.faunex.co.za {

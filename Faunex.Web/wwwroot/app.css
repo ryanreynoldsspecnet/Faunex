@@ -1031,6 +1031,10 @@ h1:focus {
 .charge-choice span, .charge-choice small, .price-breakdown small, .auction-charges small { display:block; overflow-wrap:anywhere; }
 .order-pricing select { max-width:650px; }
 .price-breakdown dt, .auction-charges dt { min-width:0; overflow-wrap:anywhere; }
+.order-payment { padding:24px 0; border-bottom:1px solid #d5dedb; margin-bottom:24px; }
+.order-payment h2 { font-size:22px; }
+.order-payment h3 { font-size:18px; }
+.payment-events { min-width:700px; }
 .payment-settings fieldset { min-width:0; }
 .payment-settings .platform-form-grid > div { min-width:0; }
 .orders-workspace .platform-table { min-width:600px; }

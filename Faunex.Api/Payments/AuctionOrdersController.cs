@@ -14,7 +14,7 @@ namespace Faunex.Api.Payments;
 
 [ApiController, Route("api/orders"), Authorize(Roles = "Buyer,TenantAdmin")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class AuctionOrdersController(ApplicationDbContext db, ITenantContext tenant, TimeProvider clock) : ControllerBase
+public sealed class AuctionOrdersController(ApplicationDbContext db, ITenantContext tenant, TimeProvider clock, PayFastService payments) : ControllerBase
 {
     private IQueryable<AuctionOrder> Visible()
     {
@@ -28,11 +28,14 @@ public sealed class AuctionOrdersController(ApplicationDbContext db, ITenantCont
         }
         return query;
     }
-    private static AuctionOrderDto Map(AuctionOrder row, OrderPriceQuote? quote) => new(row.Id, row.AuctionId, row.ListingId, row.Title, row.Quantity,
-        row.Amount, row.CurrencyCode, row.CreatedAt, PricingStatus: quote is null ? "ChargesNotFinalised" : "Finalised",
-        Quote: quote is null ? null : ChargePricing.Quote(quote));
+    private AuctionOrderDto Map(AuctionOrder row, OrderPriceQuote? quote, PayFastAttempt? attempt, TenantPaymentSettings? settings) => new(row.Id, row.AuctionId, row.ListingId, row.Title, row.Quantity,
+        row.Amount, row.CurrencyCode, row.CreatedAt, Status: attempt is null ? "AwaitingPayment" : attempt.Status == "SandboxComplete" ? "SandboxPaymentComplete" : "SandboxPayment" + attempt.Status,
+        CheckoutAvailable: payments.CanCheckout(row, quote, attempt, settings), PricingStatus: quote is null ? "ChargesNotFinalised" : "Finalised",
+        Quote: quote is null ? null : ChargePricing.Quote(quote), Payment: attempt is null ? null : PayFastService.Summary(attempt));
     private async Task<AuctionOrderDto> MapAsync(AuctionOrder row, CancellationToken ct) => Map(row,
-        await db.OrderPriceQuotes.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == row.Id && x.TenantId == row.TenantId, ct));
+        await db.OrderPriceQuotes.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == row.Id && x.TenantId == row.TenantId, ct),
+        await db.PayFastAttempts.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == row.Id && x.TenantId == row.TenantId, ct),
+        await db.TenantPaymentSettings.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == row.TenantId, ct));
 
     [HttpGet]
     public async Task<ActionResult<PagedResult<AuctionOrderDto>>> List(string? search, int skip = 0, int take = 25, CancellationToken ct = default)
@@ -45,12 +48,25 @@ public sealed class AuctionOrdersController(ApplicationDbContext db, ITenantCont
         var rows = await query.OrderBy(x => x.Id).Skip(skip).Take(take).ToListAsync(ct);
         var ids = rows.Select(x => x.Id).ToList();
         var quotes = await db.OrderPriceQuotes.AsNoTracking().Where(x => ids.Contains(x.OrderId)).ToDictionaryAsync(x => x.OrderId, ct);
-        return new PagedResult<AuctionOrderDto>(rows.Select(x => Map(x, quotes.GetValueOrDefault(x.Id))).ToList(), total);
+        var attempts = await db.PayFastAttempts.AsNoTracking().Where(x => ids.Contains(x.OrderId)).ToDictionaryAsync(x => x.OrderId, ct);
+        var settings = await db.TenantPaymentSettings.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant.TenantId, ct);
+        return new PagedResult<AuctionOrderDto>(rows.Select(x => Map(x, quotes.GetValueOrDefault(x.Id), attempts.GetValueOrDefault(x.Id), settings)).ToList(), total);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<AuctionOrderDto>> Get(Guid id, CancellationToken ct) =>
         await Visible().SingleOrDefaultAsync(x => x.Id == id, ct) is { } row ? await MapAsync(row, ct) : NotFound();
+
+    [HttpGet("{id:guid}/payment")]
+    public async Task<ActionResult<PayFastSummaryDto>> Payment(Guid id, CancellationToken ct)
+    {
+        var order = await Visible().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new KeyNotFoundException("Order not found.");
+        var attempt = await db.PayFastAttempts.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == id && x.TenantId == order.TenantId, ct);
+        if (attempt is null) return NotFound();
+        var events = await db.PayFastNotifications.AsNoTracking().Where(x => x.AttemptId == attempt.Id && x.TenantId == order.TenantId)
+            .OrderByDescending(x => x.Number).Take(20).Select(x => new PayFastEventDto(x.ProviderPaymentId, x.ProviderStatus, x.Decision, x.CreatedAt)).ToListAsync(ct);
+        return PayFastService.Summary(attempt, events);
+    }
 
     // Recover an order for a pre-Section-6 result, without trusting buyer-supplied money or identity.
     [HttpPost("from-auction/{id:guid}"), Authorize(Roles = "Buyer")]

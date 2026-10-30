@@ -24,6 +24,12 @@ public static class ControllersRegistrationExtensions
         });
 
         services.AddHttpContextAccessor();
+        services.AddOptions<Faunex.Api.Payments.PayFastOptions>().BindConfiguration("Payments");
+        services.AddSingleton<Faunex.Api.Payments.PayFastRuntime>();
+        services.AddScoped<Faunex.Api.Payments.PayFastService>();
+        services.AddHttpClient<Faunex.Api.Payments.IPayFastVerifier, Faunex.Api.Payments.PayFastVerifier>(client =>
+        { client.Timeout = TimeSpan.FromSeconds(10); client.MaxResponseContentBufferSize = 1024; })
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddSingleton<Faunex.Api.Payments.IPaymentSecretProtector>(sp =>
             new Faunex.Api.Payments.PaymentSecretProtector(sp.GetRequiredService<IConfiguration>()));
         services.AddOptions<FileUploadOptions>().BindConfiguration("Files");
@@ -35,6 +41,7 @@ public static class ControllersRegistrationExtensions
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddConcurrencyLimiter("payfast-notifications", limiter => { limiter.PermitLimit = 8; limiter.QueueLimit = 0; });
             options.AddConcurrencyLimiter("file-uploads", limiter => { limiter.PermitLimit = 4; limiter.QueueLimit = 0; limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; });
         });
 
