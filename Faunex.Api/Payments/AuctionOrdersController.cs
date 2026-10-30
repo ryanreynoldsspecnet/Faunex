@@ -28,7 +28,11 @@ public sealed class AuctionOrdersController(ApplicationDbContext db, ITenantCont
         }
         return query;
     }
-    private static AuctionOrderDto Map(AuctionOrder row) => new(row.Id, row.AuctionId, row.ListingId, row.Title, row.Quantity, row.Amount, row.CurrencyCode, row.CreatedAt);
+    private static AuctionOrderDto Map(AuctionOrder row, OrderPriceQuote? quote) => new(row.Id, row.AuctionId, row.ListingId, row.Title, row.Quantity,
+        row.Amount, row.CurrencyCode, row.CreatedAt, PricingStatus: quote is null ? "ChargesNotFinalised" : "Finalised",
+        Quote: quote is null ? null : ChargePricing.Quote(quote));
+    private async Task<AuctionOrderDto> MapAsync(AuctionOrder row, CancellationToken ct) => Map(row,
+        await db.OrderPriceQuotes.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == row.Id && x.TenantId == row.TenantId, ct));
 
     [HttpGet]
     public async Task<ActionResult<PagedResult<AuctionOrderDto>>> List(string? search, int skip = 0, int take = 25, CancellationToken ct = default)
@@ -39,12 +43,14 @@ public sealed class AuctionOrdersController(ApplicationDbContext db, ITenantCont
         skip = Math.Max(0, skip); take = Math.Clamp(take, 1, 100);
         var total = await query.CountAsync(ct);
         var rows = await query.OrderBy(x => x.Id).Skip(skip).Take(take).ToListAsync(ct);
-        return new PagedResult<AuctionOrderDto>(rows.Select(Map).ToList(), total);
+        var ids = rows.Select(x => x.Id).ToList();
+        var quotes = await db.OrderPriceQuotes.AsNoTracking().Where(x => ids.Contains(x.OrderId)).ToDictionaryAsync(x => x.OrderId, ct);
+        return new PagedResult<AuctionOrderDto>(rows.Select(x => Map(x, quotes.GetValueOrDefault(x.Id))).ToList(), total);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<AuctionOrderDto>> Get(Guid id, CancellationToken ct) =>
-        await Visible().SingleOrDefaultAsync(x => x.Id == id, ct) is { } row ? Map(row) : NotFound();
+        await Visible().SingleOrDefaultAsync(x => x.Id == id, ct) is { } row ? await MapAsync(row, ct) : NotFound();
 
     // Recover an order for a pre-Section-6 result, without trusting buyer-supplied money or identity.
     [HttpPost("from-auction/{id:guid}"), Authorize(Roles = "Buyer")]
@@ -56,12 +62,12 @@ public sealed class AuctionOrdersController(ApplicationDbContext db, ITenantCont
             && x.RulesVersion == 1 && x.State == AuctionState.Closed && x.Outcome == "Sold" && x.WinnerId == actor, ct)
             ?? throw new KeyNotFoundException("No completed winning auction was found for this account.");
         var existing = await Visible().SingleOrDefaultAsync(x => x.AuctionId == id, ct);
-        if (existing is not null) return Map(existing);
+        if (existing is not null) return await MapAsync(existing, ct);
         var listing = await db.Listings.SingleOrDefaultAsync(x => x.Id == auction.ListingId && x.TenantId == auction.TenantId, ct)
             ?? throw new ListingEditConflictException("The auction listing requires reconciliation.");
         var bid = await db.Bids.SingleOrDefaultAsync(x => x.Id == auction.WinningBidId && x.TenantId == auction.TenantId, ct)
             ?? throw new ListingEditConflictException("The winning bid requires reconciliation.");
         var order = WinnerOrderFactory.Create(auction, listing, bid, auction.ClosedAt ?? clock.GetUtcNow());
-        db.AuctionOrders.Add(order); await db.SaveChangesAsync(ct); return Map(order);
+        db.AuctionOrders.Add(order); await db.SaveChangesAsync(ct); return await MapAsync(order, ct);
     }
 }

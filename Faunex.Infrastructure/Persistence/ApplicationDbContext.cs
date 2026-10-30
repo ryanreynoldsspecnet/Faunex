@@ -27,6 +27,8 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Bid> Bids { get; set; } = null!;
     public DbSet<AuctionOrder> AuctionOrders { get; set; } = null!;
     public DbSet<TenantPaymentSettings> TenantPaymentSettings { get; set; } = null!;
+    public DbSet<TenantChargeCatalog> TenantChargeCatalogs { get; set; } = null!;
+    public DbSet<OrderPriceQuote> OrderPriceQuotes { get; set; } = null!;
     public DbSet<Document> Documents { get; set; } = null!;
 
     public DbSet<BirdDetails> BirdDetails { get; set; } = null!;
@@ -48,6 +50,8 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     {
         if (ChangeTracker.Entries<AuctionOrder>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Winner order snapshots are immutable.");
+        if (ChangeTracker.Entries<OrderPriceQuote>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Accepted pricing is immutable.");
         if (ChangeTracker.Entries<ListingReviewEvent>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Review history is append-only.");
         var changes = ChangeTracker.Entries<ListingCompliance>()
@@ -87,7 +91,7 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
         }
         try { return await base.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
-            { SqlState: "23505", ConstraintName: "IX_AuctionOrders_AuctionId" })
+            { SqlState: "23505", ConstraintName: "IX_AuctionOrders_AuctionId" or "IX_OrderPriceQuotes_OrderId" })
         {
             // A competing closer/recovery request already created this auction's order.
             throw new DbUpdateConcurrencyException("The winner order changed. Reload the auction result.", ex);
@@ -97,6 +101,14 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<TenantChargeCatalog>().HasKey(x => x.TenantId);
+        modelBuilder.Entity<TenantChargeCatalog>().Property(x => x.WriteStamp).IsConcurrencyToken();
+        modelBuilder.Entity<TenantChargeCatalog>().HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<TenantChargeCatalog>().HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);
+        modelBuilder.Entity<OrderPriceQuote>().HasIndex(x => x.OrderId).IsUnique();
+        modelBuilder.Entity<OrderPriceQuote>().HasOne<AuctionOrder>().WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<OrderPriceQuote>().HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<OrderPriceQuote>().HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);
         modelBuilder.Entity<TenantPaymentSettings>().HasKey(x => x.TenantId);
         modelBuilder.Entity<TenantPaymentSettings>().Property(x => x.Revision).IsConcurrencyToken();
         modelBuilder.Entity<TenantPaymentSettings>().HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);

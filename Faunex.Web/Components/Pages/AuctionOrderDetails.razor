@@ -12,8 +12,9 @@
     @if (_loading) { <p role="status">Loading order...</p> }
     else if (_order is not null)
     {
-        <div class="files-summary"><span class="platform-status">Unpaid</span><span>Charges not finalised</span><span>Online checkout not yet available</span></div>
+        <div class="files-summary"><span class="platform-status">Unpaid</span><span>@(_order.Quote is null ? "Charges not finalised" : "Pricing finalised")</span><span>Online checkout not yet available</span></div>
         <dl class="review-facts"><dt>Order reference</dt><dd>@_order.Id</dd><dt>Lot quantity</dt><dd>@_order.Quantity</dd><dt>Winning lot subtotal</dt><dd>@_order.Amount.ToString("0.00") @_order.CurrencyCode</dd><dt>Recorded (SAST)</dt><dd>@_order.CreatedAt.ToOffset(TimeSpan.FromHours(2)).ToString("dd MMM yyyy HH:mm:ss")</dd></dl>
+        <OrderPricing @key="_order.Id" OrderId="_order.Id" Quote="_order.Quote" CanChoose="IsBuyerRoute" Updated="LoadAsync" />
         <a class="btn btn-outline-secondary mt-4" href="@($"/auctions/{_order.ListingId}")">Auction Result</a>
     }
 </section>
@@ -24,6 +25,7 @@
     private AuctionOrderDto? _order;
     private bool _loading;
     private string? _error;
+    private bool IsBuyerRoute => Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath.StartsWith("/buyer/", StringComparison.Ordinal);
     protected override Task OnParametersSetAsync() => LoadAsync();
     private async Task LoadAsync()
     {

@@ -14,4 +14,5 @@ public sealed class AuctionOrder : BaseEntity
     public int Quantity { get; set; }
     public decimal Amount { get; set; }
     public string CurrencyCode { get; set; } = "";
+    public string? ChargeTermsJson { get; set; }
 }
