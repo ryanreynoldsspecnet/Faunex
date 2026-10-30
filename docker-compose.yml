@@ -18,6 +18,8 @@ services:
     image: caddy:2-alpine
     container_name: faunex-caddy
     restart: unless-stopped
+    environment:
+      FAUNEX_PAYMENTS_INGRESS_TOKEN: ${FAUNEX_PAYMENTS_INGRESS_TOKEN:-disabled}
     dns:
       - 1.1.1.1
       - 8.8.8.8
@@ -56,6 +58,8 @@ services:
       FAUNEX_EMAIL_FROM_NAME: ${FAUNEX_EMAIL_FROM_NAME}
       Files__RootPath: /var/lib/faunex/listing-files
       Files__ScannerHost: clamav
+      Payments__SandboxEnabled: ${FAUNEX_PAYFAST_SANDBOX_ENABLED:-false}
+      Payments__IngressToken: ${FAUNEX_PAYMENTS_INGRESS_TOKEN:-}
     volumes:
       - dataprotection_keys:/root/.aspnet/DataProtection-Keys
       - listing_files:/var/lib/faunex/listing-files

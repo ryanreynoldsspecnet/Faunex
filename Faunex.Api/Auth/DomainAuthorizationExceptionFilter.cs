@@ -10,6 +10,12 @@ public sealed class DomainAuthorizationExceptionFilter : IExceptionFilter
 {
     public void OnException(ExceptionContext context)
     {
+        if (context.Exception is Faunex.Api.Payments.PaymentUnavailableException or Faunex.Api.Payments.PaymentRejectedException)
+        {
+            context.Result = new ObjectResult(new { error = context.Exception.Message })
+            { StatusCode = context.Exception is Faunex.Api.Payments.PaymentUnavailableException ? 503 : 400 };
+            context.ExceptionHandled = true; return;
+        }
         if (context.Exception is FileSecurityException or FileServiceUnavailableException)
         {
             context.Result = new ObjectResult(new { error = context.Exception.Message })

@@ -13,7 +13,7 @@ namespace Faunex.Api.Payments;
 
 [ApiController, Route("api/tenant/payments/payfast"), Authorize(Policy = "TenantAdminOnly")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None), RequestSizeLimit(8192)]
-public sealed class TenantPaymentsController(ApplicationDbContext db, ITenantContext tenant, IPaymentSecretProtector secrets, TimeProvider clock) : ControllerBase
+public sealed class TenantPaymentsController(ApplicationDbContext db, ITenantContext tenant, IPaymentSecretProtector secrets, TimeProvider clock, PayFastRuntime runtime) : ControllerBase
 {
     private Guid TenantId()
     {
@@ -21,8 +21,8 @@ public sealed class TenantPaymentsController(ApplicationDbContext db, ITenantCon
         ServiceAuthorization.EnsureTenantAdmin(tenant);
         return tenant.TenantId!.Value;
     }
-    private static PayFastSettingsDto Map(TenantPaymentSettings? row) => new(row?.MerchantId ?? "", row?.ProtectedCredentials.Length > 0,
-        row?.Revision ?? Guid.Empty, row?.UpdatedAt);
+    private PayFastSettingsDto Map(TenantPaymentSettings? row) => new(row?.MerchantId ?? "", row?.ProtectedCredentials.Length > 0,
+        row?.Revision ?? Guid.Empty, row?.UpdatedAt, CheckoutAvailable: runtime.Ready && row?.ProtectedCredentials.Length > 0);
 
     [HttpGet]
     public async Task<ActionResult<PayFastSettingsDto>> Get(CancellationToken ct)

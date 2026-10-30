@@ -29,6 +29,8 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<TenantPaymentSettings> TenantPaymentSettings { get; set; } = null!;
     public DbSet<TenantChargeCatalog> TenantChargeCatalogs { get; set; } = null!;
     public DbSet<OrderPriceQuote> OrderPriceQuotes { get; set; } = null!;
+    public DbSet<PayFastAttempt> PayFastAttempts { get; set; } = null!;
+    public DbSet<PayFastNotification> PayFastNotifications { get; set; } = null!;
     public DbSet<Document> Documents { get; set; } = null!;
 
     public DbSet<BirdDetails> BirdDetails { get; set; } = null!;
@@ -48,6 +50,15 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (ChangeTracker.Entries<PayFastNotification>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Verified payment notifications are append-only.");
+        foreach (var entry in ChangeTracker.Entries<PayFastAttempt>())
+        {
+            if (entry.State == EntityState.Deleted || (entry.State == EntityState.Modified && entry.Properties.Any(x => x.IsModified
+                && x.Metadata.Name is not (nameof(PayFastAttempt.Status) or nameof(PayFastAttempt.ProviderPaymentId) or nameof(PayFastAttempt.ConfirmedAt)
+                    or nameof(PayFastAttempt.NotificationCount) or nameof(PayFastAttempt.Revision) or nameof(PayFastAttempt.UpdatedAt)))))
+                throw new InvalidOperationException("Payment attempt snapshots are immutable.");
+        }
         if (ChangeTracker.Entries<AuctionOrder>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Winner order snapshots are immutable.");
         if (ChangeTracker.Entries<OrderPriceQuote>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
@@ -91,7 +102,8 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
         }
         try { return await base.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
-            { SqlState: "23505", ConstraintName: "IX_AuctionOrders_AuctionId" or "IX_OrderPriceQuotes_OrderId" })
+            { SqlState: "23505", ConstraintName: "IX_AuctionOrders_AuctionId" or "IX_OrderPriceQuotes_OrderId" or "IX_PayFastAttempts_OrderId"
+                or "IX_PayFastAttempts_MerchantId_ProviderPaymentId" or "IX_PayFastNotifications_AttemptId_PayloadHash" or "IX_PayFastNotifications_AttemptId_Number" })
         {
             // A competing closer/recovery request already created this auction's order.
             throw new DbUpdateConcurrencyException("The winner order changed. Reload the auction result.", ex);
@@ -101,6 +113,17 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<PayFastAttempt>().HasIndex(x => x.OrderId).IsUnique();
+        modelBuilder.Entity<PayFastAttempt>().HasIndex(x => new { x.MerchantId, x.ProviderPaymentId }).IsUnique().HasFilter("\"ProviderPaymentId\" IS NOT NULL");
+        modelBuilder.Entity<PayFastAttempt>().Property(x => x.Revision).IsConcurrencyToken();
+        modelBuilder.Entity<PayFastAttempt>().HasOne<AuctionOrder>().WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PayFastAttempt>().HasOne<OrderPriceQuote>().WithMany().HasForeignKey(x => x.QuoteId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PayFastAttempt>().HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PayFastAttempt>().HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);
+        modelBuilder.Entity<PayFastNotification>().HasOne<PayFastAttempt>().WithMany().HasForeignKey(x => x.AttemptId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PayFastNotification>().HasIndex(x => new { x.AttemptId, x.PayloadHash }).IsUnique();
+        modelBuilder.Entity<PayFastNotification>().HasIndex(x => new { x.AttemptId, x.Number }).IsUnique();
+        modelBuilder.Entity<PayFastNotification>().HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);
         modelBuilder.Entity<TenantChargeCatalog>().HasKey(x => x.TenantId);
         modelBuilder.Entity<TenantChargeCatalog>().Property(x => x.WriteStamp).IsConcurrencyToken();
         modelBuilder.Entity<TenantChargeCatalog>().HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
