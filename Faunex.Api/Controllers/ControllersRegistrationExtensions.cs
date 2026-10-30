@@ -24,6 +24,8 @@ public static class ControllersRegistrationExtensions
         });
 
         services.AddHttpContextAccessor();
+        services.AddSingleton<Faunex.Api.Payments.IPaymentSecretProtector>(sp =>
+            new Faunex.Api.Payments.PaymentSecretProtector(sp.GetRequiredService<IConfiguration>()));
         services.AddOptions<FileUploadOptions>().BindConfiguration("Files");
         services.AddSingleton<IListingFileStorage, LocalListingFileStorage>();
         services.AddSingleton<IUploadScanner, ClamAvUploadScanner>();

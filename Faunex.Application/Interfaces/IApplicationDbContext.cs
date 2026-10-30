@@ -10,6 +10,7 @@ public interface IApplicationDbContext
     DbSet<BirdSpecies> BirdSpeciesSet { get; }
     DbSet<Auction> Auctions { get; }
     DbSet<Bid> Bids { get; }
+    DbSet<AuctionOrder> AuctionOrders { get; }
     DbSet<Document> Documents { get; }
 
     DbSet<BirdDetails> BirdDetails { get; }

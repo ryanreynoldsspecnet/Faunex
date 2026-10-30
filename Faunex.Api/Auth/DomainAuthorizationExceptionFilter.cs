@@ -40,6 +40,6 @@ public sealed class DomainAuthorizationExceptionFilter : IExceptionFilter
             context.ExceptionHandled = true;
         }
     }
-    private static bool IsBidConflict(Exception ex) => ex is Npgsql.PostgresException { SqlState: "23505", ConstraintName: "IX_Bids_AuctionId_BidNumber" }
+    private static bool IsBidConflict(Exception ex) => ex is Npgsql.PostgresException { SqlState: "23505", ConstraintName: "IX_Bids_AuctionId_BidNumber" or "IX_AuctionOrders_AuctionId" or "PK_TenantPaymentSettings" }
         || (ex.InnerException is not null && IsBidConflict(ex.InnerException));
 }

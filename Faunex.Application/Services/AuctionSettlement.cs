@@ -33,6 +33,7 @@ public sealed class AuctionSettlement(IApplicationDbContext db, TimeProvider clo
         auction.Outcome = leading is null ? "NoBids" : sold ? "Sold" : "ReserveNotMet";
         auction.WinningBidId = sold ? leading!.Id : null; auction.WinnerId = sold ? leading!.BidderId : null;
         auction.State = AuctionState.Closed; auction.IsClosed = true; auction.ClosedAt = now;
+        if (sold) db.AuctionOrders.Add(WinnerOrderFactory.Create(auction, listing, leading!, now));
         TimedAuctionRules.Touch(auction, listing, now);
         await db.SaveChangesAsync(ct);
     }
