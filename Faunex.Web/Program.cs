@@ -35,6 +35,14 @@ static Uri NormalizeApiBaseUrl(string raw)
 
 var apiBaseUrl = NormalizeApiBaseUrl(apiBaseUrlRaw);
 
+builder.Services.AddHttpClient<Faunex.Web.Operations.ApiReadinessCheck>(client =>
+{
+    client.BaseAddress = apiBaseUrl;
+    client.Timeout = TimeSpan.FromSeconds(5);
+    client.MaxResponseContentBufferSize = 1024;
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddHealthChecks().AddCheck<Faunex.Web.Operations.ApiReadinessCheck>("api", timeout: TimeSpan.FromSeconds(8));
+
 builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Information);
 
 // =====================
@@ -84,6 +92,14 @@ app.Logger.LogInformation("Web configured ApiSettings:BaseUrlRaw={ApiBaseUrlRaw}
 app.Logger.LogInformation("Web normalized ApiSettings:BaseUrl={ApiBaseUrl}", apiBaseUrl);
 
 app.MapGet("/__ping", () => Results.Ok("pong"));
+app.MapGet("/__ready", async (HttpContext context, Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckService checks, CancellationToken ct) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var report = await checks.CheckHealthAsync(ct);
+    var ready = report.Status == Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy;
+    return Results.Text(ready ? Faunex.Shared.ReleaseIdentity.Ready(app.Configuration["ReleaseRevision"]) : "not ready",
+        "text/plain", statusCode: ready ? 200 : 503);
+});
 app.MapListingMedia();
 
 // =====================

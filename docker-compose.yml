@@ -32,12 +32,17 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - faunex-web
+      faunex-web:
+        condition: service_healthy
 
   faunex-api:
+    image: faunex-api:${FAUNEX_RELEASE:-current}
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Faunex.Api/Dockerfile
+      args:
+        RELEASE_REVISION: ${FAUNEX_RELEASE:-development}
     container_name: faunex-api
     expose:
       - "8080"
@@ -65,13 +70,25 @@ services:
       - listing_files:/var/lib/faunex/listing-files
       - payment_keys:/var/lib/faunex/payment-keys
     depends_on:
-      - db
-      - clamav
+      db:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "8", "http://localhost:8080/api/health/ready"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
 
   faunex-web:
+    image: faunex-web:${FAUNEX_RELEASE:-current}
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Faunex.Web/Dockerfile
+      args:
+        RELEASE_REVISION: ${FAUNEX_RELEASE:-development}
     container_name: faunex-web
     expose:
       - "8080"
@@ -82,10 +99,18 @@ services:
     volumes:
       - dataprotection_keys:/root/.aspnet/DataProtection-Keys
     depends_on:
-      - faunex-api
+      faunex-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "8", "-H", "Host: faunex.co.za", "http://localhost:8080/__ready"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
 
   db:
     image: postgres:16
+    restart: unless-stopped
     container_name: faunex-db
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -95,6 +120,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
     expose:
       - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
 volumes:
   postgres_data:
