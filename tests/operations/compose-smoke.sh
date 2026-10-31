@@ -20,7 +20,11 @@ trap cleanup EXIT
 docker rm -f faunex-test-clamav
 dotnet build-server shutdown
 compose config --quiet
-compose up -d --build --wait --wait-timeout 600 faunex-web
+for service in api web; do
+    git archive --format=tar "$GITHUB_SHA" | docker build --build-arg "RELEASE_REVISION=$GITHUB_SHA" \
+        --tag "faunex-$service:$GITHUB_SHA" --file "Faunex.${service^}/Dockerfile" -
+done
+compose up -d --no-build --wait --wait-timeout 600 faunex-web
 probe() { compose exec -T faunex-web curl --fail --silent --show-error --max-time 12 -H 'Host: faunex.co.za' http://localhost:8080/__ready; }
 [[ $(probe) == "ready $GITHUB_SHA" ]]
 
