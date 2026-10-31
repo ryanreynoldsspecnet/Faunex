@@ -21,3 +21,5 @@ _verify_publish_web
 artifacts
 publish
 **/App_Data/
+.faunex-deploy.lock
+.faunex-ops/
