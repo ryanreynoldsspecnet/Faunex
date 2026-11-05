@@ -23,6 +23,7 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Tenant> Tenants { get; set; } = null!;
     public DbSet<TenantDomain> TenantDomains { get; set; } = null!;
     public DbSet<Listing> Listings { get; set; } = null!;
+    public DbSet<AuctionCollection> AuctionCollections { get; set; } = null!;
     public DbSet<Auction> Auctions { get; set; } = null!;
     public DbSet<Bid> Bids { get; set; } = null!;
     public DbSet<BuyerWishlistCollection> BuyerWishlistCollections { get; set; } = null!;
@@ -150,6 +151,19 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
         modelBuilder.Entity<AuctionOrder>().HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<AuctionOrder>().HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);
         modelBuilder.Entity<Listing>().Property(x => x.Revision).IsConcurrencyToken();
+        modelBuilder.Entity<AuctionCollection>(collection =>
+        {
+            collection.Property(x => x.Name).HasMaxLength(80);
+            collection.Property(x => x.NormalizedName).HasMaxLength(80);
+            collection.Property(x => x.Revision).IsConcurrencyToken();
+            collection.HasAlternateKey(x => new { x.TenantId, x.Id });
+            collection.HasIndex(x => new { x.TenantId, x.NormalizedName }).IsUnique();
+            collection.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            collection.HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);
+        });
+        modelBuilder.Entity<Listing>().HasOne<AuctionCollection>().WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.AuctionCollectionId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Auction>().Property(x => x.Revision).IsConcurrencyToken();
         modelBuilder.Entity<Bid>().HasIndex(x => new { x.AuctionId, x.BidNumber }).IsUnique().HasFilter("\"BidNumber\" > 0");
         modelBuilder.Entity<Auction>().HasIndex(x => new { x.RulesVersion, x.State, x.EndsAt });

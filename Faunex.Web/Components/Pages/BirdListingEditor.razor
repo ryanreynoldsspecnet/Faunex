@@ -36,6 +36,16 @@
                             <div><label for="listing-title" class="form-label">Title</label><InputText id="listing-title" class="form-control" @bind-Value="_model.Title" /><ValidationMessage For="() => _model.Title" /></div>
                             <div><label for="listing-species" class="form-label">Species</label><InputSelect id="listing-species" class="form-select" @bind-Value="_model.SpeciesId"><option value="">Select species</option>@foreach (var species in _species) { <option value="@species.Id">@species.CommonName (@species.ScientificName)</option> }</InputSelect><ValidationMessage For="() => _model.SpeciesId" /></div>
                             <div><label for="listing-type" class="form-label">Sale type</label><InputSelect id="listing-type" class="form-select" @bind-Value="_model.SaleType"><option value="auction">Auction draft</option><option value="fixed">Fixed price draft</option></InputSelect></div>
+                            @if (TenantRoute && !ListingId.HasValue)
+                            {
+                                <div>
+                                    <label for="listing-collection" class="form-label">Auction collection</label>
+                                    <InputSelect id="listing-collection" class="form-select" @bind-Value="_collectionId">
+                                        <option value="">No collection</option>
+                                        @foreach (var row in _collections) { <option value="@row.Id">@row.Name</option> }
+                                    </InputSelect>
+                                </div>
+                            }
                             <div><label for="listing-currency" class="form-label">Currency</label><InputSelect id="listing-currency" class="form-select" @bind-Value="_model.CurrencyCode"><option value="ZAR">ZAR</option><option value="USD">USD</option></InputSelect></div>
                             <div><label for="listing-price" class="form-label">@(_model.SaleType == "auction" ? "Starting price" : "Price")</label><InputNumber id="listing-price" class="form-control" step="0.01" @bind-Value="_model.Price" /><ValidationMessage For="() => _model.Price" /></div>
                             <div><label for="listing-quantity" class="form-label">Quantity</label><InputNumber id="listing-quantity" class="form-control" min="1" max="10000" @bind-Value="_model.Quantity" /><ValidationMessage For="() => _model.Quantity" /></div>
@@ -67,6 +77,8 @@
     private BirdListingFormModel _model = new();
     private BirdListingDto? _original;
     private List<BirdSpeciesChoice> _species = [];
+    private List<AuctionCollectionDto> _collections = [];
+    private Guid? _collectionId;
     private bool _loading, _saving;
     private string? _loadError, _saveError;
     private bool TenantRoute => Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath.StartsWith("/tenant/", StringComparison.Ordinal);
@@ -79,6 +91,8 @@
         _loading = true;
         _loadError = _saveError = null;
         _original = null;
+        _collectionId = null;
+        _collections = [];
         _model = new();
         try
         {
@@ -88,6 +102,10 @@
             {
                 _original = await Api.GetAsync<BirdListingDto>($"/api/birdlistings/{id}") ?? throw new InvalidOperationException("Listing not found.");
                 _model = BirdListingFormModel.FromDto(_original);
+            }
+            else if (TenantRoute && (await Authentication.GetAuthenticationStateAsync()).User.IsInRole("TenantAdmin"))
+            {
+                _collections = (await Api.GetAsync<List<AuctionCollectionDto>>("/api/tenant/collections") ?? []).Where(x => x.IsActive).ToList();
             }
         }
         catch (Exception ex) { _loadError = ex.Message; }
@@ -120,7 +138,7 @@
                 await Api.PostAsync("/api/seller/listings/bird", new CreateBirdListingRequest(_model.SpeciesId!.Value,
                     _model.Title, _model.Description, _model.Price, _model.SaleType == "auction", actor,
                     _model.CurrencyCode, _model.Quantity, _model.Location, _model.RingNumber,
-                    _model.MicrochipNumber, _model.Sex, _model.HatchDate));
+                    _model.MicrochipNumber, _model.Sex, _model.HatchDate, _collectionId));
             }
             Nav.NavigateTo(ListPath);
         }

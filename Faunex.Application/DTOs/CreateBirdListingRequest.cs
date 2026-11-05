@@ -13,5 +13,6 @@ public sealed record CreateBirdListingRequest(
     string? RingNumber = null,
     string? MicrochipNumber = null,
     string? Sex = null,
-    DateOnly? HatchDate = null
+    DateOnly? HatchDate = null,
+    Guid? CollectionId = null
 );

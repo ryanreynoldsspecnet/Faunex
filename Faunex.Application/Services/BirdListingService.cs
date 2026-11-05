@@ -68,22 +68,29 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             Guid.Empty, request.SellerId, request.SpeciesId, request.Title, request.Description,
             request.Price, request.IsAuction ? null : request.Price, request.CurrencyCode,
             request.Quantity, request.Location, false, request.RingNumber, request.MicrochipNumber,
-            request.Sex, request.HatchDate), cancellationToken);
+            request.Sex, request.HatchDate), cancellationToken, request.CollectionId);
         return new ListingDto(entity.Id, entity.TenantId, entity.SellerId, "bird",
             entity.BirdDetails!.SpeciesId, entity.Title, entity.Description, entity.StartingPrice,
             entity.BuyNowPrice, entity.CurrencyCode, entity.Quantity, entity.Location, entity.IsActive);
     }
 
-    private async Task<Listing> CreateEntityAsync(BirdListingDto input, CancellationToken cancellationToken)
+    private async Task<Listing> CreateEntityAsync(BirdListingDto input, CancellationToken cancellationToken, Guid? collectionId = null)
     {
         ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenantContext, "create listings");
         ServiceAuthorization.EnsureTenantAdminOrSeller(tenantContext);
         if (tenantContext is not ITenantContextWithActor actor || actor.ActorId != input.SellerId)
             throw new UnauthorizedAccessException("Create listings under your own account.");
+        if (collectionId is { } id)
+        {
+            ServiceAuthorization.EnsureTenantAdmin(tenantContext);
+            if (!await dbContext.AuctionCollections.AnyAsync(x => x.TenantId == tenantContext.TenantId && x.Id == id && x.IsActive, cancellationToken))
+                throw new ListingValidationException("Choose an active collection in this marketplace.");
+        }
         await ValidateAsync(input, cancellationToken);
         var entity = new Listing
         {
             TenantId = tenantContext.TenantId!.Value,
+            AuctionCollectionId = collectionId,
             SellerId = input.SellerId,
             Title = input.Title.Trim(),
             Description = Clean(input.Description),

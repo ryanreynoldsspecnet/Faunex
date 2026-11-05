@@ -1,0 +1,59 @@
+@using Faunex.Application.DTOs
+@inject Faunex.Web.Api.FaunexApiClient Api
+
+<section class="mb-4" aria-labelledby="lot-collection-title">
+    <h2 class="h5" id="lot-collection-title">Auction collection</h2>
+    @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error <button class="btn btn-sm btn-outline-secondary" disabled="@_busy" @onclick="LoadAsync">Reload</button></div> }
+    @if (_saved) { <p role="status" class="text-success">Collection assignment saved.</p> }
+    @if (_assignment is { } current)
+    {
+        <form class="d-flex flex-wrap align-items-center gap-2" @onsubmit="SaveAsync" @onsubmit:preventDefault>
+            <label for="lot-collection" class="visually-hidden">Auction collection</label>
+            <select id="lot-collection" class="form-select w-auto mw-100" @bind="_selected" disabled="@_busy">
+                <option value="">No collection</option>
+                @foreach (var row in current.Collections.Where(x => x.IsActive || x.Id == current.CollectionId))
+                {
+                    <option value="@row.Id">@(row.IsActive ? row.Name : $"{row.Name} (archived)")</option>
+                }
+            </select>
+            <button class="btn btn-primary" type="submit" disabled="@(_busy || current.CollectionId == _selected)">Save collection</button>
+            <a class="btn btn-outline-secondary" href="/tenant/collections">Manage collections</a>
+        </form>
+    }
+    else if (_busy) { <p role="status">Loading collections...</p> }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid ListingId { get; set; }
+    private LotCollectionDto? _assignment;
+    private Guid? _selected;
+    private string? _error;
+    private bool _busy, _saved;
+    private string Path => $"/api/tenant/collections/lots/{ListingId}";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private Task LoadAsync() => RunAsync(async () => Set(await Api.GetAsync<LotCollectionDto>(Path)));
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        if (_assignment is null) return;
+        Set(await Api.PutAsync<AssignLotCollectionRequest, LotCollectionDto>(Path, new(_selected, _assignment.Revision)));
+        _saved = true;
+    });
+
+    private void Set(LotCollectionDto? assignment)
+    {
+        _assignment = assignment ?? throw new InvalidOperationException("No collection response.");
+        _selected = _assignment.CollectionId;
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (_busy) return;
+        _busy = true; _error = null; _saved = false;
+        try { await action(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

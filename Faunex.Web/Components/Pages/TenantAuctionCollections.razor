@@ -1,0 +1,113 @@
+@page "/tenant/collections"
+@rendermode InteractiveServer
+@using Faunex.Application.DTOs
+@inject Faunex.Web.Api.FaunexApiClient Api
+
+<PageTitle>Auction Collections - Faunex</PageTitle>
+<AuthorizeView Roles="TenantAdmin">
+    <Authorized>
+        <section class="platform-shell" aria-labelledby="collections-title">
+            <div class="platform-header platform-header--compact">
+                <h1 id="collections-title">Auction collections</h1>
+                <a class="btn btn-outline-secondary" href="/tenant/listings">Back to listings</a>
+            </div>
+            @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error <button class="btn btn-sm btn-outline-secondary" disabled="@_busy" @onclick="LoadAsync">Reload</button></div> }
+            @if (_notice is not null) { <p class="alert alert-success" role="status">@_notice</p> }
+            @if (_items is null && _busy) { <p role="status">Loading collections...</p> }
+            else if (_items is not null)
+            {
+                <form class="mb-4" @onsubmit="SaveAsync" @onsubmit:preventDefault>
+                    <label for="collection-name" class="form-label">@(_editing is null ? "New collection name" : "Rename collection")</label>
+                    <div class="d-flex gap-2 flex-wrap align-items-center">
+                        <input id="collection-name" class="form-control w-auto mw-100" maxlength="80" required @bind="_name" disabled="@_busy" />
+                        <button class="btn btn-primary" type="submit" disabled="@_busy">@(_editing is null ? "Add collection" : "Save name")</button>
+                        @if (_editing is not null) { <button class="btn btn-outline-secondary" type="button" disabled="@_busy" @onclick="CancelEdit">Cancel</button> }
+                    </div>
+                </form>
+                @if (_items.Count == 0) { <p>No collections yet.</p> }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead><tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+                            <tbody>
+                                @foreach (var row in _items)
+                                {
+                                    <tr @key="row.Id">
+                                        <th scope="row" class="text-break">@row.Name</th><td>@(row.IsActive ? "Active" : "Archived")</td>
+                                        <td><div class="d-flex flex-wrap gap-2">
+                                            <button class="btn btn-sm btn-outline-secondary" disabled="@_busy" @onclick="() => Edit(row)" aria-label="@($"Rename {row.Name}")">Rename</button>
+                                            <button class="btn btn-sm btn-outline-secondary" disabled="@(_busy || _editing?.Id == row.Id)" @onclick="() => SetActiveAsync(row)" aria-label="@($"{(row.IsActive ? "Archive" : "Restore")} {row.Name}")">@(row.IsActive ? "Archive" : "Restore")</button>
+                                        </div></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        </section>
+    </Authorized>
+    <NotAuthorized><h1>Tenant access required</h1><a href="/login">Login</a></NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private const string Path = "/api/tenant/collections";
+    private List<AuctionCollectionDto>? _items;
+    private AuctionCollectionDto? _editing;
+    private string _name = "";
+    private string? _error, _notice;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await UserIsTenantAdminAsync()) await LoadAsync();
+    }
+
+    [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
+    private async Task<bool> UserIsTenantAdminAsync() => (await AuthenticationStateTask).User.IsInRole("TenantAdmin");
+
+    private Task LoadAsync() => RunAsync(async () =>
+    {
+        _items = await Api.GetAsync<List<AuctionCollectionDto>>(Path) ?? [];
+        CancelEdit();
+    });
+
+    private void Edit(AuctionCollectionDto row) { _editing = row; _name = row.Name; _error = _notice = null; }
+    private void CancelEdit() { _editing = null; _name = ""; }
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        var saved = _editing is { } row
+            ? await UpdateAsync(row, _name, row.IsActive)
+            : await Api.PostAsync<CreateAuctionCollectionRequest, AuctionCollectionDto>(Path, new(_name));
+        Apply(saved);
+        CancelEdit();
+        _notice = "Collection saved.";
+    });
+
+    private Task SetActiveAsync(AuctionCollectionDto row) => RunAsync(async () =>
+    {
+        Apply(await UpdateAsync(row, row.Name, !row.IsActive));
+        _notice = row.IsActive ? "Collection archived. Its lots remain available." : "Collection restored.";
+    });
+
+    private Task<AuctionCollectionDto?> UpdateAsync(AuctionCollectionDto row, string name, bool active) =>
+        Api.PutAsync<UpdateAuctionCollectionRequest, AuctionCollectionDto>($"{Path}/{row.Id}", new(name, active, row.Revision));
+
+    private void Apply(AuctionCollectionDto? saved)
+    {
+        if (saved is null) throw new InvalidOperationException("No collection response.");
+        _items = (_items ?? []).Where(x => x.Id != saved.Id).Append(saved)
+            .OrderByDescending(x => x.IsActive).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (_busy) return;
+        _busy = true; _error = _notice = null;
+        try { await action(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

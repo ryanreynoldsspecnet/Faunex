@@ -16,6 +16,7 @@
                 <option value="all">All categories</option>@foreach (var value in Categories) { <option value="@value">@StorefrontPresentation.Category(value)</option> }
             </select>
             <input type="hidden" name="status" value="@_status" /><input type="hidden" name="sort" value="@_sort" />
+            <input type="hidden" name="collection" value="@_collection" />
             <button class="btn btn-primary" type="submit" aria-label="Search lots" title="Search"><span class="storefront-search-icon" aria-hidden="true"></span></button>
         </form>
         <div class="storefront-header-actions">
@@ -36,6 +37,7 @@
     private bool _open, _logoFailed;
     private int _navigationKey;
     private string _search = "", _category = "all", _status = "all", _sort = "recent";
+    private string? _collection;
     private ElementReference _root;
     private IJSObjectReference? _module;
     protected override async Task OnInitializedAsync() { Nav.LocationChanged += LocationChanged; ReadQuery(); await Branding.EnsureLoadedAsync(); }
@@ -46,6 +48,7 @@
         _category = query.TryGetValue("category", out var category) && Categories.Contains(category.ToString()) ? category.ToString() : "all";
         _status = query.TryGetValue("status", out var status) ? status.ToString() : "all";
         _sort = query.TryGetValue("sort", out var sort) ? sort.ToString() : "recent";
+        _collection = query.TryGetValue("collection", out var collection) ? collection.ToString() : null;
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
