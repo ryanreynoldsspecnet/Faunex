@@ -1,12 +1,9 @@
 @page "/"
-@inject Faunex.Web.Api.FaunexApiClient Api
 @inject NavigationManager Nav
-@inject ILogger<Home> Logger
-
-<PageTitle>@(_isPlatformHost ? "Faunex" : DisplayTenantName)</PageTitle>
 
 @if (_isPlatformHost)
 {
+    <PageTitle>Faunex</PageTitle>
     <section class="home-hero" aria-labelledby="home-title">
         <div class="home-hero__content">
             <p class="home-kicker">Multi-tenant auction infrastructure</p>
@@ -107,184 +104,12 @@
         </div>
     </section>
 }
-else if (_isLoadingMarketplace)
+else
 {
-    <section class="marketplace-shell">
-        <p>Loading marketplace...</p>
-    </section>
-}
-else if (_marketplaceError is not null)
-{
-    <section class="marketplace-shell">
-        <div class="platform-empty" role="status">
-            <h1>Marketplace temporarily unavailable</h1>
-            <p>@_marketplaceError</p>
-            <button class="btn btn-primary" type="button" @onclick="LoadMarketplaceAsync">Try Again</button>
-        </div>
-    </section>
-}
-else if (_marketplace is not null)
-{
-    <section class="marketplace-hero" aria-labelledby="marketplace-title" style="@MarketplaceStyle">
-        <div class="marketplace-hero__content">
-            @if (!string.IsNullOrWhiteSpace(_marketplace.LogoUrl) && Faunex.Application.Tenancy.TenantBrandingRules.IsLogo(_marketplace.LogoUrl))
-            {
-                <img class="marketplace-hero__logo" src="@_marketplace.LogoUrl" alt="@DisplayTenantName" />
-            }
-            <p class="home-kicker">Tenant marketplace</p>
-            <h1 id="marketplace-title">@DisplayTenantName</h1>
-            <p class="home-lede">
-                @MarketplaceTagline
-            </p>
-
-            <div class="home-actions" aria-label="Marketplace actions">
-                <a class="btn btn-primary btn-lg" href="/browse">Browse Listings</a>
-                <a class="btn btn-outline-light btn-lg" href="/login">Login</a>
-            </div>
-
-            <dl class="home-snapshot" aria-label="Marketplace snapshot">
-                <div>
-                    <dt>Marketplace</dt>
-                    <dd>@DisplayTenantName</dd>
-                </div>
-                <div>
-                    <dt>Listings</dt>
-                    <dd>@FeaturedListingCountLabel</dd>
-                </div>
-                <div>
-                    <dt>Support</dt>
-                    <dd>@MarketplaceSupport</dd>
-                </div>
-            </dl>
-        </div>
-    </section>
-
-    <section class="home-section home-section--intro" aria-labelledby="featured-listings-heading" style="@MarketplaceStyle">
-        <div class="home-section__inner">
-            <div class="platform-header">
-                <div>
-                    <p class="platform-kicker">Approved listings</p>
-                    <h1 id="featured-listings-heading">Featured marketplace listings</h1>
-                    <p>Only approved tenant listings are shown here. Auctions and buyer activity stay inside this tenant marketplace.</p>
-                </div>
-                <a class="btn btn-primary" href="/browse">View All</a>
-            </div>
-
-            @if (_isLoadingListings)
-            {
-                <p role="status">Loading listings...</p>
-            }
-            else if (_listingsError is not null)
-            {
-                <div class="alert alert-warning" role="alert">
-                    <p>@_listingsError</p>
-                    <button class="btn btn-outline-secondary" type="button" @onclick="LoadListingsAsync">Retry Listings</button>
-                </div>
-            }
-            else if (_featuredListings is null || _featuredListings.Count == 0)
-            {
-                <div class="platform-empty">
-                    <p>No approved listings are available yet.</p>
-                </div>
-            }
-            else
-            {
-                <div class="marketplace-listing-grid">
-                    @foreach (var item in _featuredListings.Take(3))
-                    {
-                        <article class="marketplace-listing-card">
-                            <span>@GetSaleType(item)</span>
-                            <h2>@item.Title</h2>
-                            <p>@(string.IsNullOrWhiteSpace(item.Location) ? DisplayTenantName : item.Location)</p>
-                            <strong>@FormatPrice(item)</strong>
-                            <a class="btn btn-outline-primary" href="@($"/listings/{item.Id}")">View Listing</a>
-                        </article>
-                    }
-                </div>
-            }
-        </div>
-    </section>
+    <MarketplaceCatalogue />
 }
 
 @code {
     private bool _isPlatformHost;
-    private bool _isLoadingMarketplace;
-    private string _host = string.Empty;
-    private string? _marketplaceError;
-    private string? _listingsError;
-    private bool _isLoadingListings;
-    private MarketplaceContextDto? _marketplace;
-    private IReadOnlyList<Faunex.Application.DTOs.ListingDto>? _featuredListings;
-
-    private string DisplayTenantName => _marketplace?.MarketplaceDisplayName ?? _marketplace?.CompanyName ?? _marketplace?.Name ?? "this marketplace";
-    private string MarketplaceTagline => _marketplace?.MarketplaceTagline ?? $"Browse approved listings and auction opportunities from {DisplayTenantName}.";
-    private string MarketplaceSupport => _marketplace?.SupportEmail ?? _marketplace?.ContactEmail ?? _marketplace?.SupportPhone ?? _marketplace?.ContactPhone ?? "Available from tenant admin";
-    private string MarketplaceStyle => Faunex.Application.Tenancy.TenantBrandingRules.IsColour(_marketplace?.BrandPrimaryColor) ? $"--tenant-primary:{_marketplace!.BrandPrimaryColor};" : string.Empty;
-    private string FeaturedListingCountLabel => _listingsError is not null ? "Temporarily unavailable"
-        : _isLoadingListings ? "Loading..."
-        : (_featuredListings?.Count ?? 0) == 0 ? "Opening soon" : $"{_featuredListings!.Count} available";
-
-    protected override async Task OnInitializedAsync()
-    {
-        _host = Nav.ToAbsoluteUri(Nav.Uri).Host;
-        _isPlatformHost = PlatformHostRules.IsPlatformHost(_host);
-
-        if (_isPlatformHost)
-        {
-            return;
-        }
-
-        await LoadMarketplaceAsync();
-    }
-
-    private async Task LoadMarketplaceAsync()
-    {
-        if (_isLoadingMarketplace) return;
-        _isLoadingMarketplace = true;
-        _marketplaceError = null;
-
-        try
-        {
-            var host = MarketplaceRoutes.HostQuery(_host);
-            _marketplace = await Api.GetAsync<MarketplaceContextDto>($"/api/marketplace/context?host={host}");
-            if (_marketplace is null) _marketplaceError = "This marketplace is currently unavailable. Please try again.";
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Could not load marketplace context for {MarketplaceHost}", _host);
-            _marketplaceError = "We could not load this marketplace. Please try again.";
-        }
-        finally
-        {
-            _isLoadingMarketplace = false;
-        }
-        if (_marketplaceError is null && _marketplace is not null) await LoadListingsAsync();
-    }
-
-    private async Task LoadListingsAsync()
-    {
-        if (_isLoadingListings) return;
-        _isLoadingListings = true;
-        _listingsError = null;
-        try
-        {
-            var host = MarketplaceRoutes.HostQuery(_host);
-            _featuredListings = await Api.GetAsync<IReadOnlyList<Faunex.Application.DTOs.ListingDto>>($"/api/marketplace/listings?host={host}");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Could not load marketplace listings for {MarketplaceHost}", _host);
-            _listingsError = "Listings are temporarily unavailable. Please try again.";
-        }
-        finally { _isLoadingListings = false; }
-    }
-
-    private static string FormatPrice(Faunex.Application.DTOs.ListingDto item)
-    {
-        var price = item.BuyNowPrice ?? item.StartingPrice;
-        return $"{price:0.##} {item.CurrencyCode}";
-    }
-
-    private static string GetSaleType(Faunex.Application.DTOs.ListingDto item)
-        => item.BuyNowPrice.HasValue ? "Fixed price" : "Auction";
+    protected override void OnInitialized() => _isPlatformHost = PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).IdnHost);
 }

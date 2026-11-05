@@ -356,7 +356,7 @@ Start by inspecting the current deployment/Compose/runtime configuration and add
 - [ ] Obtain explicit live activation and low-value transaction approval only after readiness/recovery and payment exception gates pass; confirm funds reach the intended tenant merchant account.
 - [ ] Record first-tenant approval, remaining limitations and controlled rollout/rollback ownership before declaring the pilot ready.
 
-Restart point: Section 7B1 below. The original audit remains a dated baseline, not a current status checklist; use this file for subsequent progress.
+Restart point: Active Storefront Slice below. The original audit remains a dated baseline, not a current status checklist; use this file for subsequent progress.
 
 ## Active Section 7A1: Exact Release And Readiness
 
@@ -389,7 +389,7 @@ PR #45 merged at `c8cc211149612d5e55e31065aa911c2be8031d80`. [Production run 420
 
 On 5 November the owner selected manually managed daily xneelo snapshots with only the previous snapshot replaced after a new Available snapshot is confirmed. Disposable test-data loss is an explicitly accepted development risk to limit personal costs. No snapshot has been created or verified by the agent. Protected off-server backup and isolated restore work (7A2) is deferred until launch preparation and remains a launch gate; it is not complete. Source in GitHub is not a backup of database, uploads or original secrets/keys. See [the temporary recovery decision](release-recovery.md#temporary-development-decision-5-november-2026). Sandbox Section 7B can proceed; no real-money activation follows from this deferral.
 
-## Active Section 7B1: Payment Exception Workspace
+## Section 7B1: Payment Exception Workspace
 
 Branch: `codex/section-7b-order-payment-workspace`, based on verified master `c8cc211149612d5e55e31065aa911c2be8031d80`.
 
@@ -397,7 +397,7 @@ Branch: `codex/section-7b-order-payment-workspace`, based on verified master `c8
 - [x] Distinguish browser cancellation from return, let verified confirmed/review states take priority, and require an explicit no-payment/no-other-checkout acknowledgement before resuming an existing pending reference. Browser URLs never change payment state.
 - [x] Recheck payment/order availability and discard a prepared form when status verification fails, confirmation arrives or merchant setup no longer permits checkout. Keep authoritative checkout validation and signed notification processing unchanged.
 - [x] Local regression and desktop/mobile browser verification recorded below. No migration, live payment, refund, manual reconciliation or fulfilment mutation is included.
-- [ ] Complete Linux CI validation before PR handoff, then user-approved merge and hosted rollout verification.
+- [x] Complete Linux CI validation before PR handoff, then user-approved merge and hosted rollout verification (PR #46; evidence below).
 - [ ] After merge, exercise the actual hosted sandbox cancellation/resume path on a fresh disposable order, cross-check the merchant dashboard and tenant view with the user. Do not repay the confirmed R11 order. Verifier-double tests are not external provider acceptance.
 
 Local evidence: 273 tests total, 256 passed and 17 explicit PostgreSQL/scanner skips, no failures. The added component tests render the real payment component with isolated HTTP responses and verify current-state reads, bound cancellation notices, disabled unacknowledged resume, tenant read-only mode, confirmed/review protection and failure messages. The browser pass found and corrected a duplicate sibling key introduced during development and the existing literal return-state parameter binding before handoff.
@@ -409,3 +409,28 @@ Published Web browser QA used a loopback-only disposable API fixture with real a
 The owner supplied the Stormbird customer hostname `bid.stormbirdbreeders.co.za` and a screenshot of the current generic tenant hero. They requested a customer-focused home/catalogue, clear actual lot imagery, simple navigation, readable auction details and comfortable phone/photo-upload workflows for users aged roughly 18-80. Preserve white-label tenant isolation and avoid platform/admin jargon or fabricated live lots/timers. Research relevant animal/plant auction patterns without copying poor visual styling. The owner clarified this request was queued, not an interruption: finish and hand over 7B1 first, then implement a separate storefront slice. Existing branding settings should drive the shared tenant experience rather than hardcoding one tenant.
 
 Next: the customer-facing storefront slice above, followed by hosted exception acceptance and agreed tenant reconciliation/fulfilment rules before corresponding state-changing controls. No support impersonation, manual paid button, automatic refund or live-money permission is assumed.
+
+### Section 7B1 Rollout: 5 November 2026
+
+PR #46 merged at `307b7036a052b48b0628cdd607f1b533c96f99eb`. [Production run 42027253270](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/42027253270) passed validation and deployment. Deployment logs showed database, scanner, API, Web and Caddy healthy and the exact Release ready marker. Independent public Faunex and `bid.stormbirdbreeders.co.za` readiness returned 200 with that SHA; the custom-domain homepage returned 200. The old `stormbird.faunex.co.za` address returned 404; the owner explicitly confirmed that only the new custom domain should remain active. Do not reactivate the old alias as an incident fix. Hosted cancellation/merchant-dashboard acceptance is still open and no live payment was enabled.
+
+## Active Storefront Slice
+
+Branch: `codex/stormbird-storefront`, based on verified master `307b7036a052b48b0628cdd607f1b533c96f99eb`. This is the owner-prioritised customer-facing slice, not closure of remaining 7B/7C launch gates.
+
+- [x] Replace the generic tenant hero and plain browse table with one shared catalogue-first home/browse experience, tenant branding, mobile navigation and actual approved lot photos. Preserve Faunex's platform home and backend workspace.
+- [x] Add a bounded private-API catalogue endpoint with tenant/approval/active guards, title/location search, category/status filters, sorts, pagination, batched public photo IDs and public published auction summaries. Never expose document IDs, storage keys, reserves, bidder identity or merchant secrets. Existing photo routes still recheck visibility on every byte request.
+- [x] Show authoritative auction state and SAST dates with snapshot update time and refresh, not invented live counters. Catalogue-only listings and fixed-price listings are not advertised as open auctions or supplied with a non-functional buy button.
+- [x] Improve lot detail layout, image failure/loading states, back navigation, public reads independent of a stale bearer token and readable tenant-colour button foregrounds. Existing bidding, price acceptance and payment rules are unchanged.
+- [x] Add catalogue/presentation/initial-branding tests and inspect published desktop/phone layouts. Initial local suite: 292 total, 274 passed, 18 explicit PostgreSQL/scanner skips; no failures. API/Web publishes succeeded. Full Linux SQL/scanner/image gates remain required before review handoff.
+- [ ] Record final CI/PR and browser acceptance before user-approved merge; then verify the exact deployed revision and customer domain.
+
+The design research reviewed [SwiftVEE's catalogue](https://auctions.swiftvee.com/) and [plant.ess auctions](https://auctions.plantsbytess.com/) for useful patterns such as visible lots, clear dates/prices and distinct results. No competitor assets, sale terms, soft-close rules or automatic-bidding logic were copied. The storefront remains tenant-driven, with no hardcoded Stormbird inventory or branding in production components.
+
+Visual QA uses a disposable SQLite-backed test API, explicitly labelled DEMO lots and sample Unsplash photos outside Git. The preview materialises catalogue/date sorts in memory because SQLite does not support the production timestamp ordering; PostgreSQL CI is authoritative for actual catalogue SQL/filter behaviour. Actual public image delivery, host gateway, account services and published Web components remain in use. No sample lots/photos are added to production. Sample-photo sources: [red parrot](https://unsplash.com/photos/a-close-up-of-a-red-parrot-with-a-black-beak-T3Ph42TMg1A), [green parrot](https://unsplash.com/photos/a-close-up-of-a-green-parrot-with-a-yellow-beak-HtpnSL0-9wc), [blue-and-yellow parrot](https://unsplash.com/photos/a-close-up-of-a-blue-and-yellow-parrot-Er7aHlhhgFg) and [red-and-green parrot](https://unsplash.com/photos/a-close-up-of-a-colorful-parrot-on-a-tree--xMBSZjVimM). These are visual fixtures, not photographs or species verification of animals offered by Stormbird.
+
+Final published browser checks passed at 320, 390, 768, 1440 and 1920px widths: actual photo bytes decoded; image frames remained fixed without cropping the full supplied photo; search/category/status and sort state survived URL navigation; the mobile menu opened/closed correctly; public lot and auction pages rendered; anonymous bid forms remained hidden; a simulated catalogue 503 recovered through Try again; failed photos displayed a fixed-size fallback; an unknown host returned 404; Faunex retained its platform hero/navigation. No browser errors or document overflow. Screenshots are local `storefront-*.png` artifacts. Native form fields are bound, tenant header/footer await initial branding, and a regression test covers the initial placeholder-branding issue found during visual QA. The final local suite again passed 274 with 18 explicit skips, 292 total; both publishes succeeded.
+
+A loopback-only disposable review demo is running at `http://stormbird.127.0.0.1.nip.io:5185/`, with normal DNS verified to resolve to 127.0.0.1. Web/API preview ports are 5185/5186; no production secrets or persistent business records are used. It is a temporary local demo, not staging, a production host mapping or a deployed storefront. Do not enter live credentials. Its two hidden dotnet processes can be stopped after review; snapshots and VPS services were not touched by the preview.
+
+Next after this slice: review with the owner using real Stormbird branding and approved photos, then improve the auction/bid journey and phone-based seller listing/photo-upload workflow in bounded sections. Watchlists, new animal/plant creation types, fixed-price checkout, refund/fulfilment controls, policies, business sign-off and off-server restore acceptance remain separate work, not features implied by the new catalogue.

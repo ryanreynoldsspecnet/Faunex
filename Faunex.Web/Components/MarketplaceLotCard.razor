@@ -1,0 +1,30 @@
+@using Faunex.Application.DTOs
+<article class="lot-card">
+    <a class="lot-card__media" href="@Destination" aria-label="@($"View {Lot.Title}")">
+        @if (Lot.PhotoId is { } photo && !_imageFailed)
+        {
+            <img src="@($"/media/listing-photos/{photo}")" alt="@Lot.Title" loading="lazy" decoding="async" width="640" height="480" @onerror="() => _imageFailed = true" />
+        }
+        else { <span class="lot-card__no-photo">@(_imageFailed ? "Photo temporarily unavailable" : "Photo not supplied")</span> }
+        <span class="lot-state @(Lot.Auction?.State == "Live" ? "lot-state--open" : null)">@StorefrontPresentation.Status(Lot)</span>
+    </a>
+    <div class="lot-card__body">
+        <p class="lot-card__category">@StorefrontPresentation.Category(Lot.Category)</p>
+        <h2><a href="@Destination">@Lot.Title</a></h2>
+        <p class="lot-card__location">@(string.IsNullOrWhiteSpace(Lot.Location) ? "Location not supplied" : Lot.Location) <span> / Qty @Lot.Quantity</span></p>
+        <div class="lot-card__price"><span>@StorefrontPresentation.PriceLabel(Lot)</span><strong>@StorefrontPresentation.Money(Lot.FixedPrice ?? Lot.Auction?.CurrentPrice ?? Lot.Auction?.StartingPrice ?? Lot.StartingPrice, Lot.CurrencyCode)</strong></div>
+        <p class="lot-card__time">
+            @if (Lot.Auction?.State == "Scheduled" && Lot.Auction.StartsAt is { } start) { <span>Opens @StorefrontPresentation.Time(start)</span> }
+            else if (Lot.Auction?.EndsAt is { } end) { <span>@(Lot.Auction.IsClosed ? "Ended" : "Closes") @StorefrontPresentation.Time(end)</span> }
+            else { <span>View the lot for sale details</span> }
+        </p>
+        <a class="btn btn-outline-primary lot-card__action" href="@Destination">@(Lot.Auction is null ? "View lot" : "View auction")</a>
+    </div>
+</article>
+@code {
+    [Parameter, EditorRequired] public MarketplaceLotDto Lot { get; set; } = default!;
+    private bool _imageFailed;
+    private Guid? _lastPhoto;
+    private string Destination => $"/{(Lot.Auction is null ? "listings" : "auctions")}/{Lot.Id}";
+    protected override void OnParametersSet() { if (_lastPhoto != Lot.PhotoId) { _imageFailed = false; _lastPhoto = Lot.PhotoId; } }
+}

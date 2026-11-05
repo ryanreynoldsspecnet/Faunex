@@ -5,7 +5,8 @@
 @inject Faunex.Web.Api.FaunexApiClient Api
 @inject NavigationManager Nav
 
-<h3>Listing Details</h3>
+<section class="lot-detail">
+<a class="order-back-link" href="/browse">Back to lots</a>
 
 @if (_isPlatformHost)
 {
@@ -29,44 +30,38 @@ else if (_item is null)
 }
 else
 {
-    <div class="mb-3">
-        <h4>@_item.Title</h4>
+    <PageTitle>@_item.Title</PageTitle>
+    <p class="storefront-eyebrow">Lot details</p><h1>@_item.Title</h1>
+    <div class="lot-detail-grid"><div>
         <ListingPhotoGallery ListingId="ListingId" Title="@_item.Title" />
-        <p class="text-muted mb-1"><strong>Status:</strong> Approved</p>
-        <p class="text-muted mb-1"><strong>Listing type:</strong> @GetSaleType(_item)</p>
-        <p class="mb-1"><strong>Price:</strong> @GetPriceLabel(_item)</p>
 
         @if (!string.IsNullOrWhiteSpace(_item.Description))
         {
             <div class="mt-3">
-                <strong>Description</strong>
-                <p>@_item.Description</p>
+                <h2>Description</h2>
+                <p class="lot-description">@_item.Description</p>
             </div>
         }
-    </div>
+    </div><div>
+    <div class="lot-detail-price"><span>@(_item.BuyNowPrice.HasValue ? "Listed price" : "Starting bid")</span><strong>@GetPriceLabel(_item)</strong></div>
+    <dl class="review-facts mb-4"><dt>Sale type</dt><dd>@GetSaleType(_item)</dd><dt>Location</dt><dd>@(_item.Location ?? "Not supplied")</dd><dt>Quantity</dt><dd>@_item.Quantity</dd></dl>
 
     @if (IsAuction(_item))
     {
         <div class="mb-3">
-            <a class="btn btn-outline-primary" href="/auctions/@_item.Id">View Auction</a>
+            <a class="btn btn-primary" href="/auctions/@_item.Id">View auction</a>
         </div>
     }
 
     <AuthorizeView>
         <NotAuthorized>
             <div class="alert alert-info">
-                <div>Login to bid or buy</div>
-                <a class="btn btn-primary mt-2" href="/login">Login</a>
+                <div>Sign in with a buyer account to place bids.</div>
+                <a class="btn btn-outline-primary mt-2" href="/login">Log in</a>
             </div>
         </NotAuthorized>
         <Authorized>
-            @if (_isBuyer)
-            {
-                <div class="alert alert-success">
-                    Buyer access confirmed. Go to the auction page to place bids.
-                </div>
-            }
-            else
+            @if (!_isBuyer)
             {
                 <div class="alert alert-secondary">
                     You're signed in, but bidding is only available for Buyer accounts.
@@ -74,7 +69,9 @@ else
             }
         </Authorized>
     </AuthorizeView>
+    </div></div>
 }
+</section>
 
 @code {
     [Parameter] public Guid ListingId { get; set; }
@@ -112,7 +109,7 @@ else
         try
         {
             var host = MarketplaceRoutes.HostQuery(_host);
-            _item = await Api.GetAsync<Faunex.Application.DTOs.ListingDto>($"/api/marketplace/listings/{ListingId}?host={host}");
+            _item = await Api.GetPublicAsync<Faunex.Application.DTOs.ListingDto>($"/api/marketplace/listings/{ListingId}?host={host}");
 
             var authState = AuthenticationStateTask is null ? null : await AuthenticationStateTask;
             var user = authState?.User;
@@ -138,8 +135,8 @@ else
     private static string GetPriceLabel(Faunex.Application.DTOs.ListingDto item)
     {
         if (item.BuyNowPrice.HasValue)
-            return $"Buy Now: R{item.BuyNowPrice.Value:0.##}";
+            return StorefrontPresentation.Money(item.BuyNowPrice.Value, item.CurrencyCode ?? "");
 
-        return $"Auction starting at: R{item.StartingPrice:0.##}";
+        return StorefrontPresentation.Money(item.StartingPrice ?? 0, item.CurrencyCode ?? "");
     }
 }

@@ -1,0 +1,34 @@
+@implements IDisposable
+@inject MarketplaceBranding Branding
+@inject NavigationManager Nav
+<header class="storefront-header navbar-dark">
+    <div class="storefront-header__inner">
+        <a class="storefront-brand" href="/" aria-label="@($"{Branding.Name} home")">
+            @if (!string.IsNullOrWhiteSpace(Branding.Logo) && !_logoFailed) { <img src="@Branding.Logo" alt="@Branding.Name" width="180" height="48" @onerror="() => _logoFailed = true" /> }
+            else { <span>@Branding.Name</span> }
+        </a>
+        <button type="button" class="storefront-menu-toggle" aria-expanded="@(_open ? "true" : "false")" aria-controls="storefront-navigation" title="Open or close menu" @onclick="() => _open = !_open"><span class="navbar-toggler-icon" aria-hidden="true"></span><span>Menu</span></button>
+        <div class="storefront-navigation @(_open ? "is-open" : null)" id="storefront-navigation">
+            <nav aria-label="Main navigation"><a href="/browse">All lots</a><a href="/browse?status=open">Bidding open</a><a href="/browse?status=upcoming">Upcoming</a><a href="/browse?status=results">Results</a></nav>
+            <div class="storefront-account">
+                <AuthorizeView Context="account">
+                    <NotAuthorized><a href="/login">Log in</a><a class="btn btn-outline-light" href="/register">Register</a></NotAuthorized>
+                    <Authorized>
+                        <AuthorizeView Roles="Buyer"><Authorized><a href="/buyer/orders">My orders</a></Authorized></AuthorizeView>
+                        <AuthorizeView Roles="Seller"><Authorized><a href="/seller/my-listings">My listings</a></Authorized></AuthorizeView>
+                        <AuthorizeView Roles="TenantAdmin"><Authorized><a href="/tenant">Manage marketplace</a></Authorized></AuthorizeView>
+                        <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport"><Authorized><a href="/platform">Platform</a></Authorized></AuthorizeView>
+                        <span class="storefront-account__name">@(account.User.Identity?.Name ?? "Your account")</span><a href="/logout">Log out</a>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </div>
+</header>
+@code {
+    private bool _open;
+    private bool _logoFailed;
+    protected override async Task OnInitializedAsync() { Nav.LocationChanged += LocationChanged; await Branding.EnsureLoadedAsync(); }
+    private void LocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args) => _ = InvokeAsync(() => { _open = false; StateHasChanged(); });
+    public void Dispose() => Nav.LocationChanged -= LocationChanged;
+}
