@@ -152,4 +152,9 @@ jobs:
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             ubuntu@${{ secrets.FAUNEX_SERVER_IP }} \
-            'bash -s -- ${{ github.sha }}' < deploy/release.sh
+            'release_script=$(cat); bash -c "$release_script" -- ${{ github.sha }} < /dev/null' < deploy/release.sh
+          body=$(curl --fail --silent --show-error --max-time 10 --retry 5 --retry-delay 3 --retry-all-errors https://faunex.co.za/__ready)
+          [[ "$body" == 'ready ${{ github.sha }}' ]] || {
+            echo 'Independent post-SSH readiness check did not match the validated release.' >&2
+            exit 1
+          }

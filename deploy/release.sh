@@ -38,7 +38,8 @@ done
 [[ $(git rev-parse HEAD) == "$revision" ]]
 git diff --quiet
 git diff --cached --quiet
-docker compose run --rm --no-deps --entrypoint caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+# Never let Compose consume the remaining script when invoked through bash -s over SSH.
+docker compose run --rm -T --interactive=false --no-deps --entrypoint caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile < /dev/null
 printf '%s\n' "$revision" > .faunex-ops/attempted-release
 for service in api web; do
     docker inspect --format '{{.Image}}' "faunex-$service" > ".faunex-ops/pre-release-$service-image" 2>/dev/null || true
@@ -48,7 +49,7 @@ for service in api web; do
     actual=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "faunex-$service")
     [[ "$actual" == "$revision" ]] || { echo 'A running container has the wrong revision.' >&2; exit 1; }
 done
-docker compose exec -T caddy caddy reload --force --config /etc/caddy/Caddyfile --adapter caddyfile
+docker compose exec -T caddy caddy reload --force --config /etc/caddy/Caddyfile --adapter caddyfile < /dev/null
 body=$(curl --fail --silent --show-error --max-time 10 --retry 10 --retry-delay 3 --retry-all-errors https://faunex.co.za/__ready)
 [[ "$body" == "ready $revision" ]] || { echo 'Public HTTPS readiness did not match the validated revision.' >&2; exit 1; }
 
