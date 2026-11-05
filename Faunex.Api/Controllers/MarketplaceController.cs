@@ -15,7 +15,8 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
 {
     [HttpGet("catalogue")]
     public async Task<ActionResult<MarketplaceCatalogueDto>> Catalogue(string? host, string? search = null, string category = "all",
-        string status = "all", string sort = "recent", int skip = 0, int take = 24, CancellationToken cancellationToken = default)
+        string status = "all", string sort = "recent", int skip = 0, int take = 24, Guid? collection = null,
+        CancellationToken cancellationToken = default)
     {
         Response.Headers.CacheControl = "no-store";
         if (search?.Length > 200 || category is not ("all" or "bird" or "livestock" or "game" or "poultry" or "other")
@@ -25,6 +26,10 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
         if (tenantId is null) return NotFound();
         var now = clock.GetUtcNow();
         var query = CatalogueQuery(tenantId.Value, search, category, status, now);
+        var activeCollections = db.AuctionCollections.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenantId.Value && x.IsActive);
+        if (collection is { } collectionId)
+            query = query.Where(x => x.AuctionCollectionId == collectionId && activeCollections.Any(c => c.Id == collectionId));
         var auctions = PublicAuctionQuery(tenantId.Value);
         var upcoming = auctions.Where(x => x.State == AuctionState.Scheduled && x.EndsAt > now);
         var ordered = sort switch
@@ -37,7 +42,11 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
         };
         var total = await query.CountAsync(cancellationToken);
         var ids = await ordered.Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 48)).Select(x => x.Id).ToListAsync(cancellationToken);
-        return new MarketplaceCatalogueDto(await lotProjection.ReadAsync(tenantId.Value, ids, now, cancellationToken), total, now);
+        var visibleLots = lotProjection.Visible(tenantId.Value);
+        var collections = await activeCollections.Where(c => visibleLots.Any(x => x.AuctionCollectionId == c.Id))
+            .OrderBy(c => c.NormalizedName).Select(c => new AuctionCollectionOption(c.Id, c.Name)).ToListAsync(cancellationToken);
+        return new MarketplaceCatalogueDto(await lotProjection.ReadAsync(tenantId.Value, ids, now, cancellationToken), total, now)
+        { Collections = collections };
     }
 
     private IQueryable<Listing> CatalogueQuery(Guid tenantId, string? search, string category, string status, DateTimeOffset now)

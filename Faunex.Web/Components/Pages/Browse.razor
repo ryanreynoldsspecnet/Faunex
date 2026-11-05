@@ -11,7 +11,7 @@
 }
 else
 {
-    <MarketplaceCatalogue Search="@Search" Category="@(Category ?? "all")" Status="@(Status ?? "all")" Sort="@(Sort ?? "recent")" Page="@Page" />
+    <MarketplaceCatalogue Search="@Search" Category="@(Category ?? "all")" Status="@(Status ?? "all")" Sort="@(Sort ?? "recent")" Page="@Page" Collection="@Collection" />
 }
 
 @code {
@@ -20,4 +20,5 @@ else
     [SupplyParameterFromQuery(Name = "status")] public string? Status { get; set; }
     [SupplyParameterFromQuery(Name = "sort")] public string? Sort { get; set; }
     [SupplyParameterFromQuery(Name = "page")] public string? Page { get; set; }
+    [SupplyParameterFromQuery(Name = "collection")] public string? Collection { get; set; }
 }

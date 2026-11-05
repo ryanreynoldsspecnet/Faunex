@@ -20,6 +20,7 @@
         </nav>
         <form id="catalogue-sort-form" class="catalogue-sort @(_sortOpen ? "is-open" : null)" method="get" action="/browse" data-enhance>
             <input type="hidden" name="q" value="@Search" /><input type="hidden" name="category" value="@Category" /><input type="hidden" name="status" value="@Status" />
+            <input type="hidden" name="collection" value="@Collection" />
             <label for="catalogue-sort">Sort by</label><select class="form-select" id="catalogue-sort" name="sort" @bind="_sortInput">
                 @foreach (var item in Sorts) { <option value="@item.Value">@item.Label</option> }
             </select><button class="btn btn-outline-secondary" type="submit">Apply</button>
@@ -33,12 +34,32 @@
     }
     else if (_result is not null)
     {
+        @if (_result.Collections.Count > 0 || !string.IsNullOrEmpty(Collection))
+        {
+            <form class="d-flex flex-wrap align-items-center gap-2 mb-3" method="get" action="/browse" data-enhance>
+                <input type="hidden" name="q" value="@Search" /><input type="hidden" name="category" value="@Category" />
+                <input type="hidden" name="status" value="@Status" /><input type="hidden" name="sort" value="@Sort" />
+                <label for="catalogue-collection">Collection</label>
+                <select id="catalogue-collection" name="collection" class="form-select w-auto mw-100">
+                    <option value="">All collections</option>
+                    @if (!string.IsNullOrEmpty(Collection) && !_result.Collections.Any(c => c.Id == SelectedCollectionId))
+                    {
+                        <option value="@Collection" selected>Unavailable collection</option>
+                    }
+                    @foreach (var choice in _result.Collections)
+                    {
+                        <option value="@choice.Id" selected="@(choice.Id == SelectedCollectionId)">@choice.Name</option>
+                    }
+                </select>
+                <button class="btn btn-outline-secondary" type="submit">Apply collection</button>
+            </form>
+        }
         <div class="catalogue-results-bar"><p role="status">@_result.Total @(_result.Total == 1 ? "lot" : "lots")@(!string.IsNullOrWhiteSpace(Search) ? $" matching '{Search}'" : "")</p>
             <div><span class="catalogue-updated">Updated @StorefrontPresentation.Time(_result.ServerTime)</span><button class="catalogue-sort-toggle" type="button" aria-controls="catalogue-sort-form" aria-expanded="@(_sortOpen ? "true" : "false")" @onclick="() => _sortOpen = !_sortOpen">Sort lots</button><button class="catalogue-refresh" type="button" @onclick="LoadAsync">Refresh</button></div></div>
         @if (_result.Items.Count == 0)
         {
             <div class="catalogue-empty"><h2>@(HasFilters ? "No lots match your search" : "The next catalogue is on its way")</h2>
-                <p>@(HasFilters ? "Try another name, location or auction status." : "There are no lots to show just yet. Please check back for the next catalogue.")</p>
+                <p>@(HasFilters ? "Try another name, location, auction status or collection." : "There are no lots to show just yet. Please check back for the next catalogue.")</p>
                 @if (HasFilters) { <a class="btn btn-outline-primary" href="/browse">View all lots</a> }
             </div>
         }
@@ -61,21 +82,23 @@
     [Parameter] public string Status { get; set; } = "all";
     [Parameter] public string Sort { get; set; } = "recent";
     [Parameter] public string? Page { get; set; }
+    [Parameter] public string? Collection { get; set; }
     private static readonly (string Value, string Label)[] Statuses = [("all", "All lots"), ("open", "Bidding open"), ("upcoming", "Upcoming"), ("results", "Results")];
     private static readonly (string Value, string Label)[] Sorts = [("recent", "Recently added"), ("ending", "Ending soonest"), ("name", "Name A-Z"), ("price", "Price: low to high")];
     private MarketplaceCatalogueDto? _result;
     private bool _loading;
     private bool _sortOpen;
     private string _sortInput = "recent";
-    private (string?, string, string, string, string?)? _loadedQuery;
+    private (string?, string, string, string, string?, string?)? _loadedQuery;
     private string? _error;
     private readonly CancellationTokenSource _stop = new();
     private int _request;
     private int PageNumber => int.TryParse(Page, out var page) ? Math.Clamp(page, 1, 1000000) : 1;
-    private bool HasFilters => !string.IsNullOrWhiteSpace(Search) || Category != "all" || Status != "all" || PageNumber > 1;
+    private Guid? SelectedCollectionId => Guid.TryParse(Collection, out var id) ? id : null;
+    private bool HasFilters => !string.IsNullOrWhiteSpace(Search) || Category != "all" || Status != "all" || PageNumber > 1 || !string.IsNullOrEmpty(Collection);
     protected override Task OnParametersSetAsync()
     {
-        var query = (Search, Category, Status, Sort, Page);
+        var query = (Search, Category, Status, Sort, Page, Collection);
         if (_loadedQuery != query) { _sortInput = Sort; _loadedQuery = query; }
         return LoadAsync();
     }
@@ -88,7 +111,8 @@
             var path = QueryHelpers.AddQueryString("/api/marketplace/catalogue", new Dictionary<string, string?>
             {
                 ["host"] = Nav.ToAbsoluteUri(Nav.Uri).IdnHost, ["search"] = Search, ["category"] = Category, ["status"] = Status,
-                ["sort"] = Sort, ["skip"] = ((PageNumber - 1) * 24).ToString(System.Globalization.CultureInfo.InvariantCulture), ["take"] = "24"
+                ["sort"] = Sort, ["collection"] = string.IsNullOrEmpty(Collection) ? null : (SelectedCollectionId ?? Guid.Empty).ToString(),
+                ["skip"] = ((PageNumber - 1) * 24).ToString(System.Globalization.CultureInfo.InvariantCulture), ["take"] = "24"
             });
             var result = await Api.GetPublicAsync<MarketplaceCatalogueDto>(path, _stop.Token);
             if (request == _request) _result = result ?? throw new InvalidOperationException("No catalogue response.");
@@ -98,6 +122,6 @@
         finally { if (request == _request) _loading = false; }
     }
     private string Url(string? status = null, int page = 1) => QueryHelpers.AddQueryString("/browse", new Dictionary<string, string?>
-    { ["q"] = Search, ["category"] = Category, ["status"] = status ?? Status, ["sort"] = Sort, ["page"] = page.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+    { ["q"] = Search, ["category"] = Category, ["status"] = status ?? Status, ["sort"] = Sort, ["collection"] = Collection, ["page"] = page.ToString(System.Globalization.CultureInfo.InvariantCulture) });
     public void Dispose() { _stop.Cancel(); _stop.Dispose(); }
 }
