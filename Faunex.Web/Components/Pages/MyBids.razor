@@ -1,0 +1,24 @@
+@page "/buyer/bids"
+@using System.Security.Claims
+
+<PageTitle>My bids</PageTitle>
+<AuthorizeView Roles="Buyer">
+    <Authorized Context="buyer">
+        <BuyerBidActivity @key="buyer.User.FindFirstValue(ClaimTypes.NameIdentifier)" Status="@Status" Page="@Page" />
+    </Authorized>
+    <NotAuthorized Context="visitor">
+        <section class="storefront">
+            <h1>My bids</h1>
+            <p>A buyer account is required to view bid history.</p>
+            @if (visitor.User.Identity?.IsAuthenticated != true)
+            {
+                <a class="btn btn-primary" href="/login?returnTo=%2Fbuyer%2Fbids">Log in</a>
+            }
+        </section>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [SupplyParameterFromQuery] public string? Status { get; set; }
+    [SupplyParameterFromQuery] public int? Page { get; set; }
+}

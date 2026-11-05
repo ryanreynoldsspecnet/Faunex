@@ -1,0 +1,124 @@
+@using System.Globalization
+@using Faunex.Application.DTOs
+@implements IDisposable
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject ILogger<BuyerBidActivity> Logger
+
+<section class="storefront" aria-labelledby="my-bids-title">
+    <header class="wishlist-page-heading">
+        <h1 id="my-bids-title">My bids</h1>
+        <button type="button" class="btn btn-outline-secondary" disabled="@_loading" @onclick="LoadAsync">Refresh</button>
+    </header>
+    <nav class="catalogue-tabs" aria-label="Bid activity">
+        @foreach (var tab in Tabs)
+        {
+            <a class="@(Filter == tab.Value ? "is-active" : null)" aria-current="@(Filter == tab.Value ? "page" : null)" href="@Url(tab.Value)">@tab.Label</a>
+        }
+    </nav>
+    @if (_loading) { <p class="mt-3" role="status">Loading your bids...</p> }
+    else if (_error) { <p class="alert alert-warning mt-3" role="alert">Your bids could not be loaded. Please try again.</p> }
+    else if (_result is { } result)
+    {
+        @if (result.Items.Count == 0)
+        {
+            <div class="catalogue-empty mt-3">
+                <h2>@(PageNumber > 1 ? "No bids on this page" : Filter == "all" ? "No bids yet" : "No matching bids")</h2>
+                @if (Filter == "all" && PageNumber == 1) { <a class="btn btn-primary" href="/browse?status=open">Browse open auctions</a> }
+                else { <a class="btn btn-outline-secondary" href="/buyer/bids">View all bids</a> }
+            </div>
+        }
+        else
+        {
+            <p class="my-3" role="status">@result.Total @(result.Total == 1 ? "bid" : "bids")</p>
+            <ul class="bid-activity-list" aria-label="Your bids">
+                @foreach (var row in result.Items)
+                {
+                    <li @key="row.BidId">
+                        <dl class="bid-activity-row">
+                            <div class="bid-activity-lot"><dt>Lot</dt><dd>
+                                @if (row.AuctionAvailable) { <a href="@($"/auctions/{row.ListingId:D}")">@row.Title</a> }
+                                else { @(row.Title ?? "Lot unavailable") }
+                            </dd></div>
+                            <div><dt>Your bid</dt><dd><strong>@StorefrontPresentation.Money(row.Amount, row.CurrencyCode)</strong>
+                                <time datetime="@row.PlacedAt.ToString("O")">@Time(row.PlacedAt)</time>
+                            </dd></div>
+                            <div><dt>Auction status</dt><dd>
+                                <strong>@StatusLabel(row.Status)</strong>
+                                @if (row.IsWinningBid) { <span class="bid-activity-note">Winning bid</span> }
+                                @if (row.Status is "Leading" or "Outbid" or "Scheduled" && row.EndsAt is { } end)
+                                {
+                                    <time datetime="@end.ToString("O")">Ends @Time(end)</time>
+                                }
+                            </dd></div>
+                            @if (row.OrderId is { } orderId)
+                            {
+                                <div class="bid-activity-order"><dt>Order</dt><dd><a href="@($"/buyer/orders/{orderId:D}")">View order</a></dd></div>
+                            }
+                        </dl>
+                    </li>
+                }
+            </ul>
+        }
+        @if (PageNumber > 1 || PageNumber * PageSize < result.Total)
+        {
+            <nav class="catalogue-pagination" aria-label="Bid pages">
+                @if (PageNumber > 1) { <a class="btn btn-outline-secondary" href="@Url(Filter, PageNumber - 1)">Previous</a> }
+                <span>Page @PageNumber</span>
+                @if (PageNumber * PageSize < result.Total) { <a class="btn btn-outline-secondary" href="@Url(Filter, PageNumber + 1)">Next</a> }
+            </nav>
+        }
+    }
+</section>
+
+@code {
+    private const int PageSize = 25;
+    private static readonly (string Value, string Label)[] Tabs = [("all", "All bids"), ("progress", "In progress"), ("results", "Results")];
+    [Parameter] public string? Status { get; set; }
+    [Parameter] public int? Page { get; set; }
+    private readonly CancellationTokenSource _stop = new();
+    private PagedResult<BuyerBidActivityDto>? _result;
+    private int _request;
+    private bool _loading, _error;
+    private int PageNumber => Math.Clamp(Page ?? 1, 1, 1000000);
+    private string Filter => Status is "progress" or "results" ? Status : "all";
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var request = ++_request;
+        _loading = true;
+        _error = false;
+        _result = null;
+        try
+        {
+            var result = await Api.GetAsync<PagedResult<BuyerBidActivityDto>>(
+                $"/api/buyer/bids?status={Filter}&skip={(PageNumber - 1) * PageSize}&take={PageSize}", _stop.Token);
+            if (request == _request) _result = result ?? throw new InvalidOperationException("No bid activity response.");
+        }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            if (request == _request) { _error = true; Logger.LogWarning(ex, "Could not load buyer bid activity"); }
+        }
+        finally { if (request == _request) _loading = false; }
+    }
+
+    private static string Url(string status, int page = 1) => $"/buyer/bids?status={status}&page={page}";
+    private static string Time(DateTimeOffset at) => at.ToOffset(TimeSpan.FromHours(2)).ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture) + " SAST";
+    private static string StatusLabel(string status) => status switch
+    {
+        "Leading" => "You're leading",
+        "Outbid" => "Outbid",
+        "Scheduled" => "Upcoming",
+        "AwaitingResult" => "Awaiting result",
+        "Won" => "Won",
+        "NotWon" => "Not won",
+        "ReserveNotMet" => "Reserve not met",
+        "NoBids" => "No bids",
+        "Cancelled" => "Cancelled",
+        "Closed" => "Closed",
+        _ => "Unavailable"
+    };
+
+    public void Dispose() { ++_request; _stop.Cancel(); _stop.Dispose(); }
+}
