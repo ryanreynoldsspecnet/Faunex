@@ -1,0 +1,114 @@
+@using Faunex.Application.DTOs
+@using Microsoft.AspNetCore.WebUtilities
+@implements IDisposable
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject MarketplaceBranding Branding
+@inject ILogger<MarketplaceCatalogue> Logger
+@inject NavigationManager Nav
+
+<PageTitle>@Branding.Name - Auctions</PageTitle>
+<section class="storefront" aria-labelledby="catalogue-title">
+    <header class="storefront-heading">
+        <div><p class="storefront-eyebrow">Online auctions</p><h1 id="catalogue-title">@Branding.Name</h1>
+            <p class="storefront-tagline">@(string.IsNullOrWhiteSpace(Branding.Context?.MarketplaceTagline) ? "Find your next lot. View the details. Bid with a clear picture." : Branding.Context.MarketplaceTagline)</p></div>
+        <AuthorizeView><NotAuthorized><a class="btn btn-primary" href="/register">Create an account</a></NotAuthorized></AuthorizeView>
+    </header>
+
+    <form class="catalogue-search" method="get" action="/browse" data-enhance>
+        <div class="catalogue-search__term"><label for="catalogue-search">Search lots</label><input class="form-control" id="catalogue-search" name="q" type="search" @bind="_searchInput" maxlength="200" placeholder="Name or location" /></div>
+        <div><label for="catalogue-category">Category</label><select class="form-select" id="catalogue-category" name="category" @bind="_categoryInput">
+            <option value="all">All categories</option>@foreach (var value in Categories) { <option value="@value">@StorefrontPresentation.Category(value)</option> }
+        </select></div>
+        <input type="hidden" name="status" value="@Status" />
+        <input type="hidden" name="sort" value="@Sort" />
+        <button type="submit" class="btn btn-primary" aria-label="Search lots">Search</button>
+    </form>
+
+    <div class="catalogue-controls">
+        <nav class="catalogue-tabs" aria-label="Auction status">
+            @foreach (var item in Statuses) { <a class="@(Status == item.Value ? "is-active" : null)" aria-current="@(Status == item.Value ? "page" : null)" href="@Url(status: item.Value)">@item.Label</a> }
+        </nav>
+        <form id="catalogue-sort-form" class="catalogue-sort @(_sortOpen ? "is-open" : null)" method="get" action="/browse" data-enhance>
+            <input type="hidden" name="q" value="@Search" /><input type="hidden" name="category" value="@Category" /><input type="hidden" name="status" value="@Status" />
+            <label for="catalogue-sort">Sort by</label><select class="form-select" id="catalogue-sort" name="sort" @bind="_sortInput">
+                @foreach (var item in Sorts) { <option value="@item.Value">@item.Label</option> }
+            </select><button class="btn btn-outline-secondary" type="submit">Apply</button>
+        </form>
+    </div>
+
+    @if (_loading) { <p class="catalogue-loading" role="status">Loading lots...</p> }
+    else if (_error is not null)
+    {
+        <div class="catalogue-empty" role="alert"><h2>We could not load the catalogue</h2><p>Please try again in a moment.</p><button class="btn btn-primary" @onclick="LoadAsync">Try again</button></div>
+    }
+    else if (_result is not null)
+    {
+        <div class="catalogue-results-bar"><p role="status">@_result.Total @(_result.Total == 1 ? "lot" : "lots")@(!string.IsNullOrWhiteSpace(Search) ? $" matching '{Search}'" : "")</p>
+            <div><span class="catalogue-updated">Updated @StorefrontPresentation.Time(_result.ServerTime)</span><button class="catalogue-sort-toggle" type="button" aria-controls="catalogue-sort-form" aria-expanded="@(_sortOpen ? "true" : "false")" @onclick="() => _sortOpen = !_sortOpen">Sort lots</button><button class="catalogue-refresh" type="button" @onclick="LoadAsync">Refresh</button></div></div>
+        @if (_result.Items.Count == 0)
+        {
+            <div class="catalogue-empty"><h2>@(HasFilters ? "No lots match your search" : "The next catalogue is on its way")</h2>
+                <p>@(HasFilters ? "Try another name, location or auction status." : "There are no lots to show just yet. Please check back for the next catalogue.")</p>
+                @if (HasFilters) { <a class="btn btn-outline-primary" href="/browse">View all lots</a> }
+            </div>
+        }
+        else
+        {
+            <div class="catalogue-grid">@foreach (var lot in _result.Items) { <MarketplaceLotCard @key="lot.Id" Lot="lot" /> }</div>
+            <nav class="catalogue-pagination" aria-label="Catalogue pages">
+                @if (PageNumber > 1) { <a class="btn btn-outline-secondary" href="@Url(page: PageNumber - 1)">Previous</a> }
+                <span>Page @PageNumber of @Math.Max(1, (int)Math.Ceiling(_result.Total / 24d))</span>
+                @if (PageNumber * 24 < _result.Total) { <a class="btn btn-outline-secondary" href="@Url(page: PageNumber + 1)">Next</a> }
+            </nav>
+        }
+        <p class="catalogue-asof-mobile">Updated @StorefrontPresentation.Time(_result.ServerTime)</p>
+    }
+</section>
+
+@code {
+    [Parameter] public string? Search { get; set; }
+    [Parameter] public string Category { get; set; } = "all";
+    [Parameter] public string Status { get; set; } = "all";
+    [Parameter] public string Sort { get; set; } = "recent";
+    [Parameter] public string? Page { get; set; }
+    private static readonly string[] Categories = ["bird", "livestock", "game", "poultry", "other"];
+    private static readonly (string Value, string Label)[] Statuses = [("all", "All lots"), ("open", "Bidding open"), ("upcoming", "Upcoming"), ("results", "Results")];
+    private static readonly (string Value, string Label)[] Sorts = [("recent", "Recently added"), ("ending", "Ending soonest"), ("name", "Name A-Z"), ("price", "Price: low to high")];
+    private MarketplaceCatalogueDto? _result;
+    private bool _loading;
+    private bool _sortOpen;
+    private string _searchInput = "", _categoryInput = "all", _sortInput = "recent";
+    private (string?, string, string, string, string?)? _loadedQuery;
+    private string? _error;
+    private readonly CancellationTokenSource _stop = new();
+    private int _request;
+    private int PageNumber => int.TryParse(Page, out var page) ? Math.Clamp(page, 1, 1000000) : 1;
+    private bool HasFilters => !string.IsNullOrWhiteSpace(Search) || Category != "all" || Status != "all" || PageNumber > 1;
+    protected override Task OnParametersSetAsync()
+    {
+        var query = (Search, Category, Status, Sort, Page);
+        if (_loadedQuery != query) { _searchInput = Search ?? ""; _categoryInput = Category; _sortInput = Sort; _loadedQuery = query; }
+        return LoadAsync();
+    }
+    private async Task LoadAsync()
+    {
+        var request = ++_request; _loading = true; _error = null;
+        try
+        {
+            await Branding.EnsureLoadedAsync();
+            var path = QueryHelpers.AddQueryString("/api/marketplace/catalogue", new Dictionary<string, string?>
+            {
+                ["host"] = Nav.ToAbsoluteUri(Nav.Uri).IdnHost, ["search"] = Search, ["category"] = Category, ["status"] = Status,
+                ["sort"] = Sort, ["skip"] = ((PageNumber - 1) * 24).ToString(System.Globalization.CultureInfo.InvariantCulture), ["take"] = "24"
+            });
+            var result = await Api.GetPublicAsync<MarketplaceCatalogueDto>(path, _stop.Token);
+            if (request == _request) _result = result ?? throw new InvalidOperationException("No catalogue response.");
+        }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
+        catch (Exception ex) { if (request == _request) { Logger.LogWarning(ex, "Catalogue could not be loaded"); _error = "Unavailable"; _result = null; } }
+        finally { if (request == _request) _loading = false; }
+    }
+    private string Url(string? status = null, int page = 1) => QueryHelpers.AddQueryString("/browse", new Dictionary<string, string?>
+    { ["q"] = Search, ["category"] = Category, ["status"] = status ?? Status, ["sort"] = Sort, ["page"] = page.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+    public void Dispose() { _stop.Cancel(); _stop.Dispose(); }
+}

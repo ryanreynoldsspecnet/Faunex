@@ -12,6 +12,73 @@ namespace Faunex.Api.Controllers;
 [Route("api/marketplace")]
 public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainResolver tenantDomainResolver, TimeProvider clock) : ControllerBase
 {
+    [HttpGet("catalogue")]
+    public async Task<ActionResult<MarketplaceCatalogueDto>> Catalogue(string? host, string? search = null, string category = "all",
+        string status = "all", string sort = "recent", int skip = 0, int take = 24, CancellationToken cancellationToken = default)
+    {
+        Response.Headers.CacheControl = "no-store";
+        if (search?.Length > 200 || category is not ("all" or "bird" or "livestock" or "game" or "poultry" or "other")
+            || status is not ("all" or "open" or "upcoming" or "results") || sort is not ("recent" or "name" or "price" or "ending"))
+            throw new ListingValidationException("Choose a valid catalogue filter; search is limited to 200 characters.");
+        var tenantId = await tenantDomainResolver.ResolveTenantIdAsync(host, cancellationToken);
+        if (tenantId is null) return NotFound();
+        var now = clock.GetUtcNow();
+        var query = CatalogueQuery(tenantId.Value, search, category, status, now);
+        var auctions = PublicAuctionQuery(tenantId.Value);
+        var upcoming = auctions.Where(x => x.State == AuctionState.Scheduled && x.EndsAt > now);
+        var ordered = sort switch
+        {
+            "name" => query.OrderBy(x => x.Title).ThenBy(x => x.Id),
+            "price" => query.OrderBy(x => x.BuyNowPrice ?? x.StartingPrice).ThenBy(x => x.Id),
+            "ending" => query.OrderBy(x => !upcoming.Any(a => a.ListingId == x.Id))
+                .ThenBy(x => upcoming.Where(a => a.ListingId == x.Id).Select(a => a.EndsAt).Min()).ThenBy(x => x.Id),
+            _ => query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id)
+        };
+        var total = await query.CountAsync(cancellationToken);
+        var rows = await ordered.Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 48)).ToListAsync(cancellationToken);
+        var ids = rows.Select(x => x.Id).ToArray();
+        // Enrich one bounded page in batches, never one photo/auction request per card.
+        var photos = await db.ListingFiles.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && ids.Contains(x.ListingId) && x.IsPhoto && x.DeletedAt == null)
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).Select(x => new { x.ListingId, x.Id }).ToListAsync(cancellationToken);
+        var published = await auctions.Where(x => ids.Contains(x.ListingId)).ToListAsync(cancellationToken);
+        var details = await ToListingDtosAsync(rows, cancellationToken);
+        var photosByListing = photos.GroupBy(x => x.ListingId).ToDictionary(x => x.Key, x => (Guid?)x.First().Id);
+        var auctionsByListing = published.GroupBy(x => x.ListingId).ToDictionary(x => x.Key,
+            x => x.Count() == 1 ? Faunex.Application.Services.TimedAuctionRules.Public(x.Single(), now) : null);
+        return new MarketplaceCatalogueDto(rows.Select((x, i) => new MarketplaceLotDto(x.Id, x.Title, details[i].AnimalClass,
+            x.Location, x.Quantity, x.StartingPrice, x.BuyNowPrice, x.CurrencyCode, photosByListing.GetValueOrDefault(x.Id),
+            auctionsByListing.GetValueOrDefault(x.Id))).ToList(), total, now);
+    }
+
+    private IQueryable<Listing> CatalogueQuery(Guid tenantId, string? search, string category, string status, DateTimeOffset now)
+    {
+        var query = db.Listings.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive
+            && x.Compliance != null && x.Compliance.TenantId == tenantId && x.Compliance.Status == ListingComplianceStatus.Approved);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Title.ToLower().Contains(term) || (x.Location != null && x.Location.ToLower().Contains(term)));
+        }
+        query = category switch
+        {
+            "bird" => query.Where(x => x.BirdDetails != null),
+            "livestock" => query.Where(x => x.LivestockDetails != null),
+            "game" => query.Where(x => x.GameAnimalDetails != null),
+            "poultry" => query.Where(x => x.PoultryDetails != null),
+            "other" => query.Where(x => x.BirdDetails == null && x.LivestockDetails == null && x.GameAnimalDetails == null && x.PoultryDetails == null),
+            _ => query
+        };
+        var auctions = PublicAuctionQuery(tenantId);
+        return status switch
+        {
+            "open" => query.Where(x => auctions.Any(a => a.ListingId == x.Id && a.State == AuctionState.Scheduled && a.StartsAt <= now && a.EndsAt > now)),
+            "upcoming" => query.Where(x => auctions.Any(a => a.ListingId == x.Id && a.State == AuctionState.Scheduled && a.StartsAt > now)),
+            "results" => query.Where(x => auctions.Any(a => a.ListingId == x.Id && (a.State == AuctionState.Closed || a.State == AuctionState.Cancelled))),
+            _ => query
+        };
+    }
+
     [HttpGet("context")]
     public async Task<ActionResult<MarketplaceContextDto>> GetContext([FromQuery] string? host, CancellationToken cancellationToken)
     {

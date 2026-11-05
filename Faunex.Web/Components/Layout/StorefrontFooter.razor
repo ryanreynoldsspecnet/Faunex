@@ -1,0 +1,13 @@
+@inject MarketplaceBranding Branding
+<footer class="storefront-footer"><div>
+    <strong>@Branding.Name</strong><nav aria-label="Footer navigation"><a href="/browse">All lots</a><a href="/browse?status=results">Auction results</a></nav>
+    <address>
+        @if (!string.IsNullOrWhiteSpace(Email)) { <a href="@($"mailto:{Email}")">@Email</a> }
+        @if (!string.IsNullOrWhiteSpace(Phone)) { <a href="@($"tel:{Phone}")">@Phone</a> }
+    </address>
+</div></footer>
+@code {
+    protected override Task OnInitializedAsync() => Branding.EnsureLoadedAsync();
+    private string? Email => Branding.Context?.SupportEmail ?? Branding.Context?.ContactEmail;
+    private string? Phone => Branding.Context?.SupportPhone ?? Branding.Context?.ContactPhone;
+}

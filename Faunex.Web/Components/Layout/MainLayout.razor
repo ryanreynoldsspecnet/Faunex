@@ -3,8 +3,15 @@
 @implements IDisposable
 @inject MarketplaceBranding Branding
 
-<div class="page" style="@(Branding.Colour is null ? null : $"--tenant-primary:{Branding.Colour};")">
+<div class="page @(IsStorefront ? "tenant-site" : null)" style="@(Branding.Colour is null ? null : $"--tenant-primary:{Branding.Colour};--tenant-ink:{StorefrontPresentation.BrandInk(Branding.Colour)};")">
     <main class="w-100">
+        @if (IsStorefront)
+        {
+            <a class="storefront-skip" href="#main-content">Skip to content</a>
+            <StorefrontHeader />
+        }
+        else
+        {
         <nav class="navbar navbar-expand navbar-dark bg-dark px-3">
             <NavLink class="navbar-brand" href="/" aria-label="@($"{Branding.Name} home")">
                 @if (!string.IsNullOrWhiteSpace(Branding.Logo))
@@ -68,10 +75,12 @@
                 </AuthorizeView>
             </div>
         </nav>
+        }
 
-        <article class="content px-4">
+        <article id="main-content" tabindex="-1" class="@(IsStorefront ? "content storefront-content" : "content px-4")">
             @Body
         </article>
+        @if (IsStorefront) { <StorefrontFooter /> }
     </main>
 </div>
 
@@ -85,6 +94,9 @@
     [Inject] private NavigationManager Nav { get; set; } = default!;
 
     private bool IsPlatformHost() => PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host);
+    private bool IsStorefront => !IsPlatformHost() && StorefrontPath(Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath);
+    private static bool StorefrontPath(string path) => path is "/" or "/browse" or "/login" or "/register" or "/logout" or "/forgot-password" or "/reset-password"
+        || path.StartsWith("/listings/", StringComparison.Ordinal) || path.StartsWith("/auctions/", StringComparison.Ordinal) || path.StartsWith("/buyer/", StringComparison.Ordinal);
 
     protected override async Task OnInitializedAsync()
     {
