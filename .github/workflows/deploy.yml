@@ -15,6 +15,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16
@@ -84,6 +85,12 @@ jobs:
       - name: Publish Web
         run: dotnet publish Faunex.Web/Faunex.Web.csproj --configuration Release --no-build --output ./artifacts/web -p:StaticWebAssetsMode=Publish
 
+      - name: Release script regression checks
+        run: bash tests/operations/release-test.sh
+
+      - name: Isolated production-image readiness and restart checks
+        run: bash tests/operations/compose-smoke.sh
+
       - name: Scanner diagnostics and cleanup
         if: always()
         shell: bash
@@ -95,6 +102,10 @@ jobs:
     needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    concurrency:
+      group: faunex-production
+      cancel-in-progress: false
+    timeout-minutes: 35
 
     steps:
       - name: Checkout repository
@@ -134,14 +145,11 @@ jobs:
       - name: Deploy
         shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           ssh \
             -i ~/.ssh/id_ed25519 \
             -o IdentitiesOnly=yes \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             ubuntu@${{ secrets.FAUNEX_SERVER_IP }} \
-            'cd /home/ubuntu/faunex &&
-             git pull origin master &&
-             docker compose up -d --build --remove-orphans &&
-             docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile'
+            'bash -s -- ${{ github.sha }}' < deploy/release.sh

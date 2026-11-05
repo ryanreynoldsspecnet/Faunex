@@ -20,9 +20,9 @@ This is the restart point for development. Read this file and the [28 October au
 | 2 | Account eligibility, session revocation, consistent role policies, first-admin transaction | Merged and deployed; business smoke test pending | PR #34; production run 40669423490 validate/deploy passed |
 | 3 | Tenant domains, verified routing/TLS, membership/host boundaries, complete branding | Merged; Stormbird subdomain confirmed working; custom-domain acceptance pending | PRs #35/#36; deployment 40712476902 passed; user confirmed live homepage |
 | 4 | Bird listing edit/media/documents, enforced compliance, review and public storefront | 4A/4B/4C merged/deployed; business acceptance open | Draft to evidence review to approved tenant listing, with resubmission and protected files |
-| 5 | Timed auction setup, concurrent bid rules, closure and winner/no-sale result | Merged/deployed; live auction acceptance open | PR #40; deployment 41021191875 passed; disposable live auction/NTP/worker acceptance pending |
-| 6 | Tenant PayFast settings, winner order, checkout, verified callbacks, reconciliation | 6A/6B1 merged/deployed; 6B2 sandbox implemented in PR #43; hosted acceptance pending | Real hosted sandbox journey, reconciliation policy and authorized low-value live payment before live activation |
-| 7 | Pilot acceptance, operational recovery, monitoring, mobile/desktop journeys | Not started | Business acceptance, restore/restart drill, exact-revision green deploy and rollback procedure |
+| 5 | Timed auction setup, concurrent bid rules, closure and winner/no-sale result | Merged/deployed; hosted test closure and winner order observed | Sold/NoBids observed on disposable data; full business/NTP/worker acceptance remains open |
+| 6 | Tenant PayFast settings, winner order, checkout, verified callbacks, reconciliation | Merged/deployed; hosted sandbox success verified 31 October | Cancellation/retry/reconciliation, merchant-dashboard cross-check and approved low-value live payment remain open |
+| 7 | Pilot acceptance, operational recovery, monitoring, mobile/desktop journeys | Next: 7A deployment and recovery safety | Exact-revision deploy/readiness, backup/restore and rollback evidence, then remaining payment/business acceptance |
 
 Merchant account approval, first-tenant domain access, payment totals/fees, and trading/compliance rules need business preparation now. Do not postpone payment discovery until Section 6; establish the sandbox/callback path early while keeping implementation PRs bounded.
 
@@ -303,8 +303,9 @@ Branch: `feature/section-6b2-payfast-sandbox`. Pull request: [#43](https://githu
 - [x] Commit payment state and append-only notification metadata atomically; deduplicate verified replays, preserve completion against non-completion events and flag conflicting provider references for review. No automatic refund or manual resolution endpoint is claimed.
 - [x] Add private buyer/tenant payment summaries, polling and verified notification history; retain owner/tenant/host isolation and deny platform payment-write bypasses.
 - [x] Complete local tests, real PostgreSQL/scanner CI, additive migration checks and desktop/mobile browser verification. Inspect final documentation revision CI before merge.
-- [ ] Add the two VPS settings, user-approved merge and successful production deployment.
-- [ ] Configure Stormbird's own sandbox account and complete the real hosted provider checkout/return/ITN journey with merchant-dashboard confirmation, retry and cancellation acceptance.
+- [x] Add the two VPS settings, user-approved merge and successful production deployment.
+- [x] Configure Stormbird's own sandbox account and complete the real hosted provider checkout/return/verified ITN success journey.
+- [ ] Independently cross-check the merchant sandbox dashboard and complete hosted retry/cancellation/reconciliation acceptance.
 
 Implementation `ef12e26435b66900c6386ad5cdcaeaeef3c51109` passed [CI 41116483921](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/41116483921): all 240 tests passed, real PostgreSQL concurrent checkout/notification cases and full migration chain, actual ClamAV regression, advisory gate, Caddy configuration, build and API/Web publishes. Deploy correctly skipped. Local suite: 224 passed, 16 explicitly skipped database/scanner cases, 240 total. EF reported no pending model changes. The additive migration creates sandbox attempts and notification metadata; it does not charge, reprice or mark old orders paid.
 
@@ -313,3 +314,65 @@ Final isolated Edge/Playwright completed listing/photo/review, auction publicati
 The user confirmed Stormbird's own sandbox account can be configured, and requested PuTTY instructions when the PR is ready. Follow [PayFast sandbox operations](payfast-sandbox.md): generate a new VPS-only secret with `openssl rand -hex 32`, set `FAUNEX_PAYFAST_SANDBOX_ENABLED=true` and `FAUNEX_PAYMENTS_INGRESS_TOKEN` in `/home/ubuntu/faunex/.env` before merge. Do not commit or share the secret. Compose passes it to Caddy/API; the deployment recreates changed containers, with no VPS reboot. Missing settings fail closed for checkout while the rest of the site remains available. Never remove payment keys or use `down -v`.
 
 Next: verify deployment, then the actual hosted Stormbird sandbox journey before live activation. Conflicting provider completions require investigation, not another payment attempt; refund/reconciliation policy and controlled live acceptance remain separate. Scanner health, key-volume restart/restore, independent custom-domain acceptance and first-tenant business acceptance remain open for Section 7.
+
+### Hosted Acceptance: 31 October 2026
+
+PR #43 was user-merged at `a940ddb81cf690651791cbf82d1d9cdf73a7aa0e`. [Production run 41125581984](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/41125581984) passed validate/deploy. Deployment logs showed API/Web/Caddy containers recreated and started, followed by successful Caddy reload. Faunex home and Stormbird home/Browse returned HTTPS 200 without marketplace errors. A deliberately invalid notification from a non-provider source returned 400 without a payment mutation. The user added the two VPS settings privately; no secret value was read or recorded.
+
+Stormbird's own sandbox settings showed Credentials stored / Sandbox checkout enabled. The user created a disposable Buyer account and entered its password themselves. Test-only ZAR pricing was published with explicit free collection and no extra charges. All listing/pricing/review/auction actions used the deployed UI, with no fixture, clock override, callback forgery or direct database edits.
+
+The first fictitious listing (`d00fea3f-f2c2-4bcb-9c0c-d987a2e2ba1e`) closed NoBids after the initial window was missed. Its closed result was preserved. A fresh fictitious listing (`eae2b48f-af25-4cf9-98c3-90efe77d7475`, TEST ONLY 02 - No animal for sale) was reviewed and approved normally. Its auction ran 30 October 23:35-23:45 SAST. The agent's R10 test bid was accepted; a subsequent R11 bid was visible on inspection. The result was Closed / Sold at R11; no real animal or commercial sale was involved.
+
+The winning buyer's My Orders showed one order: `7411986b-1db0-4b55-92ec-efaf282a9677`, quantity 1, R11 subtotal, recorded 30 October 23:45:08 SAST. The buyer journey selected the recorded R0 collection option, reviewed and accepted an R11 final quote, and prepared checkout. The form destination was the fixed HTTPS PayFast sandbox endpoint; no passphrase field was present. PayFast's actual hosted sandbox accepted the request and displayed R11 with the matching order reference. The user completed the simulated payment themselves using the sandbox balance; no live payment was performed.
+
+On return, the authenticated Faunex order displayed **Sandbox payment confirmed** and a Verified Notifications row: provider status **COMPLETE**, reference **3487921**, result **Confirmed**, received **31 October 2026 12:33:28 SAST**. The amount remained R11. This is evidence of the real hosted provider success path and the deployed verified-notification pipeline, not merely a success redirect or verifier double. The merchant dashboard was not independently inspected, and no hosted failure/cancel/replay, tenant-admin confirmation view, restart/restore or load acceptance is claimed from this one success. Automated edge-case tests remain separate evidence.
+
+Live payments remain disabled. Do not replay the completed checkout form or pay the confirmed order again. Keep test records identifiable; deactivate the test account and archive test listings through supported controls when acceptance work is finished, preserving auction/order/payment history. No test-data deletion or account deactivation has been performed yet.
+
+## Next Section 7: Pilot Readiness
+
+The hosted sandbox success milestone is verified. This does not close all of Section 6's operational/business acceptance or authorise live money. Use these controlled subsections next:
+
+### 7A: Deployment And Recovery Safety
+
+- [ ] Deploy the exact validated commit, serialize production deployments, and verify post-deployment readiness instead of relying on container start or a generic HTTP 200 alone.
+- [ ] Add dependency-aware readiness and restart behaviour for API, Web, database and scanner, with useful diagnostics that do not expose secrets.
+- [ ] Document and test rollback and migration compatibility; retain the previous deployable revision. Do not assume reversing application code safely reverses a database migration.
+- [ ] Establish protected off-server database, uploaded-file and key-ring backups; include both authentication/reset and payment key material. Confirm the backup destination/access before implementation, never invent credentials or storage accounts.
+- [ ] Restore backups into an isolated environment and demonstrate recovery. Schedule any production restart separately with user approval; do not run a destructive restore against the VPS.
+
+Start by inspecting the current deployment/Compose/runtime configuration and adding the exact-revision/readiness foundation in a bounded PR. Recovery documentation alone is not proof of a successful restore. Preserve the existing user-reviewed merge-to-master deployment flow; no unrequested live-payment activation or production interruption.
+
+### 7B: Payment And Workflow Exception Acceptance
+
+- [ ] Exercise hosted sandbox cancellation/incomplete payment and resume/retry using fresh disposable orders; browser return must remain non-authoritative.
+- [ ] Verify duplicate/late/conflicting notification handling through supported sandbox mechanisms and tests; do not expose a bypass route or weaken source/signature validation.
+- [ ] Cross-check merchant dashboard, buyer history and tenant order history, including pending and review-required states. Agree who resolves unpaid, duplicate, refund and fulfilment exceptions before real trading.
+- [ ] Repeat tenant/role isolation, account deactivation/reset and desktop/mobile journeys, recording exact test evidence rather than treating automated coverage as business sign-off.
+
+### 7C: Business Acceptance And Controlled Pilot
+
+- [ ] Complete scanner health, independent custom-domain TLS, first-tenant real inventory/compliance rules, trading/privacy terms and operational ownership sign-off.
+- [ ] Obtain explicit live activation and low-value transaction approval only after readiness/recovery and payment exception gates pass; confirm funds reach the intended tenant merchant account.
+- [ ] Record first-tenant approval, remaining limitations and controlled rollout/rollback ownership before declaring the pilot ready.
+
+Restart point: Section 7A1 below. The original audit remains a dated baseline, not a current status checklist; use this file for subsequent progress.
+
+## Active Section 7A1: Exact Release And Readiness
+
+Branch: `feature/section-7a-release-readiness`. Builds on merged master `a940ddb81cf690651791cbf82d1d9cdf73a7aa0e`. Includes the hosted sandbox handover above. [Release/recovery operations](release-recovery.md) defines the rollout checks and explicitly open backup/restore gate.
+
+- [x] Implement validated-SHA selection, tracked-source archive image builds, release-tag/label checks, serialization and fail-closed public HTTPS revision verification. Retain prior images without an unsafe automatic migration rollback.
+- [x] Add API readiness across both database schemas and Web-to-API matching release readiness, generic no-store responses, Compose health/start dependencies and restart policies.
+- [x] Add readiness unit/integration cases, release-script mocked failure cases and an isolated production-image database failure/recovery/restart CI test. These tests do not touch the VPS or enable PayFast.
+- [x] Complete local/CI verification and record exact results before PR handoff. Check the final documentation revision's CI before merge.
+- [ ] Confirm VPS tooling/disk readiness, user-approved merge, deployment and exact-revision HTTPS readiness after rollout.
+- [ ] 7A2: agree protected off-server backup destination/retention and demonstrate coordinated backup plus isolated restore; production maintenance requires separate approval.
+
+No migration, auction/pricing/payment business rule or live payment setting is changed in 7A1. No VPS command, restart, off-server backup setup, production restore or rollback has been performed. Environment-labelled container builds pin source revision; mutable base-image/package inputs are not claimed to be reproducible signed artifacts. Scanner readiness is a separate Compose gate, not a claim that all external dependencies are healthy. Linux image and script verification must pass in Actions; local Windows Docker engine is unavailable.
+
+Pull request: [#44](https://github.com/ryanreynoldsspecnet/Faunex/pull/44), unmerged at handoff. Implementation `061c5771e17fe537a7e4b7ea821012fb13543bf6` passed [CI 41194585771](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/41194585771): all 252 tests passed, no skips, including real PostgreSQL schema failure/concurrency/full migrations and existing ClamAV integration cases. Advisory gate, Caddy validation, Release build and API/Web publishes passed. Eight mocked release cases (invalid SHA, stale run, dirty worktree, wrong label, build failure, health failure, public marker mismatch and success) passed. Actual API/Web production Dockerfiles built and started with an isolated PostgreSQL and scanner; matching revision readiness, database stop -> Web 503, database recovery -> ready and API/Web restart -> ready all passed. Deploy correctly skipped. CI created/deleted only disposable runner resources, not VPS services or data. No real external Caddy/TLS rollout or database restore is claimed from this container test.
+
+Local suite: 236 passed, 16 explicit relational/scanner skips, 252 total; all 12 new readiness cases passed. API and Web Release publishes succeeded. A published Web process against an isolated API fixture returned 200 / ready development with no-store, rejected an unknown host with 404, returned 503 / not ready after the fixture stopped, and retained independent 200 liveness. Test source matched the application snapshot used for local verification. No UI workflow or production record changed during these checks. The user was asked for read-only VPS Compose version/wait support, git/curl/flock availability and disk-space checks before merge; results remain pending at this handoff. Record the subsequent deployment SHA and HTTPS ready marker after user approval.
+
+Final implementation `b4d36a2dcaf7f78cc27abb32d4ab23b8d361e5c7` passed [CI 41195199690](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/41195199690), including all 252 tests and the production image smoke/recovery/restart checks using the same tracked Git archive build context as the deployment script. The final documentation-only update also replaces legacy manual down/rebuild instructions in domain/email runbooks with the release workflow and retained-image maintenance commands. Check that documentation revision's CI before merge; no production deployment has occurred.

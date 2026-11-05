@@ -26,12 +26,14 @@ FAUNEX_EMAIL_FROM_NAME=Faunex
 
 Use the SMTP username and password generated inside the ZeptoMail Mail Agent. The sender address in `FAUNEX_EMAIL_FROM_EMAIL` must be an approved/verified sender for that Mail Agent.
 
-After editing `.env`, redeploy with:
+After the first Section 7A release, apply an SMTP-only `.env` change using the retained successful image (no rebuild):
 
 ```bash
 cd /home/ubuntu/faunex
-docker compose up -d --build --remove-orphans
+docker compose up -d --no-build --pull never --force-recreate --wait --wait-timeout 600 faunex-api
 ```
+
+Use the normal validated merge-to-master workflow for application releases or initial setup. See [release/recovery operations](release-recovery.md). A simple restart does not replace container environment variables. Keep SMTP credentials out of chat, logs and source control; schedule the brief API interruption appropriately.
 
 ## Behaviour
 

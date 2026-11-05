@@ -24,6 +24,7 @@ public static class ControllersRegistrationExtensions
         });
 
         services.AddHttpContextAccessor();
+        services.AddHealthChecks().AddCheck<Faunex.Api.Operations.DatabaseReadinessCheck>("databases", timeout: TimeSpan.FromSeconds(5));
         services.AddOptions<Faunex.Api.Payments.PayFastOptions>().BindConfiguration("Payments");
         services.AddSingleton<Faunex.Api.Payments.PayFastRuntime>();
         services.AddScoped<Faunex.Api.Payments.PayFastService>();

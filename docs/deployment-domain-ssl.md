@@ -30,14 +30,7 @@ Before deploying the Caddy-enabled compose file:
 1. Confirm DNS has propagated for both `faunex.co.za` and `www.faunex.co.za`.
 2. Open inbound ports `80/tcp`, `443/tcp`, and optionally `443/udp` on the VPS firewall.
 3. Ensure no host-level Nginx, Apache, or other reverse proxy is already binding ports `80` or `443`.
-4. Deploy with the existing CI/CD pipeline or run:
-
-```bash
-cd /home/ubuntu/faunex
-git pull origin master
-docker compose down
-docker compose up -d --build
-```
+4. Deploy through the validated merge-to-master workflow. Section 7A pins the validated revision, waits for service health and checks the public HTTPS ready marker. Follow [release/recovery operations](release-recovery.md) for prerequisites or recovery. Do not take the stack down or rebuild a moving master checkout as routine deployment, and never remove data/key volumes.
 
 ## Verification
 
@@ -47,12 +40,13 @@ After deployment:
 docker compose ps
 docker compose logs caddy --tail=100
 curl -I http://faunex.co.za
-curl -I https://faunex.co.za
+curl --fail --silent --show-error https://faunex.co.za/__ready
+curl --fail --silent --show-error -o /dev/null -w '%{http_code}\n' https://faunex.co.za/
 curl -I https://www.faunex.co.za
 ```
 
 Expected behavior:
 
 - `http://faunex.co.za` redirects to `https://faunex.co.za`
-- `https://faunex.co.za` returns the Faunex web app
+- The ready marker matches the validated deployed revision, and `https://faunex.co.za` returns the Faunex web app with GET. HEAD can return 405 for an application route and is not the app readiness check.
 - `https://www.faunex.co.za` redirects to `https://faunex.co.za`
