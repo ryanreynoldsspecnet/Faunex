@@ -1,28 +1,35 @@
 @using Faunex.Application.DTOs
+@using Faunex.Web.Payments
 @implements IAsyncDisposable
 @inject Faunex.Web.Api.FaunexApiClient Api
 <section class="order-payment">
     <h2>PayFast Sandbox</h2>
-    @if (ReturnState is "return" or "cancel") { <p class="alert alert-info" role="status">Checkout return received. A browser return is not payment confirmation.</p> }
+    <PayFastReturnNotice PaymentStatus="@(_summary?.Status)" ReturnState="@ReturnState" />
     @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+    <div class="files-summary"><span>Sandbox only; no live funds</span><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="RefreshAsync">Refresh Payment</button></div>
     @if (_summary is not null)
     {
-        <div class="files-summary"><span class="platform-status">@Label(_summary.Status)</span><span>Sandbox only; no live funds</span><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="RefreshAsync">Refresh Payment</button></div>
-        <dl class="review-facts"><dt>Merchant</dt><dd>@_summary.MerchantId</dd><dt>Sandbox total</dt><dd>@_summary.Amount.ToString("0.00") @_summary.CurrencyCode</dd><dt>Provider reference</dt><dd>@(_summary.ProviderPaymentId ?? "Not confirmed")</dd></dl>
-        @if (_summary.Status == "ReviewRequired") { <p class="alert alert-warning">This sandbox payment needs tenant review. Do not pay this order again.</p> }
+        <div class="files-summary"><span class="platform-status">@OrderPaymentDisplay.SummaryLabel(_summary.Status)</span></div>
+        <dl class="review-facts"><dt>Merchant</dt><dd>@_summary.MerchantId</dd><dt>Sandbox total</dt><dd>@_summary.Amount.ToString("0.00") @_summary.CurrencyCode</dd><dt>Provider reference</dt><dd>@(_summary.ProviderPaymentId ?? "Not confirmed")</dd><dt>Confirmed (SAST)</dt><dd>@(_summary.ConfirmedAt?.ToOffset(TimeSpan.FromHours(2)).ToString("dd MMM yyyy HH:mm:ss") ?? "Not confirmed")</dd></dl>
     }
-    @if (CanPrepare && (_summary is null || _summary.Status == "Pending") && CanPay)
+    @if (_canPrepare && (_summary is null || _summary.Status == "Pending") && CanPay)
     {
-        @if (_checkout is null) { <button class="btn btn-primary mt-3" disabled="@_busy" @onclick="PrepareAsync">@(_busy ? "Preparing..." : "Prepare Sandbox Checkout")</button> }
+        @if (_checkout is null) {
+            @if (_summary?.Status == "Pending") {
+                <label class="order-retry-confirm"><input type="checkbox" @bind="_resumeAcknowledged" disabled="@_busy" /> I have not paid this order and no other checkout for it is open.</label>
+            }
+            <button class="btn btn-primary mt-3" disabled="@(_busy || !_statusVerified || (_summary is not null && !_resumeAcknowledged))" @onclick="PrepareAsync">@(_busy ? "Checking..." : _summary is null ? "Prepare Sandbox Checkout" : "Resume Sandbox Checkout")</button>
+        }
         else
         {
             <form class="mt-3" action="@_checkout.ActionUrl" method="post" data-enhance="false">
                 @foreach (var field in _checkout.Fields) { <input type="hidden" name="@field.Name" value="@field.Value" /> }
-                <button class="btn btn-primary" type="submit">Continue to PayFast Sandbox</button>
+                <button class="btn btn-primary" disabled="@(_busy || !_statusVerified)" type="submit">Continue to PayFast Sandbox</button>
             </form>
         }
     }
     else if (_summary is null) { <p>Sandbox checkout is unavailable for this order. Merchant and server setup must be complete.</p> }
+    else if (_summary.Status == "Pending" && !_canPrepare && CanPay) { <p class="alert alert-warning">Checkout is currently unavailable. Contact the tenant to check the merchant setup before trying again.</p> }
     @if (_summary?.Events.Count > 0)
     {
         <h3 class="mt-4">Verified Notifications</h3><div class="platform-table-wrap"><table class="table platform-table payment-events"><thead><tr><th>Received (SAST)</th><th>Provider status</th><th>Reference</th><th>Result</th></tr></thead><tbody>
@@ -41,13 +48,17 @@
     private PayFastCheckoutDto? _checkout;
     private string? _error;
     private bool _busy;
+    private bool _statusVerified;
+    private bool _resumeAcknowledged;
+    private bool _canPrepare;
     private readonly CancellationTokenSource _stop = new();
     private Task? _poll;
-    private static string Label(string state) => state switch { "SandboxComplete" => "Sandbox payment confirmed", "ReviewRequired" => "Needs review", _ => "Awaiting verified confirmation" };
     protected override async Task OnParametersSetAsync()
     {
         if (_loadedOrder == OrderId) return;
-        _loadedOrder = OrderId; _summary = Summary; _checkout = null; _error = null;
+        _loadedOrder = OrderId; _summary = Summary; _checkout = null; _error = null; _resumeAcknowledged = false;
+        _canPrepare = CanPrepare;
+        _statusVerified = _summary is null;
         if (_summary is not null) await RefreshAsync();
     }
     protected override Task OnAfterRenderAsync(bool firstRender) { if (firstRender) _poll = PollAsync(); return Task.CompletedTask; }
@@ -66,25 +77,37 @@
     }
     private async Task PrepareAsync()
     {
-        if (_busy) return;
-        _busy = true; _error = null;
+        if (_busy || !CanPay || !_canPrepare || !_statusVerified || (_summary is not null && (_summary.Status != "Pending" || !_resumeAcknowledged))) return;
+        _busy = true; _error = null; _checkout = null;
         var ct = _stop.Token;
         try
         {
-            _checkout = await Api.PostAsync<object, PayFastCheckoutDto>($"/api/payments/payfast/orders/{OrderId}/checkout", new { }, ct);
+            var checkout = await Api.PostAsync<object, PayFastCheckoutDto>($"/api/payments/payfast/orders/{OrderId}/checkout", new { }, ct);
             _summary = await Api.GetAsync<PayFastSummaryDto>($"/api/orders/{OrderId}/payment", ct);
+            _statusVerified = _summary is not null;
+            if (_summary?.Status == "Pending" && _summary.AttemptId == checkout?.AttemptId) _checkout = checkout;
+            else _error = "Payment status changed. Review the current status before continuing.";
         }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
-        catch (Exception ex) when (ex is not OperationCanceledException) { _error = ex.Message; }
+        catch (Exception ex) when (ex is not OperationCanceledException) { _error = ex.Message; _statusVerified = false; _resumeAcknowledged = false; }
         finally { _busy = false; }
     }
     private async Task RefreshAsync()
     {
         if (_busy) return;
         _busy = true; _error = null;
-        try { _summary = await Api.GetAsync<PayFastSummaryDto>($"/api/orders/{OrderId}/payment", _stop.Token); if (_summary?.Status != "Pending") _checkout = null; }
+        try
+        {
+            var order = await Api.GetAsync<AuctionOrderDto>($"/api/orders/{OrderId}", _stop.Token)
+                ?? throw new InvalidOperationException("Order status could not be checked.");
+            _canPrepare = order.CheckoutAvailable;
+            _summary = order.Payment is null ? null : await Api.GetAsync<PayFastSummaryDto>($"/api/orders/{OrderId}/payment", _stop.Token)
+                ?? throw new InvalidOperationException("Payment status could not be checked.");
+            _statusVerified = true;
+            if (_summary?.Status != "Pending" || !_canPrepare) { _checkout = null; _resumeAcknowledged = false; }
+        }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
-        catch (Exception ex) when (ex is not OperationCanceledException) { _error = ex.Message; }
+        catch (Exception ex) when (ex is not OperationCanceledException) { _error = ex.Message; _checkout = null; _statusVerified = false; _resumeAcknowledged = false; }
         finally { _busy = false; }
     }
     public async ValueTask DisposeAsync() { _stop.Cancel(); if (_poll is not null) { try { await _poll; } catch (OperationCanceledException) { } } _stop.Dispose(); }

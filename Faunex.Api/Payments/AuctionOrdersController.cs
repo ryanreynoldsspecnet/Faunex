@@ -38,9 +38,22 @@ public sealed class AuctionOrdersController(ApplicationDbContext db, ITenantCont
         await db.TenantPaymentSettings.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == row.TenantId, ct));
 
     [HttpGet]
-    public async Task<ActionResult<PagedResult<AuctionOrderDto>>> List(string? search, int skip = 0, int take = 25, CancellationToken ct = default)
+    public async Task<ActionResult<PagedResult<AuctionOrderDto>>> List(string? search, int skip = 0, int take = 25, string? paymentStage = null, CancellationToken ct = default)
     {
         var query = Visible();
+        // Filter before counting/paging, within the same buyer/tenant visibility boundary.
+        query = paymentStage switch
+        {
+            null or "" => query,
+            OrderPaymentStages.Pricing => query.Where(x => !db.OrderPriceQuotes.Any(q => q.OrderId == x.Id && q.TenantId == x.TenantId)
+                && !db.PayFastAttempts.Any(p => p.OrderId == x.Id && p.TenantId == x.TenantId)),
+            OrderPaymentStages.Unpaid => query.Where(x => db.OrderPriceQuotes.Any(q => q.OrderId == x.Id && q.TenantId == x.TenantId)
+                && !db.PayFastAttempts.Any(p => p.OrderId == x.Id && p.TenantId == x.TenantId)),
+            OrderPaymentStages.Pending => query.Where(x => db.PayFastAttempts.Any(p => p.OrderId == x.Id && p.TenantId == x.TenantId && p.Status == "Pending")),
+            OrderPaymentStages.Confirmed => query.Where(x => db.PayFastAttempts.Any(p => p.OrderId == x.Id && p.TenantId == x.TenantId && p.Status == "SandboxComplete")),
+            OrderPaymentStages.Review => query.Where(x => db.PayFastAttempts.Any(p => p.OrderId == x.Id && p.TenantId == x.TenantId && p.Status != "Pending" && p.Status != "SandboxComplete")),
+            _ => throw new ListingValidationException("Unknown payment stage.")
+        };
         if (search?.Length > 200) throw new ListingValidationException("Search is limited to 200 characters.");
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => x.Title.Contains(search.Trim()));
         skip = Math.Max(0, skip); take = Math.Clamp(take, 1, 100);

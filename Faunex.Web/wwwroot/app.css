@@ -1038,6 +1038,13 @@ h1:focus {
 .payment-settings fieldset { min-width:0; }
 .payment-settings .platform-form-grid > div { min-width:0; }
 .orders-workspace .platform-table { min-width:600px; }
+.order-list-toolbar { grid-template-columns:minmax(180px,1fr) minmax(180px,240px) auto; }
+.order-reference { display:block; margin-top:6px; font-size:12px; overflow-wrap:anywhere; }
+.order-table td:first-child { max-width:360px; overflow-wrap:anywhere; }
+.order-back-link { display:inline-block; margin-bottom:20px; }
+.order-retry-confirm { display:flex; align-items:flex-start; gap:10px; max-width:650px; margin:20px 0 12px; }
+.order-retry-confirm input { flex-shrink:0; margin-top:4px; }
+@media(max-width:700px) { .order-list-toolbar { flex-direction:column; align-items:stretch; } .order-list-toolbar > div { width:100%; } }
 .auction-terms-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; max-width:900px; }
 .auction-workspace fieldset { min-width:0; }
 .auction-bid-form { max-width:500px; }

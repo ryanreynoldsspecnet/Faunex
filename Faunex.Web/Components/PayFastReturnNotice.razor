@@ -1,0 +1,21 @@
+@if (PaymentStatus == "SandboxComplete")
+{
+    <p class="alert alert-success" role="status">PayFast sandbox payment is confirmed. Do not pay this order again.</p>
+}
+else if (PaymentStatus is not null and not "Pending")
+{
+    <p class="alert alert-warning" role="status">This sandbox payment needs tenant review. Do not pay this order again. Contact the tenant with your order and provider references.</p>
+}
+else if (ReturnState == "cancel")
+{
+    <p class="alert alert-warning" role="status">Checkout was cancelled in the browser. This is not proof that no payment was made. If you paid or are unsure, do not retry; contact the tenant with your order reference.</p>
+}
+else if (ReturnState == "return")
+{
+    <p class="alert alert-info" role="status">You have returned from PayFast. Payment is not yet confirmed here. Wait for a verified notification; if you paid, do not pay again.</p>
+}
+
+@code {
+    [Parameter] public string? PaymentStatus { get; set; }
+    [Parameter] public string? ReturnState { get; set; }
+}

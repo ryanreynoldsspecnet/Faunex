@@ -335,8 +335,8 @@ The hosted sandbox success milestone is verified. This does not close all of Sec
 
 ### 7A: Deployment And Recovery Safety
 
-- [ ] Deploy the exact validated commit, serialize production deployments, and verify post-deployment readiness instead of relying on container start or a generic HTTP 200 alone.
-- [ ] Add dependency-aware readiness and restart behaviour for API, Web, database and scanner, with useful diagnostics that do not expose secrets.
+- [x] Deploy the exact validated commit, serialize production deployments, and verify post-deployment readiness instead of relying on container start or a generic HTTP 200 alone.
+- [x] Add dependency-aware readiness and restart behaviour for API, Web, database and scanner, with useful diagnostics that do not expose secrets.
 - [ ] Document and test rollback and migration compatibility; retain the previous deployable revision. Do not assume reversing application code safely reverses a database migration.
 - [ ] Establish protected off-server database, uploaded-file and key-ring backups; include both authentication/reset and payment key material. Confirm the backup destination/access before implementation, never invent credentials or storage accounts.
 - [ ] Restore backups into an isolated environment and demonstrate recovery. Schedule any production restart separately with user approval; do not run a destructive restore against the VPS.
@@ -356,7 +356,7 @@ Start by inspecting the current deployment/Compose/runtime configuration and add
 - [ ] Obtain explicit live activation and low-value transaction approval only after readiness/recovery and payment exception gates pass; confirm funds reach the intended tenant merchant account.
 - [ ] Record first-tenant approval, remaining limitations and controlled rollout/rollback ownership before declaring the pilot ready.
 
-Restart point: Section 7A1 below. The original audit remains a dated baseline, not a current status checklist; use this file for subsequent progress.
+Restart point: Section 7B1 below. The original audit remains a dated baseline, not a current status checklist; use this file for subsequent progress.
 
 ## Active Section 7A1: Exact Release And Readiness
 
@@ -366,7 +366,7 @@ Branch: `feature/section-7a-release-readiness`. Builds on merged master `a940ddb
 - [x] Add API readiness across both database schemas and Web-to-API matching release readiness, generic no-store responses, Compose health/start dependencies and restart policies.
 - [x] Add readiness unit/integration cases, release-script mocked failure cases and an isolated production-image database failure/recovery/restart CI test. These tests do not touch the VPS or enable PayFast.
 - [x] Complete local/CI verification and record exact results before PR handoff. Check the final documentation revision's CI before merge.
-- [ ] Confirm VPS tooling/disk readiness, user-approved merge, deployment and exact-revision HTTPS readiness after rollout.
+- [x] Confirm VPS tooling/disk readiness, user-approved merge, deployment and exact-revision HTTPS readiness after rollout (PR #45; evidence below).
 - [ ] 7A2: agree protected off-server backup destination/retention and demonstrate coordinated backup plus isolated restore; production maintenance requires separate approval.
 
 No migration, auction/pricing/payment business rule or live payment setting is changed in 7A1. No VPS command, restart, off-server backup setup, production restore or rollback has been performed. Environment-labelled container builds pin source revision; mutable base-image/package inputs are not claimed to be reproducible signed artifacts. Scanner readiness is a separate Compose gate, not a claim that all external dependencies are healthy. Linux image and script verification must pass in Actions; local Windows Docker engine is unavailable.
@@ -382,3 +382,30 @@ Final implementation `b4d36a2dcaf7f78cc27abb32d4ab23b8d361e5c7` passed [CI 41195
 The user confirmed Compose v5.0.0, wait support and git/curl/flock. They expanded the VPS disk and ext4 root filesystem successfully: 97 GB usable, 59 GB free. PR #44 merged at `174f80c59c5a587a3678a16f269c8041f224f3d1`. [Run 42015052923](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/42015052923) passed validation and reported deployment success, but its deploy log ended at Caddy validation, without activation or a release-ready marker. Both public homepages returned 200; both `/__ready` endpoints returned 404. This is not successful rollout acceptance.
 
 Follow-up branch `codex/fix-release-stdin` reproduces the premature exit using a stdin-consuming Compose mock and the actual streamed `bash -s` invocation. The previous file-only tests did not cover this transport. The fix buffers the complete remote script before execution, disables validation-container interactivity and detaches its stdin, and adds an independent runner-side HTTPS revision check after SSH. Regression coverage runs all eight guard cases as a file, streamed script and buffered script. No database rollback, live payment, production restart or backup execution was performed during diagnosis. Verify the follow-up PR and subsequent deployment before closing 7A1 or proceeding with 7A2.
+
+PR #45 merged at `c8cc211149612d5e55e31065aa911c2be8031d80`. [Production run 42018761932](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/42018761932) passed validate and deploy. Logs showed database/scanner/API/Web/Caddy healthy and `Release ready` with that SHA. Independent HTTPS checks of Faunex and Stormbird `/__ready` both returned 200 and the exact matching revision; both homepages returned 200. This closes the exact-release rollout check, not a database restore or full business acceptance.
+
+### Development Backup Deferral
+
+On 5 November the owner selected manually managed daily xneelo snapshots with only the previous snapshot replaced after a new Available snapshot is confirmed. Disposable test-data loss is an explicitly accepted development risk to limit personal costs. No snapshot has been created or verified by the agent. Protected off-server backup and isolated restore work (7A2) is deferred until launch preparation and remains a launch gate; it is not complete. Source in GitHub is not a backup of database, uploads or original secrets/keys. See [the temporary recovery decision](release-recovery.md#temporary-development-decision-5-november-2026). Sandbox Section 7B can proceed; no real-money activation follows from this deferral.
+
+## Active Section 7B1: Payment Exception Workspace
+
+Branch: `codex/section-7b-order-payment-workspace`, based on verified master `c8cc211149612d5e55e31065aa911c2be8031d80`.
+
+- [x] Add buyer/tenant order-stage filters before counting and paging, preserving tenant and buyer visibility. Show lot subtotal separately from the accepted final total and provide a stable order reference.
+- [x] Distinguish browser cancellation from return, let verified confirmed/review states take priority, and require an explicit no-payment/no-other-checkout acknowledgement before resuming an existing pending reference. Browser URLs never change payment state.
+- [x] Recheck payment/order availability and discard a prepared form when status verification fails, confirmation arrives or merchant setup no longer permits checkout. Keep authoritative checkout validation and signed notification processing unchanged.
+- [x] Local regression and desktop/mobile browser verification recorded below. No migration, live payment, refund, manual reconciliation or fulfilment mutation is included.
+- [ ] Complete Linux CI validation before PR handoff, then user-approved merge and hosted rollout verification.
+- [ ] After merge, exercise the actual hosted sandbox cancellation/resume path on a fresh disposable order, cross-check the merchant dashboard and tenant view with the user. Do not repay the confirmed R11 order. Verifier-double tests are not external provider acceptance.
+
+Local evidence: 273 tests total, 256 passed and 17 explicit PostgreSQL/scanner skips, no failures. The added component tests render the real payment component with isolated HTTP responses and verify current-state reads, bound cancellation notices, disabled unacknowledged resume, tenant read-only mode, confirmed/review protection and failure messages. The browser pass found and corrected a duplicate sibling key introduced during development and the existing literal return-state parameter binding before handoff.
+
+Published Web browser QA used a loopback-only disposable API fixture with real application account/order/checkout/notification handlers and a provider verifier/transport double, not the live merchant. At 1440x1050 and 390x844: cancellation did not change state; resume required acknowledgement and preserved intent/accepted amount; simulated status-read 503 discarded the form and blocked resume; a late simulated valid completion removed checkout; replay retained one event; conflicting completion blocked further checkout; tenant filters reflected the current state. No browser errors or document overflow. Screenshots `section7b-{orders,cancel,confirmed,review,review-orders}-{desktop,mobile}.png` are local QA artifacts outside Git. Both preview processes were stopped. This is not hosted PayFast acceptance or an off-server restore.
+
+### Queued Customer Storefront Work
+
+The owner supplied the Stormbird customer hostname `bid.stormbirdbreeders.co.za` and a screenshot of the current generic tenant hero. They requested a customer-focused home/catalogue, clear actual lot imagery, simple navigation, readable auction details and comfortable phone/photo-upload workflows for users aged roughly 18-80. Preserve white-label tenant isolation and avoid platform/admin jargon or fabricated live lots/timers. Research relevant animal/plant auction patterns without copying poor visual styling. The owner clarified this request was queued, not an interruption: finish and hand over 7B1 first, then implement a separate storefront slice. Existing branding settings should drive the shared tenant experience rather than hardcoding one tenant.
+
+Next: the customer-facing storefront slice above, followed by hosted exception acceptance and agreed tenant reconciliation/fulfilment rules before corresponding state-changing controls. No support impersonation, manual paid button, automatic refund or live-money permission is assumed.
