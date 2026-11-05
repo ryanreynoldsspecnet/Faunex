@@ -1,74 +1,141 @@
 @page "/auctions/{ListingId:guid}"
 @using Faunex.Application.DTOs
+@using System.Diagnostics
 @implements IAsyncDisposable
 @inject Faunex.Web.Api.FaunexApiClient Api
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider Auth
-<PageTitle>Auction - Faunex</PageTitle>
-<section class="platform-shell auction-workspace">
+@inject ILogger<AuctionDetails> Logger
+
+<PageTitle>@(_listing?.Title ?? "Auction")</PageTitle>
+<section class="lot-detail auction-detail" aria-labelledby="auction-title">
     <a class="order-back-link" href="/browse">Back to lots</a>
-    <div class="platform-header platform-header--compact"><div><p class="platform-kicker">Timed auction</p><h1>@(_listing?.Title ?? "Auction")</h1></div><button class="btn btn-outline-secondary" disabled="@_busy" @onclick="RefreshAsync">Refresh</button></div>
-    @if (_error is not null) { <div class="alert alert-danger" role="alert">@_error</div> }
+    <header class="auction-heading"><div><p class="storefront-eyebrow">Timed auction</p><h1 id="auction-title">@(_listing?.Title ?? "Auction")</h1></div>
+        <button class="btn btn-outline-secondary" disabled="@(_busy || _refreshing || _loading)" @onclick="ReloadAsync">Refresh</button></header>
+    @if (_error is not null) { <div class="alert alert-warning" role="alert">@_error</div> }
     @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
     @if (_loading) { <p role="status">Loading auction...</p> }
     else if (_listing is not null)
     {
-        <ListingPhotoGallery ListingId="ListingId" Title="@_listing.Title" />
-        @if (_auction is null) { <p>No published timed auction.</p> }
-        else
+        <div class="auction-lot-grid">
+            <div class="auction-lot-media"><ListingPhotoGallery ListingId="ListingId" Title="@_listing.Title" /></div>
+            <div class="auction-offer">
+                @if (_auction is null) { <h2>Auction unavailable</h2><p>@(_fresh ? "This lot has no published timed auction." : "Refresh to check whether this lot is still available.")</p> }
+                else
+                {
+                    <p class="auction-state" role="status">@StatusLabel</p>
+                    <div class="auction-price"><span>@(_auction.CurrentPrice is null ? "Starting bid" : _auction.Outcome == "Sold" ? "Winning bid" : "Highest bid")</span><strong>@Money(_auction.CurrentPrice ?? _auction.StartingPrice)</strong></div>
+                    <dl class="auction-facts">
+                        <dt>Location</dt><dd>@(_listing.Location ?? "Not supplied")</dd><dt>Quantity</dt><dd>@_listing.Quantity</dd>
+                        <dt>Opens</dt><dd>@Time(_auction.StartsAt)</dd><dt>Closes</dt><dd>@Time(_auction.EndsAt)</dd>
+                        <dt>Starting bid</dt><dd>@Money(_auction.StartingPrice)</dd><dt>Bid increment</dt><dd>@Money(_auction.MinimumIncrement)</dd>
+                    </dl>
+                    @if (Open)
+                    {
+                        <p class="auction-minimum">Minimum next bid <strong>@Money(Minimum)</strong></p>
+                    }
+                    @if (!_fresh) { <p class="auction-status-note">Updates unavailable. Bidding is paused on this page until a refresh succeeds.</p> }
+                    else if (_auction.State == "Scheduled") { <p class="auction-status-note">Bidding opens at the time shown above.</p> }
+                    else if (_auction.State == "AwaitingResult" || (_auction.State == "Live" && !Open)) { <p class="auction-status-note">Bidding has ended. The final result is being confirmed.</p> }
+                    else if (_auction.State == "Cancelled") { <p class="auction-status-note">This auction was cancelled. No further bids can be placed.</p> }
+                    else if (_auction.Outcome == "ReserveNotMet") { <p class="auction-status-note">The reserve was not met. This lot was not sold.</p> }
+                    else if (_auction.Outcome == "NoBids") { <p class="auction-status-note">This auction ended without an accepted bid.</p> }
+
+                    @if (_uncertain)
+                    {
+                        <div class="auction-bid-warning" role="alert"><h2>Check before bidding again</h2><p>We could not confirm the last submission. It may have been accepted. Check the bid history and your connection before trying again.</p>
+                            <button class="btn btn-outline-secondary" disabled="@(_busy || _refreshing)" @onclick="AcknowledgeAsync">I've checked my bids</button></div>
+                    }
+                    else if (_buyer && Open && _review is { } reviewed)
+                    {
+                        <section class="auction-bid-review" aria-labelledby="bid-review-title">
+                            <h2 id="bid-review-title">Review your bid</h2><p>@_listing.Title</p><strong class="auction-review-amount">@Money(reviewed.Amount)</strong>
+                            <p>This is your bid for the whole lot, not an automatic maximum bid. Delivery and any additional charges are separate.</p>
+                            <div class="auction-bid-actions"><button type="button" class="btn btn-primary" disabled="@(_busy || _refreshing || !_fresh)" @onclick="ConfirmBidAsync">@(_busy ? "Submitting..." : "Confirm bid")</button>
+                                <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="() => _review = null">Change bid</button></div>
+                        </section>
+                    }
+                    else if (_buyer && Open)
+                    {
+                        <form class="auction-bid-form" @onsubmit="ReviewBidAsync" @onsubmit:preventDefault>
+                            <label for="bid-amount">Your bid (@_listing.CurrencyCode)</label><input id="bid-amount" class="form-control" type="number" inputmode="decimal" min="@Invariant(Minimum)" max="@Invariant(AuctionBidReview.Maximum)" step="0.01" @bind="_amount" disabled="@(_busy || _refreshing || !_fresh)" required aria-describedby="bid-help" />
+                            <p id="bid-help">Bid for the whole lot. Delivery and additional charges are separate.</p>
+                            <button class="btn btn-primary" type="submit" disabled="@(_busy || _refreshing || !_fresh)">@(_busy ? "Checking..." : "Review bid")</button>
+                        </form>
+                    }
+                    else if (!_signedIn && Open)
+                    {
+                        <a class="btn btn-primary auction-sign-in" href="@LoginUrl">Log in to bid</a><p class="auction-status-note">New here? <a href="/register">Create a buyer account</a></p>
+                    }
+                    else if (_signedIn && !_buyer && Open) { <p class="auction-status-note">Bidding is available with a buyer account.</p> }
+
+                    @if (_buyer && _auction.Outcome == "Sold")
+                    {
+                        <a class="btn btn-outline-primary" href="@($"/buyer/orders/from-auction/{_auction.Id}")">Check my winner order</a><p class="auction-status-note">An order is available only to the winning buyer.</p>
+                    }
+                    <p class="auction-updated">Last updated @Time(_auction.ServerTime)</p>
+                    <a class="auction-delivery-link" href="#delivery-title">View delivery &amp; additional charges</a>
+                }
+            </div>
+            <div class="auction-description">
+                <h2>About this lot</h2><p class="lot-description">@(string.IsNullOrWhiteSpace(_listing.Description) ? "No further description supplied." : _listing.Description)</p>
+                @if (_auction is not null) { <AuctionCharges Terms="_auction.Charges" /> }
+            </div>
+        </div>
+        @if (_auction is not null)
         {
-            <div class="files-summary my-3"><span class="platform-status">@_auction.State</span>@if (_auction.Outcome is not null) { <strong>Result: @_auction.Outcome</strong> }</div>
-            <dl class="review-facts my-4">
-                <dt>Start (SAST)</dt><dd>@Time(_auction.StartsAt)</dd><dt>End (SAST)</dt><dd>@Time(_auction.EndsAt)</dd>
-                <dt>Starting price</dt><dd>@Money(_auction.StartingPrice)</dd><dt>Highest bid</dt><dd>@(_auction.CurrentPrice is { } top ? Money(top) : "No bids")</dd>
-                <dt>Increment</dt><dd>@Money(_auction.MinimumIncrement)</dd><dt>Minimum next bid</dt><dd>@Money(Minimum)</dd><dt>Server update</dt><dd>@Time(_auction.ServerTime)</dd>
-            </dl>
-            @if (_auction.Charges is { } charges)
-            {
-                <section class="auction-charges"><h2>Recorded Delivery &amp; Charges</h2><p class="review-notes">@charges.Terms</p><dl class="review-facts">@foreach (var option in charges.Options) { <dt>@option.Name</dt><dd>@option.Amount.ToString("0.00") @charges.CurrencyCode - @(option.Kind == "Delivery" ? "Delivery / collection choice" : option.Kind == "RequiredExtra" ? "Required per lot" : "Optional per lot")<small>@option.Description</small></dd> }</dl></section>
-            }
-            else { <p class="alert alert-warning">No pricing terms recorded. Online checkout unavailable for this auction.</p> }
-            @if (_buyer && _auction.State == "Live")
-            {
-                <form class="auction-bid-form" @onsubmit="BidAsync" @onsubmit:preventDefault><label class="form-label" for="bid-amount">Bid amount (@_listing.CurrencyCode)</label><div class="file-actions"><input id="bid-amount" class="form-control" type="number" min="@Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture)" max="999999999" step="0.01" @bind="_amount" disabled="@_busy" required /><button class="btn btn-primary" type="submit" disabled="@_busy">@(_busy ? "Submitting..." : "Place Bid")</button></div></form>
-            }
-            else if (!_signedIn) { <a class="btn btn-primary" href="/login">Login</a> }
-            @if (_buyer && _auction.Outcome == "Sold") { <a class="btn btn-outline-primary" href="@($"/buyer/orders/from-auction/{_auction.Id}")">My Winner Order</a> }
-            <h2 class="mt-4">Bid History</h2>
-            @if (_bids?.Items.Count > 0)
-            {
-                <div class="platform-table-wrap"><table class="table platform-table"><thead><tr><th>Amount</th><th>Accepted (SAST)</th></tr></thead><tbody>@foreach (var bid in _bids.Items) { <tr><td>@Money(bid.Amount)</td><td>@Time(bid.PlacedAt)</td></tr> }</tbody></table></div>
-                <div class="review-pagination"><button class="btn btn-outline-secondary" disabled="@(_skip == 0 || _busy)" @onclick="PreviousAsync">Previous</button><span>@_bids.Total bid(s)</span><button class="btn btn-outline-secondary" disabled="@(_skip + 20 >= _bids.Total || _busy)" @onclick="NextAsync">Next</button></div>
-            }
-            else { <p>No bids yet.</p> }
+            <section class="auction-history" aria-labelledby="bid-history-title"><h2 id="bid-history-title">Bid history <span>@(_bids?.Total ?? 0)</span></h2>
+                @if (_bids?.Items.Count > 0)
+                {
+                    <table><caption class="visually-hidden">Accepted bids, newest first. Times are South African Standard Time.</caption><thead><tr><th scope="col">Bid amount</th><th scope="col">Accepted (SAST)</th></tr></thead>
+                        <tbody>@foreach (var bid in _bids.Items) { <tr><td>@StorefrontPresentation.Money(bid.Amount, bid.CurrencyCode)</td><td>@Time(bid.PlacedAt)</td></tr> }</tbody></table>
+                    <div class="catalogue-pagination"><button class="btn btn-outline-secondary" disabled="@(_skip == 0 || _busy || _refreshing)" @onclick="PreviousAsync">Previous</button><span>@(_skip + 1)-@(_skip + _bids.Items.Count) of @_bids.Total</span>
+                        <button class="btn btn-outline-secondary" disabled="@(_skip + 20 >= _bids.Total || _busy || _refreshing)" @onclick="NextAsync">Next</button></div>
+                }
+                else { <p>No accepted bids to show.</p> }
+            </section>
         }
     }
+    else if (!_loading) { <a class="btn btn-outline-primary" href="/browse">Browse available lots</a> }
 </section>
 @code {
     [Parameter] public Guid ListingId { get; set; }
     private ListingDto? _listing;
     private PublicAuctionDto? _auction;
     private PagedResult<PublicBidDto>? _bids;
-    private bool _buyer, _signedIn, _loading, _busy;
+    private AuctionBidReview? _review;
+    private bool _buyer, _signedIn, _loading, _busy, _refreshing, _fresh, _uncertain;
     private decimal _amount;
-    private int _skip;
+    private int _skip, _routeVersion, _refreshVersion;
+    private long _lastRefresh;
     private string? _error, _notice;
     private readonly CancellationTokenSource _stop = new();
     private Task? _poll;
-    private decimal Minimum => _auction is null ? 0 : _auction.CurrentPrice is { } top ? top + _auction.MinimumIncrement : _auction.StartingPrice;
+    private decimal Minimum => _auction is null ? 0 : AuctionBidReview.Minimum(_auction);
+    private DateTimeOffset EstimatedServerTime => (_auction?.ServerTime ?? DateTimeOffset.MinValue) + (_lastRefresh == 0 ? TimeSpan.Zero : Stopwatch.GetElapsedTime(_lastRefresh));
+    private bool Open => _auction is not null && AuctionBidReview.IsOpen(_auction, EstimatedServerTime);
+    private string StatusLabel => _auction is null ? "Unavailable" : _auction.State == "Live" && !Open ? "Awaiting result"
+        : StorefrontPresentation.Status(new(ListingId, "", "", null, 1, 0, null, "", null, _auction));
     private string HostQuery => "host=" + Uri.EscapeDataString(Nav.ToAbsoluteUri(Nav.Uri).IdnHost);
+    private string LoginUrl => Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/login", "returnTo", $"/auctions/{ListingId}");
     protected override async Task OnParametersSetAsync()
     {
-        _loading = true; _listing = null; _auction = null; _bids = null; _error = _notice = null; _skip = 0;
+        var version = ++_routeVersion; ++_refreshVersion;
+        _loading = true; _refreshing = _busy = _fresh = _uncertain = false;
+        _listing = null; _auction = null; _bids = null; _review = null; _error = _notice = null; _skip = 0; _lastRefresh = 0;
         try
         {
             var user = (await Auth.GetAuthenticationStateAsync()).User;
-            _signedIn = user.Identity?.IsAuthenticated == true; _buyer = user.IsInRole("Buyer");
-            _listing = await Api.GetPublicAsync<ListingDto>($"/api/marketplace/listings/{ListingId}?{HostQuery}");
-            await RefreshAsync(); _amount = Minimum;
+            if (version != _routeVersion) return;
+            _signedIn = user.Identity?.IsAuthenticated == true; _buyer = _signedIn && user.IsInRole("Buyer");
+            var listing = await Api.GetPublicAsync<ListingDto>($"/api/marketplace/listings/{ListingId}?{HostQuery}", _stop.Token);
+            if (version != _routeVersion) return;
+            _listing = listing ?? throw new InvalidOperationException("No listing returned.");
+            await RefreshAsync(); if (version == _routeVersion) _amount = Minimum;
         }
-        catch (Exception ex) { _error = ex.Message; }
-        finally { _loading = false; }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
+        catch (Exception ex) { if (version == _routeVersion) { Logger.LogWarning(ex, "Auction lot could not be loaded"); _error = "This lot could not be loaded. It may no longer be available. Try Refresh or browse other lots."; } }
+        finally { if (version == _routeVersion) _loading = false; }
     }
     protected override Task OnAfterRenderAsync(bool firstRender) { if (firstRender) _poll = PollAsync(); return Task.CompletedTask; }
     private async Task PollAsync()
@@ -78,39 +145,76 @@
             while (true)
             {
                 await Task.Delay(TimeSpan.FromSeconds(5), _stop.Token);
-                await InvokeAsync(async () => { if (!_busy && !_loading) { await RefreshAsync(); StateHasChanged(); } });
+                await InvokeAsync(async () => { if (!_busy && !_loading && !_refreshing) { await RefreshAsync(); StateHasChanged(); } });
             }
         }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
     }
-    private async Task RefreshAsync()
+    private async Task<bool> RefreshAsync()
     {
-        if (_listing is null) return;
-        var listingId = _listing.Id;
+        if (_listing is null) return false;
+        var listingId = _listing.Id; var version = ++_refreshVersion; var route = _routeVersion; _refreshing = true;
         try
         {
-            var auctions = await Api.GetPublicAsync<List<PublicAuctionDto>>($"/api/marketplace/listings/{ListingId}/auctions?{HostQuery}") ?? [];
-            if (_listing?.Id != listingId) return;
+            var auctions = await Api.GetPublicAsync<List<PublicAuctionDto>>($"/api/marketplace/listings/{listingId}/auctions?{HostQuery}", _stop.Token)
+                ?? throw new InvalidOperationException("No auction response.");
             if (auctions.Count > 1) throw new InvalidOperationException("Auction setup requires reconciliation.");
             var auction = auctions.SingleOrDefault();
-            var bids = auction is null ? null : await Api.GetPublicAsync<PagedResult<PublicBidDto>>($"/api/marketplace/auctions/{auction.Id}/bids?{HostQuery}&skip={_skip}&take=20");
-            if (_listing?.Id != listingId) return;
-            _auction = auction; _bids = bids;
-            _error = null;
+            var bids = auction is null ? null : await Api.GetPublicAsync<PagedResult<PublicBidDto>>($"/api/marketplace/auctions/{auction.Id}/bids?{HostQuery}&skip={_skip}&take=20", _stop.Token)
+                ?? (auction is null ? null : throw new InvalidOperationException("No bid history response."));
+            if (route != _routeVersion || version != _refreshVersion) return false;
+            _auction = auction; _bids = bids; _lastRefresh = Stopwatch.GetTimestamp(); _fresh = true; _error = null;
+            if (_review is not null && (auction is null || !_review.Matches(auction, EstimatedServerTime)))
+            {
+                _review = null; _notice = null; _error = "The auction changed. Check the latest price and review your bid again.";
+            }
+            return true;
         }
-        catch (Exception ex) { if (_listing?.Id == listingId) { _error = ex.Message; _auction = null; _bids = null; } }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { return false; }
+        catch (Exception ex)
+        {
+            if (route == _routeVersion && version == _refreshVersion) { Logger.LogWarning(ex, "Auction update unavailable"); _fresh = false; _review = null; _error = "We could not update this auction. Bidding is paused here until a refresh succeeds."; }
+            return false;
+        }
+        finally { if (route == _routeVersion && version == _refreshVersion) _refreshing = false; }
     }
-    private async Task BidAsync()
+    private async Task ReloadAsync() { if (_busy || _refreshing) return; if (_listing is null) await OnParametersSetAsync(); else await RefreshAsync(); }
+    private async Task ReviewBidAsync()
     {
-        if (_busy || _auction?.State != "Live") return;
-        _busy = true; _error = _notice = null;
-        try { await Api.PostAsync("/api/buyer/bids", new CreateBidRequest(ListingId, _amount)); _skip = 0; await RefreshAsync(); _notice = "Bid accepted."; _amount = Minimum; }
-        catch (Exception ex) { await RefreshAsync(); _error = ex.Message; }
-        finally { _busy = false; }
+        if (_busy || _refreshing || !_buyer || _uncertain) return;
+        var route = _routeVersion; _busy = true; _notice = _error = null;
+        try { if (await RefreshAsync() && _auction is not null) _review = AuctionBidReview.Prepare(_auction, _amount, EstimatedServerTime); }
+        catch (InvalidOperationException ex) { if (route == _routeVersion) _error = ex.Message; }
+        finally { if (route == _routeVersion) _busy = false; }
     }
-    private async Task PreviousAsync() { _skip = Math.Max(0, _skip - 20); await RefreshAsync(); }
-    private async Task NextAsync() { _skip += 20; await RefreshAsync(); }
-    private string Money(decimal value) => $"{value:0.00} {_listing?.CurrencyCode}";
-    private static string Time(DateTimeOffset? value) => value?.ToOffset(TimeSpan.FromHours(2)).ToString("dd MMM yyyy HH:mm:ss") ?? "-";
-    public async ValueTask DisposeAsync() { _stop.Cancel(); if (_poll is not null) { try { await _poll; } catch (OperationCanceledException) { } } _stop.Dispose(); }
+    private async Task ConfirmBidAsync()
+    {
+        if (_busy || _refreshing || !_buyer || _uncertain || _review is not { } review) return;
+        var route = _routeVersion; _busy = true; _notice = _error = null;
+        try
+        {
+            if (!await RefreshAsync() || _review != review || _auction is null || !review.Matches(_auction, EstimatedServerTime)) return;
+            _review = null;
+            try { await Api.PostAsync("/api/buyer/bids", new CreateBidRequest(review.ListingId, review.Amount), _stop.Token); }
+            catch (Exception ex)
+            {
+                if (route == _routeVersion) { Logger.LogWarning(ex, "Bid submission could not be confirmed"); _uncertain = true; await RefreshAsync(); }
+                return;
+            }
+            if (route != _routeVersion) return;
+            _skip = 0;
+            var updated = await RefreshAsync();
+            if (route != _routeVersion) return;
+            _notice = $"Your bid of {Money(review.Amount)} was accepted.";
+            if (updated) _amount = Minimum;
+        }
+        finally { if (route == _routeVersion) _busy = false; }
+    }
+    private async Task AcknowledgeAsync() { if (_busy || _refreshing) return; if (await RefreshAsync()) _uncertain = false; }
+    private async Task PreviousAsync() { if (_busy || _refreshing) return; _skip = Math.Max(0, _skip - 20); await RefreshAsync(); }
+    private async Task NextAsync() { if (_busy || _refreshing) return; _skip += 20; await RefreshAsync(); }
+    private string Money(decimal value) => StorefrontPresentation.Money(value, _listing?.CurrencyCode ?? "");
+    private static string Time(DateTimeOffset? value) => value is { } time ? time.ToOffset(TimeSpan.FromHours(2)).ToString("dd MMM yyyy, HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) + " SAST" : "Not supplied";
+    private static string Invariant(decimal value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    public async ValueTask DisposeAsync() { ++_routeVersion; _stop.Cancel(); if (_poll is not null) { try { await _poll; } catch (OperationCanceledException) { } } _stop.Dispose(); }
 }

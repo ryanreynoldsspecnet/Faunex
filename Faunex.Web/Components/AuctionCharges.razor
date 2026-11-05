@@ -1,0 +1,29 @@
+@using Faunex.Application.DTOs
+<section class="auction-delivery" aria-labelledby="delivery-title">
+    <h2 id="delivery-title">Delivery &amp; additional charges</h2>
+    @if (Terms is null)
+    {
+        <p>No delivery or pricing terms were recorded for this auction. Online checkout is unavailable.</p>
+    }
+    else
+    {
+        <p>The bid covers the lot. Your total also includes one delivery or collection choice, any required charges and extras you select at checkout.</p>
+        @if (!string.IsNullOrWhiteSpace(Terms.Terms)) { <p class="lot-description">@Terms.Terms</p> }
+        @foreach (var group in Groups)
+        {
+            var options = Terms.Options.Where(x => x.Kind == group.Kind).ToList();
+            if (options.Count > 0)
+            {
+                <h3>@group.Label</h3>
+                <ul class="auction-charge-list">@foreach (var option in options)
+                {
+                    <li><div><strong>@option.Name</strong>@if (!string.IsNullOrWhiteSpace(option.Description)) { <p>@option.Description</p> }</div><span>@StorefrontPresentation.Money(option.Amount, Terms.CurrencyCode)</span></li>
+                }</ul>
+            }
+        }
+    }
+</section>
+@code {
+    [Parameter] public ChargeTermsDto? Terms { get; set; }
+    private static readonly (string Kind, string Label)[] Groups = [("Delivery", "Choose one at checkout"), ("RequiredExtra", "Required per lot"), ("OptionalExtra", "Optional per lot")];
+}

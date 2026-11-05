@@ -4,12 +4,13 @@
     <div class="listing-photo-gallery">
         @if (_photoFailed) { <div class="listing-photo-placeholder">Photo temporarily unavailable</div> }
         else { <img class="listing-photo-gallery__main" src="@($"/media/listing-photos/{_selected}")" alt="@Title" @onerror="() => _photoFailed = true" /> }
-        <div class="listing-photo-gallery__thumbnails">@foreach (var id in _photos) { <button type="button" class="@(_selected == id ? "selected" : null)" aria-label="@($"Photo {_photos.IndexOf(id) + 1}")" aria-pressed="@(_selected == id)" @onclick="() => { _selected = id; _photoFailed = false; }"><img src="@($"/media/listing-photos/{id}")" alt="" /></button> }</div>
+        <div class="listing-photo-gallery__thumbnails">@foreach (var id in _photos) { <button type="button" class="@(_selected == id ? "selected" : null)" aria-label="@($"Photo {_photos.IndexOf(id) + 1}")" aria-pressed="@(_selected == id ? "true" : "false")" @onclick="() => { _selected = id; _photoFailed = false; }"><img src="@($"/media/listing-photos/{id}")" alt="" /></button> }</div>
     </div>
 }
 else
 {
     <div class="listing-photo-placeholder">@(_loading ? "Loading photos..." : _error ? "Photos temporarily unavailable" : "No photos available")</div>
+    @if (_error) { <button type="button" class="btn btn-outline-secondary mb-3" @onclick="LoadPhotosAsync">Retry photos</button> }
 }
 @code {
     [Parameter] public Guid ListingId { get; set; }
@@ -18,7 +19,14 @@ else
     private Guid _selected;
     private bool _loading, _error, _photoFailed;
     private int _request;
-    protected override async Task OnParametersSetAsync()
+    private Guid? _loadedListing;
+    protected override Task OnParametersSetAsync()
+    {
+        if (_loadedListing == ListingId) return Task.CompletedTask;
+        _loadedListing = ListingId;
+        return LoadPhotosAsync();
+    }
+    private async Task LoadPhotosAsync()
     {
         var request = ++_request; _loading = true; _error = false; _photoFailed = false; _photos = [];
         try { var photos = await Api.GetPublicAsync<List<Guid>>($"/api/marketplace/listings/{ListingId}/photos") ?? []; if (request == _request) { _photos = photos; _selected = _photos.FirstOrDefault(); } }

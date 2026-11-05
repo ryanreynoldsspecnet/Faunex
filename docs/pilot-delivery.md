@@ -414,7 +414,7 @@ Next: the customer-facing storefront slice above, followed by hosted exception a
 
 PR #46 merged at `307b7036a052b48b0628cdd607f1b533c96f99eb`. [Production run 42027253270](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/42027253270) passed validation and deployment. Deployment logs showed database, scanner, API, Web and Caddy healthy and the exact Release ready marker. Independent public Faunex and `bid.stormbirdbreeders.co.za` readiness returned 200 with that SHA; the custom-domain homepage returned 200. The old `stormbird.faunex.co.za` address returned 404; the owner explicitly confirmed that only the new custom domain should remain active. Do not reactivate the old alias as an incident fix. Hosted cancellation/merchant-dashboard acceptance is still open and no live payment was enabled.
 
-## Active Storefront Slice
+## Storefront Catalogue Slice
 
 Branch: `codex/stormbird-storefront`, based on verified master `307b7036a052b48b0628cdd607f1b533c96f99eb`. This is the owner-prioritised customer-facing slice, not closure of remaining 7B/7C launch gates.
 
@@ -423,7 +423,7 @@ Branch: `codex/stormbird-storefront`, based on verified master `307b7036a052b48b
 - [x] Show authoritative auction state and SAST dates with snapshot update time and refresh, not invented live counters. Catalogue-only listings and fixed-price listings are not advertised as open auctions or supplied with a non-functional buy button.
 - [x] Improve lot detail layout, image failure/loading states, back navigation, public reads independent of a stale bearer token and readable tenant-colour button foregrounds. Existing bidding, price acceptance and payment rules are unchanged.
 - [x] Add catalogue/presentation/initial-branding tests and inspect published desktop/phone layouts. Initial local suite: 292 total, 274 passed, 18 explicit PostgreSQL/scanner skips; no failures. API/Web publishes succeeded. Full Linux SQL/scanner/image gates remain required before review handoff.
-- [ ] Record final CI/PR and browser acceptance before user-approved merge; then verify the exact deployed revision and customer domain.
+- [x] Record final CI/PR and browser acceptance before user-approved merge; then verify the exact deployed revision and customer domain (PR #47; rollout below).
 
 The design research reviewed [SwiftVEE's catalogue](https://auctions.swiftvee.com/) and [plant.ess auctions](https://auctions.plantsbytess.com/) for useful patterns such as visible lots, clear dates/prices and distinct results. No competitor assets, sale terms, soft-close rules or automatic-bidding logic were copied. The storefront remains tenant-driven, with no hardcoded Stormbird inventory or branding in production components.
 
@@ -434,3 +434,28 @@ Final published browser checks passed at 320, 390, 768, 1440 and 1920px widths: 
 A loopback-only disposable review demo is running at `http://stormbird.127.0.0.1.nip.io:5185/`, with normal DNS verified to resolve to 127.0.0.1. Web/API preview ports are 5185/5186; no production secrets or persistent business records are used. It is a temporary local demo, not staging, a production host mapping or a deployed storefront. Do not enter live credentials. Its two hidden dotnet processes can be stopped after review; snapshots and VPS services were not touched by the preview.
 
 Next after this slice: review with the owner using real Stormbird branding and approved photos, then improve the auction/bid journey and phone-based seller listing/photo-upload workflow in bounded sections. Watchlists, new animal/plant creation types, fixed-price checkout, refund/fulfilment controls, policies, business sign-off and off-server restore acceptance remain separate work, not features implied by the new catalogue.
+
+### Storefront Catalogue Rollout: 5 November 2026
+
+PR #47 merged at `10fd4e425e485d4f41895e6a9a4194a9a134798b`. [Production run 42062894485](https://github.com/ryanreynoldsspecnet/Faunex/actions/runs/42062894485) passed validation/deployment. Logs reported database/scanner/API/Web/Caddy healthy and the exact Release ready marker. Independent HTTPS readiness on Faunex and `bid.stormbirdbreeders.co.za` returned 200 with that revision; the custom-domain home returned 200 with the new catalogue grid. The former Stormbird subdomain is intentionally inactive. Final PR #47 Linux validation passed all 292 tests without skips, 24 release regression cases and production-image readiness/database recovery/restart checks. The storefront is deployed; this is not hosted payment-exception or business acceptance.
+
+## Active Storefront Section: Inspect And Bid
+
+Branch `codex/storefront-auction-journey`, based on verified merged master `10fd4e425e485d4f41895e6a9a4194a9a134798b`. The owner requested continued storefront work and supplied Bobshop as a discovery/watchlist reference. [Storefront UX direction](storefront-ux.md) records inspected sources, research limits and the next bounded sections.
+
+- [x] Recompose public auction detail around real photos, price/state/dates, readable description, separate recorded delivery/required/optional charges and privacy-safe paged bid history.
+- [x] Add exact-amount review and explicit confirmation with a fresh public-state check before each step. Invalidate review on changed price/rules/dates/auction identity or closure; preserve API bidding authority. Failed update reads pause bidding; an uncertain POST response never triggers automatic retry.
+- [x] Carry buyer login back to a strictly validated relative lot/auction route, not an arbitrary redirect. Avoid photo-metadata fetches on every auction poll and retain explicit image retry.
+- [x] Complete local suite and published desktop/mobile buyer journeys. Record final counts and boundary evidence below.
+- [ ] Complete Linux CI and record PR/run evidence before marking ready for review.
+- [ ] After owner-approved merge, verify deployment revision and review using actual Stormbird data. No live bid or payment is authorised merely by visual approval.
+
+No migration, new public API exposure, pricing/auction/payment business-rule change, reserve disclosure, watcher count, live-money activation or production test data is included. Account-backed watchlists and richer relevant filters are the following sections, not cosmetic buttons or functionality implied by this page. Hosted exception acceptance and backup/restore gates remain open.
+
+Local verification: 323 tests total, 305 passed, 18 explicit PostgreSQL/scanner skips, zero failures. The 31 added cases cover review amounts and immutable snapshots, closing boundaries, unsafe return URLs, public rendered auction/charge/role states, unavailable reads and photo fetch stability. Release Web publish succeeded without warnings/errors; all eight changed application/test files matched the verification snapshot after newline normalisation. Actual PostgreSQL/scanner/migration and production-image checks remain Linux CI gates, not claims made from the local skips.
+
+Published Edge/Playwright verification passed at 320, 390, 768, 1440 and 1920px. Sample photo bytes decoded; buyer login returned to the same auction; a hard reload retained buyer access. Reviewing/changing a bid sent no write. A real competing bid invalidated an existing review even when its amount was still sufficient. Two immediate confirmation clicks recorded one accepted bid. A simulated status 503 discarded review and disabled bidding. A response lost after API acceptance produced an uncertain-submission warning, no automatic retry and no further bid until explicit acknowledgement. A successful bid followed by failed refresh still showed acceptance and paused further bidding. Advancing the disposable clock invalidated review at closure; settlement through the real service displayed Sold and the private winner-order entry link. Four disposable accepted bids were recorded, including the competitor's, with no duplicates. No browser errors or document overflow; desktop, 320px, review, accepted/error and result screenshots were visually inspected. The existing catalogue/search/filter/mobile-menu/photo-fallback/unknown-host/platform regression journey also passed.
+
+These are isolated tests: the API fixture uses disposable SQLite, a test clock and scanner/storage doubles, with the previous preview-only catalogue/detail projection for unsupported SQLite sorting. Actual account, bid acceptance, auction public reads, bid history and settlement handlers ran; local transport controls deliberately injected read/response failures. Sample photos and DEMO charges are outside Git and never production inventory. This is not a production bid, real merchant test, hosted checkout exception test or new live-payment approval. A fresh loopback-only demo can be opened at `http://stormbird.127.0.0.1.nip.io:5185/`; do not use live credentials. The fixture is reset after QA so its DEMO auction can be inspected before closure.
+
+Next bounded work: the account-backed buyer watchlist described in [storefront-ux.md](storefront-ux.md), followed by meaningful additional filters and phone-based seller listing/upload polish. Finish and user-merge this section before starting another branch; verify the release revision again after deployment.
