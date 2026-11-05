@@ -257,6 +257,9 @@ namespace Faunex.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"BidNumber\" > 0");
 
+                    b.HasIndex("TenantId", "BidderId", "PlacedAt", "BidNumber", "Id")
+                        .IsDescending(false, false, true, true, false);
+
                     b.ToTable("Bids");
                 });
 

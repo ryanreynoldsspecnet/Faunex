@@ -166,6 +166,8 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
             .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Auction>().Property(x => x.Revision).IsConcurrencyToken();
         modelBuilder.Entity<Bid>().HasIndex(x => new { x.AuctionId, x.BidNumber }).IsUnique().HasFilter("\"BidNumber\" > 0");
+        modelBuilder.Entity<Bid>().HasIndex(x => new { x.TenantId, x.BidderId, x.PlacedAt, x.BidNumber, x.Id })
+            .IsDescending(false, false, true, true, false);
         modelBuilder.Entity<Auction>().HasIndex(x => new { x.RulesVersion, x.State, x.EndsAt });
         modelBuilder.Entity<ListingReviewEvent>().HasOne(x => x.Listing).WithMany().HasForeignKey(x => x.ListingId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<ListingReviewEvent>().HasIndex(x => new { x.TenantId, x.ListingId, x.Id });
