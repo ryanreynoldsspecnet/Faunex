@@ -54,6 +54,12 @@ Do not retry a completed payment, delete volumes, remove key files, reset the da
 
 ## Backup And Isolated Restore Gate (Next 7A2)
 
+### Temporary Development Decision: 5 November 2026
+
+The owner is self-funding development and accepts the risk of losing the current disposable test data. Until launch preparation, the owner will manually create a daily xneelo snapshot, confirm the new snapshot is Available, then delete the previous one. Coordinate a clean shutdown/snapshot/startup window rather than forcing a snapshot while database/files are changing. No automated snapshot job, snapshot completion or restore test is claimed. Snapshot cost is based on the full allocated volume, with a brief overlap while replacing it.
+
+This is an interim same-provider recovery measure, not completion of the protected off-server backup/isolated restore gate. GitHub holds source code, not the VPS database, uploads, environment secrets or original encryption keys. Automated protected backups, key custody, a retention/data-loss/recovery agreement and a demonstrated isolated restore remain required before onboarding real trading data or enabling live payments. The owner deferred that work until launch preparation; Section 7B may proceed in sandbox meanwhile. No AWS subscription, storage purchase or production shutdown has been authorised by this documentation.
+
 Persistent volumes are not backups. Confirm an off-server destination, encryption/key custody, retention, access and acceptable data-loss/recovery times with the owner before implementing upload/retention automation. No destination or credentials have been assumed. Do not store secrets in this repository or attach database/key archives to public CI artifacts.
 
 The recovery set must include PostgreSQL (both EF contexts share the database), uploaded listing files, shared authentication/reset Data Protection keys, API-only payment keys, required Caddy certificate/config data, the deployed source/Compose revision and a separately protected configuration copy. Possession of database ciphertext and its keys can expose merchant credentials. Encryption, storage access and key separation are required operational controls, not something a plain tar archive achieves.
