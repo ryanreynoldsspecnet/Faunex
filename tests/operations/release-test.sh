@@ -28,7 +28,8 @@ case "$*" in
   build*) cat >/dev/null; [[ "$TEST_CASE" != build ]] ;;
   'compose up'*) touch "$FAUNEX_DEPLOY_ROOT/activated"; [[ "$FAUNEX_RELEASE" == "$TEST_SHA" && "$TEST_CASE" != health ]] ;;
   inspect*) if [[ "$*" == *'.Image'* ]]; then echo sha256:previous; else echo "$TEST_SHA"; fi ;;
-  'compose config --quiet'|'compose ps -a'|'compose run '*|'compose exec '*|tag*) : ;;
+  'compose run '*) cat >/dev/null ;;
+  'compose config --quiet'|'compose ps -a'|'compose exec '*|tag*) : ;;
   *) echo "Unexpected docker call: $*" >&2; exit 1 ;;
 esac
 MOCK
@@ -39,12 +40,23 @@ MOCK
 printf '#!/usr/bin/env bash\nexit 0\n' > "$root/bin/flock"
 chmod +x "$root/bin/"*
 
+for mode in file streamed buffered; do
 for case_name in invalid stale dirty label build health smoke success; do
-    export TEST_CASE="$case_name" FAUNEX_DEPLOY_ROOT="$root/$case_name"
+    export TEST_CASE="$case_name" FAUNEX_DEPLOY_ROOT="$root/$mode-$case_name"
     mkdir -p "$FAUNEX_DEPLOY_ROOT"
     revision="$TEST_SHA"; [[ "$case_name" != invalid ]] || revision='master;touch unsafe'
-    if bash "$script" "$revision" > "$FAUNEX_DEPLOY_ROOT/output" 2>&1; then
+    run_release() {
+        if [[ "$mode" == buffered ]]; then
+            bash -c 'release_script=$(cat); bash -c "$release_script" -- "$1" < /dev/null' -- "$revision" < "$script"
+        elif [[ "$mode" == streamed ]]; then
+            bash -s -- "$revision" < "$script"
+        else
+            bash "$script" "$revision" < /dev/null
+        fi
+    }
+    if run_release > "$FAUNEX_DEPLOY_ROOT/output" 2>&1; then
         [[ "$case_name" == success ]]
+        [[ -f "$FAUNEX_DEPLOY_ROOT/activated" ]]
         [[ $(<"$FAUNEX_DEPLOY_ROOT/.faunex-ops/current-release") == "$TEST_SHA" ]]
         grep -q -- "--wait --wait-timeout 600" "$FAUNEX_DEPLOY_ROOT/calls" || exit 1
     else
@@ -52,5 +64,6 @@ for case_name in invalid stale dirty label build health smoke success; do
         [[ ! -f "$FAUNEX_DEPLOY_ROOT/.faunex-ops/current-release" ]]
         case "$case_name" in invalid|stale|dirty|label|build) [[ ! -f "$FAUNEX_DEPLOY_ROOT/activated" ]] ;; esac
     fi
-    echo "Release guard passed: $case_name"
+    echo "Release guard passed: $mode / $case_name"
+done
 done
