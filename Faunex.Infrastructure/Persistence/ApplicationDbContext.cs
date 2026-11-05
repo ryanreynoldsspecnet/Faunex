@@ -25,6 +25,7 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Listing> Listings { get; set; } = null!;
     public DbSet<Auction> Auctions { get; set; } = null!;
     public DbSet<Bid> Bids { get; set; } = null!;
+    public DbSet<BuyerWishlistCollection> BuyerWishlistCollections { get; set; } = null!;
     public DbSet<AuctionOrder> AuctionOrders { get; set; } = null!;
     public DbSet<TenantPaymentSettings> TenantPaymentSettings { get; set; } = null!;
     public DbSet<TenantChargeCatalog> TenantChargeCatalogs { get; set; } = null!;
@@ -113,6 +114,11 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<BuyerWishlistCollection>().HasKey(x => new { x.TenantId, x.BuyerId });
+        modelBuilder.Entity<BuyerWishlistCollection>().Property(x => x.Revision).IsConcurrencyToken();
+        modelBuilder.Entity<BuyerWishlistCollection>().Property(x => x.ContentsJson).HasMaxLength(150000).IsRequired();
+        modelBuilder.Entity<BuyerWishlistCollection>().HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<BuyerWishlistCollection>().HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);
         modelBuilder.Entity<PayFastAttempt>().HasIndex(x => x.OrderId).IsUnique();
         modelBuilder.Entity<PayFastAttempt>().HasIndex(x => new { x.MerchantId, x.ProviderPaymentId }).IsUnique().HasFilter("\"ProviderPaymentId\" IS NOT NULL");
         modelBuilder.Entity<PayFastAttempt>().Property(x => x.Revision).IsConcurrencyToken();

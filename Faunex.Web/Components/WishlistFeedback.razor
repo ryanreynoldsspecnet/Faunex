@@ -1,0 +1,11 @@
+@implements IDisposable
+@inject BuyerWishlists Wishlists
+@if (Wishlists.Notice is { } notice)
+{
+    <div class="wishlist-feedback"><p role="status">@notice</p><button type="button" class="wishlist-icon-button" title="Dismiss" aria-label="Dismiss wishlist update" @onclick="Wishlists.DismissNotice"><img src="/icons/lucide/x.svg" width="20" height="20" alt="" /></button></div>
+}
+@code {
+    protected override void OnInitialized() => Wishlists.Changed += Changed;
+    private void Changed() => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Wishlists.Changed -= Changed;
+}

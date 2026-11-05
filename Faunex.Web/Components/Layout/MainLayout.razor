@@ -78,9 +78,10 @@
         }
 
         <article id="main-content" tabindex="-1" class="@(IsStorefront ? "content storefront-content" : "content px-4")">
+            @if (IsStorefront) { <WishlistFeedback /> }
             @Body
         </article>
-        @if (IsStorefront) { <StorefrontFooter /> }
+        @if (IsStorefront) { <StorefrontFooter /><WishlistPicker /> }
     </main>
 </div>
 

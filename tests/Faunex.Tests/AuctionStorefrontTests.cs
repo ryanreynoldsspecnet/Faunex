@@ -142,6 +142,7 @@ public sealed class AuctionStorefrontTests
         services.AddSingleton<NavigationManager>(new AuctionNavigation()); services.AddSingleton<IJSRuntime, NoStorage>();
         services.AddSingleton<AuthenticationStateProvider>(new AuctionAuth(buyer));
         services.AddScoped<ProtectedLocalStorage>(); services.AddScoped<TokenStore>(); services.AddScoped<FaunexApiClient>();
+        services.AddScoped<BuyerWishlists>();
         services.AddHttpClient("FaunexApi", x => x.BaseAddress = new Uri("https://isolated.example.test")).ConfigurePrimaryHttpMessageHandler(() => handler);
         return services.BuildServiceProvider();
     }
@@ -174,7 +175,8 @@ public sealed class AuctionStorefrontTests
             if (request.Method != HttpMethod.Get) { Writes++; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)); }
             object result;
             var path = request.RequestUri!.AbsolutePath;
-            if (path.EndsWith("/photos")) { PhotoReads++; result = Array.Empty<Guid>(); }
+            if (path.EndsWith("/wishlists")) result = new BuyerWishlistStateDto(Guid.Empty, []);
+            else if (path.EndsWith("/photos")) { PhotoReads++; result = Array.Empty<Guid>(); }
             else if (path.EndsWith("/auctions"))
             {
                 if (Unavailable) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = JsonContent.Create(new { error = "isolated internal failure" }) });

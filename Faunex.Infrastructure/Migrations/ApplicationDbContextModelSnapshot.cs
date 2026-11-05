@@ -349,6 +349,28 @@ namespace Faunex.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Faunex.Domain.Entities.BuyerWishlistCollection", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BuyerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentsJson")
+                        .IsRequired()
+                        .HasMaxLength(150000)
+                        .HasColumnType("character varying(150000)");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TenantId", "BuyerId");
+
+                    b.ToTable("BuyerWishlistCollections");
+                });
+
             modelBuilder.Entity("Faunex.Domain.Entities.Document", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1171,6 +1193,15 @@ namespace Faunex.Infrastructure.Migrations
                     b.Navigation("Listing");
 
                     b.Navigation("Species");
+                });
+
+            modelBuilder.Entity("Faunex.Domain.Entities.BuyerWishlistCollection", b =>
+                {
+                    b.HasOne("Faunex.Domain.Entities.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Faunex.Domain.Entities.Document", b =>

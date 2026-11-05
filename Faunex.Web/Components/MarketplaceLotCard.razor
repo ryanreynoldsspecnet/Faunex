@@ -1,5 +1,6 @@
 @using Faunex.Application.DTOs
 <article class="lot-card">
+    @if (ShowSave) { <div class="lot-card__save"><WishlistSaveButton ListingId="Lot.Id" Title="@Lot.Title" IsAuction="@(Lot.Auction is not null)" /></div> }
     <a class="lot-card__media" href="@Destination" aria-label="@($"View {Lot.Title}")">
         @if (Lot.PhotoId is { } photo && !_imageFailed)
         {
@@ -23,6 +24,7 @@
 </article>
 @code {
     [Parameter, EditorRequired] public MarketplaceLotDto Lot { get; set; } = default!;
+    [Parameter] public bool ShowSave { get; set; }
     private bool _imageFailed;
     private Guid? _lastPhoto;
     private string Destination => $"/{(Lot.Auction is null ? "listings" : "auctions")}/{Lot.Id}";

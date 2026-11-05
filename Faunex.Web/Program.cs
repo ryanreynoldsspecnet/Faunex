@@ -64,6 +64,7 @@ builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredServ
 
 builder.Services.AddScoped<FaunexApiClient>();
 builder.Services.AddScoped<Faunex.Web.Marketplace.MarketplaceBranding>();
+builder.Services.AddScoped<Faunex.Web.Marketplace.BuyerWishlists>();
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

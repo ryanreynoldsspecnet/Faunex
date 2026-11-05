@@ -1,0 +1,28 @@
+@implements IDisposable
+@inject BuyerWishlists Wishlists
+@inject AuthenticationStateProvider Auth
+@if (_buyer)
+{
+    <button type="button" class="wishlist-heart @(Wishlists.Contains(ListingId) ? "is-saved" : null)" title="@Label" aria-label="@($"{Label}: {Title}")" aria-pressed="@(Wishlists.Contains(ListingId) ? "true" : "false")" @onclick="() => Wishlists.Open(ListingId, Title)"><img src="/icons/lucide/heart.svg" width="22" height="22" alt="" /></button>
+}
+else if (!_signedIn)
+{
+    <a class="wishlist-heart" title="Log in to save to a wishlist" aria-label="@($"Log in to save {Title}")" href="@Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/login", "returnTo", $"/{(IsAuction ? "auctions" : "listings")}/{ListingId}")"><img src="/icons/lucide/heart.svg" width="22" height="22" alt="" /></a>
+}
+@code {
+    [Parameter] public Guid ListingId { get; set; }
+    [Parameter] public string Title { get; set; } = "Lot";
+    [Parameter] public bool IsAuction { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+    private bool _buyer, _signedIn;
+    private string Label => Wishlists.Contains(ListingId) ? "Manage saved lot" : "Save to wishlist";
+    protected override void OnInitialized() => Wishlists.Changed += Changed;
+    protected override async Task OnParametersSetAsync()
+    {
+        var user = (await (AuthenticationStateTask ?? Auth.GetAuthenticationStateAsync())).User;
+        _signedIn = user.Identity?.IsAuthenticated == true; _buyer = _signedIn && user.IsInRole("Buyer");
+        if (_buyer) try { await Wishlists.EnsureAsync(); } catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException) { }
+    }
+    private void Changed() => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Wishlists.Changed -= Changed;
+}

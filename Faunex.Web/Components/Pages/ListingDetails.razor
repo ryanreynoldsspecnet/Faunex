@@ -31,7 +31,7 @@ else if (_item is null)
 else
 {
     <PageTitle>@_item.Title</PageTitle>
-    <p class="storefront-eyebrow">Lot details</p><h1>@_item.Title</h1>
+    <div class="wishlist-lot-heading"><div><p class="storefront-eyebrow">Lot details</p><h1>@_item.Title</h1></div><WishlistSaveButton ListingId="ListingId" Title="@_item.Title" /></div>
     <div class="lot-detail-grid"><div>
         <ListingPhotoGallery ListingId="ListingId" Title="@_item.Title" />
 

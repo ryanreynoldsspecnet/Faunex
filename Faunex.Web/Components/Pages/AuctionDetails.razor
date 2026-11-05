@@ -11,7 +11,7 @@
 <section class="lot-detail auction-detail" aria-labelledby="auction-title">
     <a class="order-back-link" href="/browse">Back to lots</a>
     <header class="auction-heading"><div><p class="storefront-eyebrow">Timed auction</p><h1 id="auction-title">@(_listing?.Title ?? "Auction")</h1></div>
-        <button class="btn btn-outline-secondary" disabled="@(_busy || _refreshing || _loading)" @onclick="ReloadAsync">Refresh</button></header>
+        <div class="auction-heading-actions">@if (_listing is not null) { <WishlistSaveButton ListingId="ListingId" Title="@_listing.Title" IsAuction="true" /> }<button class="btn btn-outline-secondary" disabled="@(_busy || _refreshing || _loading)" @onclick="ReloadAsync">Refresh</button></div></header>
     @if (_error is not null) { <div class="alert alert-warning" role="alert">@_error</div> }
     @if (_notice is not null) { <div class="alert alert-success" role="status">@_notice</div> }
     @if (_loading) { <p role="status">Loading auction...</p> }

@@ -1,0 +1,16 @@
+<details class="storefront-account-menu">
+    <summary><img src="/icons/lucide/user-round.svg" width="22" height="22" alt="" /><span><strong>My account</strong><AuthorizeView Context="summaryAccount"><Authorized><small title="@summaryAccount.User.Identity?.Name">@(summaryAccount.User.Identity?.Name ?? "Signed in")</small></Authorized><NotAuthorized><small>Log in / Register</small></NotAuthorized></AuthorizeView></span><img src="/icons/lucide/chevron-down.svg" width="16" height="16" alt="" /></summary>
+    <div class="storefront-account-options">
+        <AuthorizeView Context="account">
+            <NotAuthorized><a href="/login">Log in</a><a href="/register">Register</a></NotAuthorized>
+            <Authorized>
+                <p>@(account.User.Identity?.Name ?? "Your account")</p>
+                <AuthorizeView Roles="Buyer"><Authorized><a href="/buyer/wishlists">My wishlists</a><a href="/buyer/orders">My orders</a></Authorized></AuthorizeView>
+                <AuthorizeView Roles="Seller"><Authorized><a href="/seller/my-listings">My listings</a></Authorized></AuthorizeView>
+                <AuthorizeView Roles="TenantAdmin"><Authorized><a href="/tenant">Manage marketplace</a></Authorized></AuthorizeView>
+                <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport"><Authorized><a href="/platform">Platform</a></Authorized></AuthorizeView>
+                <a href="/logout">Log out</a>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+</details>

@@ -1,0 +1,93 @@
+@page "/buyer/wishlists"
+@using Faunex.Application.DTOs
+@implements IDisposable
+@inject BuyerWishlists Wishlists
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+<PageTitle>My wishlists</PageTitle>
+@* Match the other circuit-token pages; the API independently enforces the buyer policy. *@
+<AuthorizeView Roles="Buyer" Context="owner"><Authorized>
+<section class="storefront wishlist-page">
+    <header class="wishlist-page-heading"><div><p class="storefront-eyebrow">Your saved lots</p><h1>My wishlists</h1></div><button class="btn btn-outline-secondary" disabled="@(_loading || Wishlists.Busy)" @onclick="LoadAsync">Refresh</button></header>
+    @if (_error is not null) { <p class="alert alert-warning" role="alert">@_error</p> }
+    @if (_loading && Wishlists.State is null) { <p role="status">Loading your wishlists...</p> }
+    else if (Wishlists.State is { } state)
+    {
+        <div class="wishlist-workspace">
+            <aside aria-label="Your wishlists">
+                <nav class="wishlist-list-nav">@foreach (var list in state.Lists)
+                { <a href="@Url(list.Id)" aria-current="@(Current?.Id == list.Id ? "page" : null)"><span>@list.Name</span><small>@list.ListingIds.Count</small></a> }</nav>
+                @if (state.Lists.Count < 20)
+                {
+                    <form class="wishlist-new-list" @onsubmit="CreateAsync" @onsubmit:preventDefault><label for="new-list-name">New wishlist</label><input id="new-list-name" class="form-control" @bind="_newName" maxlength="80" required disabled="@Wishlists.Busy" /><button class="btn btn-outline-primary" type="submit" disabled="@Wishlists.Busy"><img src="/icons/lucide/plus.svg" width="18" height="18" alt="" />Create wishlist</button></form>
+                }
+            </aside>
+            <div class="wishlist-selected">
+                @if (Current is { } current)
+                {
+                    <header class="wishlist-selected-heading"><h2>@current.Name</h2><div><button type="button" class="wishlist-icon-button" title="Rename wishlist" aria-label="Rename wishlist" disabled="@Wishlists.Busy" @onclick="() => { _rename = current.Name; _editingName = true; _delete = false; }"><img src="/icons/lucide/pencil.svg" width="20" height="20" alt="" /></button><button type="button" class="wishlist-icon-button" title="Delete wishlist" aria-label="Delete wishlist" disabled="@Wishlists.Busy" @onclick="() => { _delete = true; _editingName = false; }"><img src="/icons/lucide/trash-2.svg" width="20" height="20" alt="" /></button></div></header>
+                    @if (_editingName)
+                    {
+                        <form class="wishlist-rename" @onsubmit="RenameAsync" @onsubmit:preventDefault><label for="rename-list-name">Wishlist name</label><input id="rename-list-name" class="form-control" @bind="_rename" required maxlength="80" disabled="@Wishlists.Busy" /><div><button class="btn btn-primary" disabled="@Wishlists.Busy" type="submit">Save name</button><button type="button" class="btn btn-outline-secondary" disabled="@Wishlists.Busy" @onclick="() => _editingName = false">Cancel</button></div></form>
+                    }
+                    @if (_delete)
+                    {
+                        <div class="alert alert-warning" role="alert"><p>Delete &quot;@current.Name&quot;? Its saved entries will be removed. The lots and your other wishlists will not be deleted.</p><div class="wishlist-confirm-actions"><button type="button" class="btn btn-danger" disabled="@Wishlists.Busy" @onclick="DeleteAsync">Delete wishlist</button><button type="button" class="btn btn-outline-secondary" disabled="@Wishlists.Busy" @onclick="() => _delete = false">Cancel</button></div></div>
+                    }
+                    @if (current.UnavailableCount > 0)
+                    {
+                        <div class="wishlist-unavailable"><p>@current.UnavailableCount saved @(current.UnavailableCount == 1 ? "lot is" : "lots are") no longer available.</p><button type="button" class="btn btn-outline-secondary" disabled="@Wishlists.Busy" @onclick="ClearAsync">Remove unavailable entries</button></div>
+                    }
+                    @if (_loadingLots) { <p role="status">Loading saved lots...</p> }
+                    else if (_lots is { Items.Count: > 0 } lots)
+                    {
+                        <p class="wishlist-result-count" role="status">@lots.Total saved @(lots.Total == 1 ? "lot" : "lots")</p>
+                        <div class="catalogue-grid wishlist-grid">@foreach (var lot in lots.Items) { <MarketplaceLotCard @key="lot.Id" Lot="lot" ShowSave="true" /> }</div>
+                        <nav class="catalogue-pagination" aria-label="Wishlist pages">@if (PageNumber > 1) { <a class="btn btn-outline-secondary" href="@Url(current.Id, PageNumber - 1)">Previous</a> }<span>Page @PageNumber of @Math.Max(1, (int)Math.Ceiling(lots.Total / 24d))</span>@if (PageNumber * 24 < lots.Total) { <a class="btn btn-outline-secondary" href="@Url(current.Id, PageNumber + 1)">Next</a> }</nav>
+                    }
+                    else if (_error is null) { <div class="catalogue-empty"><h3>No available lots saved here yet</h3><a class="btn btn-primary" href="/browse">Browse lots</a></div> }
+                }
+                else if (state.Lists.Count == 0) { <div class="catalogue-empty"><h2>No wishlists yet</h2><a href="/browse">Browse lots</a></div> }
+                else { <p>Wishlist not found. Choose one of your lists.</p> }
+            </div>
+        </div>
+    }
+</section>
+</Authorized><NotAuthorized><section class="storefront"><h1>My wishlists</h1><p>Sign in with a buyer account to view your wishlists.</p><a class="btn btn-primary" href="/login?returnTo=%2Fbuyer%2Fwishlists">Log in</a></section></NotAuthorized></AuthorizeView>
+@code {
+    [SupplyParameterFromQuery(Name = "list")] public string? ListKey { get; set; }
+    [SupplyParameterFromQuery(Name = "page")] public string? PageKey { get; set; }
+    private BuyerWishlistDto? Current => ListKey is null ? Wishlists.State?.Lists.FirstOrDefault()
+        : Guid.TryParse(ListKey, out var id) ? Wishlists.State?.Lists.SingleOrDefault(x => x.Id == id) : null;
+    private int PageNumber => int.TryParse(PageKey, out var page) ? Math.Clamp(page, 1, 1000000) : 1;
+    private WishlistLotsDto? _lots;
+    private bool _loading, _loadingLots, _editingName, _delete, _disposed;
+    private string _newName = "", _rename = "";
+    private string? _error;
+    private Guid? _loadedRevision;
+    private int _request;
+    protected override void OnInitialized() => Wishlists.Changed += Changed;
+    protected override async Task OnParametersSetAsync() { _editingName = _delete = false; await LoadAsync(); }
+    private async Task LoadAsync()
+    {
+        if (Wishlists.Busy) return; _loading = true; _error = null;
+        try { await Wishlists.RefreshAsync(); await LoadLotsAsync(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+    private async Task LoadLotsAsync()
+    {
+        var request = ++_request; var id = Current?.Id; _lots = null; _loadedRevision = Wishlists.State?.Revision;
+        if (id is null) return; _loadingLots = true;
+        try { var lots = await Api.GetAsync<WishlistLotsDto>($"/api/buyer/wishlists/{id}/lots?skip={(PageNumber - 1) * 24}&take=24"); if (request == _request) _lots = lots; }
+        catch (Exception ex) { if (request == _request) _error = ex.Message; }
+        finally { if (request == _request) _loadingLots = false; }
+    }
+    private void Changed() => _ = InvokeAsync(async () => { if (_disposed) return; if (!_loading && !Wishlists.Busy && _loadedRevision != Wishlists.State?.Revision) await LoadLotsAsync(); StateHasChanged(); });
+    private async Task CreateAsync() { _error = null; try { var id = await Wishlists.CreateAsync(_newName); _newName = ""; Nav.NavigateTo(Url(id)); } catch (Exception ex) { _error = ex.Message; } }
+    private async Task RenameAsync() { if (Current is not { } list) return; _error = null; try { await Wishlists.RenameAsync(list.Id, _rename); _editingName = false; } catch (Exception ex) { _error = ex.Message; } }
+    private async Task DeleteAsync() { if (Current is not { } list) return; _error = null; try { await Wishlists.DeleteAsync(list.Id); _delete = false; Nav.NavigateTo("/buyer/wishlists"); } catch (Exception ex) { _error = ex.Message; } }
+    private async Task ClearAsync() { if (Current is not { } list) return; _error = null; try { await Wishlists.ClearUnavailableAsync(list.Id); } catch (Exception ex) { _error = ex.Message; } }
+    private static string Url(Guid id, int page = 1) => Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/buyer/wishlists", new Dictionary<string, string?> { ["list"] = id.ToString(), ["page"] = page.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+    public void Dispose() { _disposed = true; ++_request; Wishlists.Changed -= Changed; }
+}
