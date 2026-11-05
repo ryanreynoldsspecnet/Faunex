@@ -24,3 +24,21 @@ Evidence boundary: public homepage and official help content were reviewed. The 
 - Platform administration stays separate from customer storefront navigation. White-label improvements must work for every tenant without hardcoded Stormbird rules.
 
 Launch gates, backup deferral and hosted payment exception acceptance remain in [pilot-delivery.md](pilot-delivery.md). Visual polish does not close them.
+
+## Owner Clarification: Marketplace Navigation And Sales
+
+The owner's follow-up screenshot and explanation supersede any interpretation that only auction-page styling was requested. Required product capabilities are:
+
+- A prominent shared search/category bar on customer pages, rather than searching only from the home page.
+- An account dropdown with real destinations appropriate to the signed-in role. Buyer wishlists, bid activity, offers and orders should become discoverable here as their complete workflows are implemented. Do not expose dead account links.
+- Wishlist hearts and **multiple named wishlists**, with persistent per-buyer/per-tenant membership and management, not just one browser-local favourites array.
+- Tenant-created **auction collections** such as Wednesday Auctions, Friday Auctions, Sunday Auctions or a named one-off Tuesday/customer event. These are merchandising/filter groups; the existing individual lot auctions retain their actual start/end times, bidding state and result. Do not hardcode weekly days or silently inherit/override a lot's auction schedule. Category and auction collection are different dimensions. Initially propose one optional primary collection per lot; confirm assignment cardinality before that section's migration. Keep visible collection navigation tenant-managed and show only actual public lots.
+- Fixed-price buying, with optional negotiated offers that the seller can accept or decline. The owner also likes marketplaces offering bidding and a set price. The current core treats fixed price and timed auction as separate modes; changing that to simultaneous Buy Now/bidding requires explicit rules for existing bids, stock reservation and settlement. Do not simply render a Buy Now button against an active auction.
+- A real shopping cart and checkout. Keep cart ownership, tenant, currency, quantity/availability and recorded delivery/charges authoritative. Auction lots are not purchasable merely because they were placed in a cart; winning orders retain their existing recorded results and verified payment journey. Combining payment across orders needs its own intent/quote/notification work, not a basket-shaped link to today's single-order payment form.
+- Comfortable category discovery, search refinement and mobile operation. No general-retail categories, promotional banners, savings claims, trust badges or seller ratings are implied by the supplied reference screenshot.
+
+Controlled sequence after the inspected-bid section: **shared header + multiple wishlists**; tenant-managed auction collections and useful filter navigation; private My bids/activity; fixed-price sales and offer lifecycle; cart/checkout integration. Keep the phone-based seller upload workflow and richer price/location filters on the active backlog, and reassess scope against pilot launch gates. Offers need agreed expiry/acceptance/reservation rules and concurrency tests; wishlist alerts need a separate consent/delivery section. None of those unimplemented controls should appear as working actions now.
+
+The wishlist section reuses the existing bounded JSON-aggregate/revision pattern used for charge catalogues: one tenant/buyer row, up to 20 named lists, 200 entries per list and 1000 total memberships. This bounds request/database work during the pilot. A single revision protects cross-list moves from lost updates; no last-write-wins overwrite or automatic POST retry is allowed. Shared public lot projection rechecks approval/active/tenant visibility and excludes document/storage/reserve/bidder/merchant details. Unavailable saved entries expose a count only, with a cleanup action, not hidden listing IDs or old titles/photos.
+
+Icon assets are vendored from the official [Lucide repository](https://github.com/lucide-icons/lucide/tree/0.533.0/icons), pinned to 0.533.0. Lucide and Feather licence notices ship with them; no runtime CDN or icon-library JavaScript is introduced.

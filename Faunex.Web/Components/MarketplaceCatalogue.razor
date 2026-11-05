@@ -14,16 +14,6 @@
         <AuthorizeView><NotAuthorized><a class="btn btn-primary" href="/register">Create an account</a></NotAuthorized></AuthorizeView>
     </header>
 
-    <form class="catalogue-search" method="get" action="/browse" data-enhance>
-        <div class="catalogue-search__term"><label for="catalogue-search">Search lots</label><input class="form-control" id="catalogue-search" name="q" type="search" @bind="_searchInput" maxlength="200" placeholder="Name or location" /></div>
-        <div><label for="catalogue-category">Category</label><select class="form-select" id="catalogue-category" name="category" @bind="_categoryInput">
-            <option value="all">All categories</option>@foreach (var value in Categories) { <option value="@value">@StorefrontPresentation.Category(value)</option> }
-        </select></div>
-        <input type="hidden" name="status" value="@Status" />
-        <input type="hidden" name="sort" value="@Sort" />
-        <button type="submit" class="btn btn-primary" aria-label="Search lots">Search</button>
-    </form>
-
     <div class="catalogue-controls">
         <nav class="catalogue-tabs" aria-label="Auction status">
             @foreach (var item in Statuses) { <a class="@(Status == item.Value ? "is-active" : null)" aria-current="@(Status == item.Value ? "page" : null)" href="@Url(status: item.Value)">@item.Label</a> }
@@ -54,7 +44,7 @@
         }
         else
         {
-            <div class="catalogue-grid">@foreach (var lot in _result.Items) { <MarketplaceLotCard @key="lot.Id" Lot="lot" /> }</div>
+            <div class="catalogue-grid">@foreach (var lot in _result.Items) { <MarketplaceLotCard @key="lot.Id" Lot="lot" ShowSave="true" /> }</div>
             <nav class="catalogue-pagination" aria-label="Catalogue pages">
                 @if (PageNumber > 1) { <a class="btn btn-outline-secondary" href="@Url(page: PageNumber - 1)">Previous</a> }
                 <span>Page @PageNumber of @Math.Max(1, (int)Math.Ceiling(_result.Total / 24d))</span>
@@ -71,13 +61,12 @@
     [Parameter] public string Status { get; set; } = "all";
     [Parameter] public string Sort { get; set; } = "recent";
     [Parameter] public string? Page { get; set; }
-    private static readonly string[] Categories = ["bird", "livestock", "game", "poultry", "other"];
     private static readonly (string Value, string Label)[] Statuses = [("all", "All lots"), ("open", "Bidding open"), ("upcoming", "Upcoming"), ("results", "Results")];
     private static readonly (string Value, string Label)[] Sorts = [("recent", "Recently added"), ("ending", "Ending soonest"), ("name", "Name A-Z"), ("price", "Price: low to high")];
     private MarketplaceCatalogueDto? _result;
     private bool _loading;
     private bool _sortOpen;
-    private string _searchInput = "", _categoryInput = "all", _sortInput = "recent";
+    private string _sortInput = "recent";
     private (string?, string, string, string, string?)? _loadedQuery;
     private string? _error;
     private readonly CancellationTokenSource _stop = new();
@@ -87,7 +76,7 @@
     protected override Task OnParametersSetAsync()
     {
         var query = (Search, Category, Status, Sort, Page);
-        if (_loadedQuery != query) { _searchInput = Search ?? ""; _categoryInput = Category; _sortInput = Sort; _loadedQuery = query; }
+        if (_loadedQuery != query) { _sortInput = Sort; _loadedQuery = query; }
         return LoadAsync();
     }
     private async Task LoadAsync()

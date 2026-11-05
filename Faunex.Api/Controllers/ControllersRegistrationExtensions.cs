@@ -39,6 +39,8 @@ public static class ControllersRegistrationExtensions
         services.AddSingleton<UploadContentValidator>();
         services.AddScoped<ListingFileService>();
         services.AddScoped<Faunex.Api.Compliance.ListingReviewQueries>();
+        services.AddScoped<Faunex.Api.Marketplace.MarketplaceLotProjection>();
+        services.AddScoped<Faunex.Api.Wishlists.BuyerWishlistService>();
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

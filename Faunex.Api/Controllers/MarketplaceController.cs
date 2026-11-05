@@ -10,7 +10,8 @@ namespace Faunex.Api.Controllers;
 
 [ApiController]
 [Route("api/marketplace")]
-public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainResolver tenantDomainResolver, TimeProvider clock) : ControllerBase
+public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainResolver tenantDomainResolver, TimeProvider clock,
+    Faunex.Api.Marketplace.MarketplaceLotProjection lotProjection) : ControllerBase
 {
     [HttpGet("catalogue")]
     public async Task<ActionResult<MarketplaceCatalogueDto>> Catalogue(string? host, string? search = null, string category = "all",
@@ -35,26 +36,13 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
             _ => query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id)
         };
         var total = await query.CountAsync(cancellationToken);
-        var rows = await ordered.Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 48)).ToListAsync(cancellationToken);
-        var ids = rows.Select(x => x.Id).ToArray();
-        // Enrich one bounded page in batches, never one photo/auction request per card.
-        var photos = await db.ListingFiles.IgnoreQueryFilters().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && ids.Contains(x.ListingId) && x.IsPhoto && x.DeletedAt == null)
-            .OrderBy(x => x.SortOrder).ThenBy(x => x.Id).Select(x => new { x.ListingId, x.Id }).ToListAsync(cancellationToken);
-        var published = await auctions.Where(x => ids.Contains(x.ListingId)).ToListAsync(cancellationToken);
-        var details = await ToListingDtosAsync(rows, cancellationToken);
-        var photosByListing = photos.GroupBy(x => x.ListingId).ToDictionary(x => x.Key, x => (Guid?)x.First().Id);
-        var auctionsByListing = published.GroupBy(x => x.ListingId).ToDictionary(x => x.Key,
-            x => x.Count() == 1 ? Faunex.Application.Services.TimedAuctionRules.Public(x.Single(), now) : null);
-        return new MarketplaceCatalogueDto(rows.Select((x, i) => new MarketplaceLotDto(x.Id, x.Title, details[i].AnimalClass,
-            x.Location, x.Quantity, x.StartingPrice, x.BuyNowPrice, x.CurrencyCode, photosByListing.GetValueOrDefault(x.Id),
-            auctionsByListing.GetValueOrDefault(x.Id))).ToList(), total, now);
+        var ids = await ordered.Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 48)).Select(x => x.Id).ToListAsync(cancellationToken);
+        return new MarketplaceCatalogueDto(await lotProjection.ReadAsync(tenantId.Value, ids, now, cancellationToken), total, now);
     }
 
     private IQueryable<Listing> CatalogueQuery(Guid tenantId, string? search, string category, string status, DateTimeOffset now)
     {
-        var query = db.Listings.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive
-            && x.Compliance != null && x.Compliance.TenantId == tenantId && x.Compliance.Status == ListingComplianceStatus.Approved);
+        var query = lotProjection.Visible(tenantId);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLowerInvariant();
@@ -209,10 +197,7 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
                 });
     }
 
-    private IQueryable<Auction> PublicAuctionQuery(Guid tenantId) => db.Auctions.IgnoreQueryFilters().AsNoTracking()
-        .Where(x => x.TenantId == tenantId && x.RulesVersion == 1 && x.Type == AuctionType.Timed && !x.IsSealedBid && x.State != AuctionState.Draft
-            && x.Listing != null && x.Listing.TenantId == tenantId && x.CurrencyCode == x.Listing.CurrencyCode && x.Listing.IsActive && x.Listing.Compliance != null
-            && x.Listing.Compliance.TenantId == tenantId && x.Listing.Compliance.Status == ListingComplianceStatus.Approved);
+    private IQueryable<Auction> PublicAuctionQuery(Guid tenantId) => lotProjection.PublishedAuctions(tenantId);
 
     private async Task<IReadOnlyList<ListingDto>> ToListingDtosAsync(IReadOnlyList<Listing> listings, CancellationToken cancellationToken)
     {

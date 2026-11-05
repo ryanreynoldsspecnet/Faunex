@@ -1,34 +1,63 @@
-@implements IDisposable
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
 @inject MarketplaceBranding Branding
 @inject NavigationManager Nav
-<header class="storefront-header navbar-dark">
+@inject IJSRuntime JS
+<header @ref="_root" class="storefront-header storefront-header--market navbar-dark">
     <div class="storefront-header__inner">
         <a class="storefront-brand" href="/" aria-label="@($"{Branding.Name} home")">
             @if (!string.IsNullOrWhiteSpace(Branding.Logo) && !_logoFailed) { <img src="@Branding.Logo" alt="@Branding.Name" width="180" height="48" @onerror="() => _logoFailed = true" /> }
             else { <span>@Branding.Name</span> }
         </a>
+        <form class="storefront-header-search" method="get" action="/browse" data-enhance>
+            <label for="catalogue-search" class="visually-hidden">Search lots</label><input id="catalogue-search" name="q" type="search" class="form-control" @bind="_search" maxlength="200" placeholder="Search lots by name or location" />
+            <label for="catalogue-category" class="visually-hidden">Category</label><select id="catalogue-category" name="category" class="form-select" @bind="_category">
+                <option value="all">All categories</option>@foreach (var value in Categories) { <option value="@value">@StorefrontPresentation.Category(value)</option> }
+            </select>
+            <input type="hidden" name="status" value="@_status" /><input type="hidden" name="sort" value="@_sort" />
+            <button class="btn btn-primary" type="submit" aria-label="Search lots" title="Search"><span class="storefront-search-icon" aria-hidden="true"></span></button>
+        </form>
+        <div class="storefront-header-actions">
+            <AuthorizeView Roles="Buyer" Context="buyerLink"><Authorized><a class="storefront-wishlists-link" href="/buyer/wishlists" title="My wishlists" aria-label="My wishlists"><img src="/icons/lucide/heart.svg" width="24" height="24" alt="" /></a></Authorized>
+                <NotAuthorized><AuthorizeView Context="visitorLink"><NotAuthorized><a class="storefront-wishlists-link" href="/login?returnTo=%2Fbuyer%2Fwishlists" title="Log in to view your wishlists" aria-label="Log in to view your wishlists"><img src="/icons/lucide/heart.svg" width="24" height="24" alt="" /></a></NotAuthorized></AuthorizeView></NotAuthorized>
+            </AuthorizeView>
+            <div class="storefront-desktop-account"><StorefrontAccountMenu @key="_navigationKey" /></div>
+        </div>
         <button type="button" class="storefront-menu-toggle" aria-expanded="@(_open ? "true" : "false")" aria-controls="storefront-navigation" title="Open or close menu" @onclick="() => _open = !_open"><span class="navbar-toggler-icon" aria-hidden="true"></span><span>Menu</span></button>
         <div class="storefront-navigation @(_open ? "is-open" : null)" id="storefront-navigation">
             <nav aria-label="Main navigation"><a href="/browse">All lots</a><a href="/browse?status=open">Bidding open</a><a href="/browse?status=upcoming">Upcoming</a><a href="/browse?status=results">Results</a></nav>
-            <div class="storefront-account">
-                <AuthorizeView Context="account">
-                    <NotAuthorized><a href="/login">Log in</a><a class="btn btn-outline-light" href="/register">Register</a></NotAuthorized>
-                    <Authorized>
-                        <AuthorizeView Roles="Buyer"><Authorized><a href="/buyer/orders">My orders</a></Authorized></AuthorizeView>
-                        <AuthorizeView Roles="Seller"><Authorized><a href="/seller/my-listings">My listings</a></Authorized></AuthorizeView>
-                        <AuthorizeView Roles="TenantAdmin"><Authorized><a href="/tenant">Manage marketplace</a></Authorized></AuthorizeView>
-                        <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport"><Authorized><a href="/platform">Platform</a></Authorized></AuthorizeView>
-                        <span class="storefront-account__name">@(account.User.Identity?.Name ?? "Your account")</span><a href="/logout">Log out</a>
-                    </Authorized>
-                </AuthorizeView>
-            </div>
+            <div class="storefront-mobile-account"><StorefrontAccountMenu @key="_navigationKey" /></div>
         </div>
     </div>
 </header>
 @code {
-    private bool _open;
-    private bool _logoFailed;
-    protected override async Task OnInitializedAsync() { Nav.LocationChanged += LocationChanged; await Branding.EnsureLoadedAsync(); }
-    private void LocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args) => _ = InvokeAsync(() => { _open = false; StateHasChanged(); });
-    public void Dispose() => Nav.LocationChanged -= LocationChanged;
+    private static readonly string[] Categories = ["bird", "livestock", "game", "poultry", "other"];
+    private bool _open, _logoFailed;
+    private int _navigationKey;
+    private string _search = "", _category = "all", _status = "all", _sort = "recent";
+    private ElementReference _root;
+    private IJSObjectReference? _module;
+    protected override async Task OnInitializedAsync() { Nav.LocationChanged += LocationChanged; ReadQuery(); await Branding.EnsureLoadedAsync(); }
+    private void ReadQuery()
+    {
+        var query = QueryHelpers.ParseQuery(Nav.ToAbsoluteUri(Nav.Uri).Query);
+        _search = query.TryGetValue("q", out var q) ? q.ToString() : "";
+        _category = query.TryGetValue("category", out var category) && Categories.Contains(category.ToString()) ? category.ToString() : "all";
+        _status = query.TryGetValue("status", out var status) ? status.ToString() : "all";
+        _sort = query.TryGetValue("sort", out var sort) ? sort.ToString() : "recent";
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/storefront-header.js"); await _module.InvokeVoidAsync("connect", _root); }
+        catch (JSException) { }
+    }
+    private void LocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args) => _ = InvokeAsync(() => { _open = false; ++_navigationKey; ReadQuery(); StateHasChanged(); });
+    public async ValueTask DisposeAsync()
+    {
+        Nav.LocationChanged -= LocationChanged;
+        try { if (_module is not null) { await _module.InvokeVoidAsync("disconnect", _root); await _module.DisposeAsync(); } }
+        catch (JSDisconnectedException) { }
+    }
 }
