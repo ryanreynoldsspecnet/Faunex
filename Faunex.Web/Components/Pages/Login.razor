@@ -62,6 +62,7 @@
 </EditForm>
 
 @code {
+    [SupplyParameterFromQuery(Name = "returnTo")] public string? ReturnTo { get; set; }
     private bool _isSubmitting;
     private bool _showPassword;
     private string? _error;
@@ -136,6 +137,10 @@
                     : PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host)
                         ? "/"
                         : "/browse";
+
+            if (!PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host) && response.Roles.Contains("Buyer")
+                && BuyerReturnRoute.Validate(ReturnTo) is { } returnRoute)
+                destination = returnRoute;
 
             _pendingRedirectTo = destination;
         }
