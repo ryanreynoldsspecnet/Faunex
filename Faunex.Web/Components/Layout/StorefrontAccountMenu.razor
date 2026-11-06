@@ -5,7 +5,7 @@
             <NotAuthorized><a href="/login">Log in</a><a href="/register">Register</a></NotAuthorized>
             <Authorized>
                 <p>@(account.User.Identity?.Name ?? "Your account")</p>
-                <AuthorizeView Roles="Buyer"><Authorized><a href="/buyer/bids">My bids</a><a href="/buyer/wishlists">My wishlists</a><a href="/buyer/orders">My orders</a><a href="/buyer/offers">My offers</a></Authorized></AuthorizeView>
+                <AuthorizeView Roles="Buyer"><Authorized><a href="/buyer/cart">Cart</a><a href="/buyer/bids">My bids</a><a href="/buyer/wishlists">My wishlists</a><a href="/buyer/orders">My orders</a><a href="/buyer/offers">My offers</a></Authorized></AuthorizeView>
                 <AuthorizeView Roles="Seller"><Authorized><a href="/seller/my-listings">My listings</a><a href="/seller/offers">Incoming offers</a></Authorized></AuthorizeView>
                 <AuthorizeView Roles="TenantAdmin"><Authorized><a href="/tenant">Manage marketplace</a><a href="/tenant/offers">Incoming offers</a></Authorized></AuthorizeView>
                 <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport"><Authorized><a href="/platform">Platform</a></Authorized></AuthorizeView>

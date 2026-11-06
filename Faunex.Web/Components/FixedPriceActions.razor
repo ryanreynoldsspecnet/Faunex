@@ -18,6 +18,7 @@
     {
         <AuthorizeView Roles="Buyer">
             <Authorized>
+                @if (_addedToCart) { <p class="alert alert-success" role="status">Lot added. <a href="/buyer/cart">View cart</a></p> }
                 @if (_mode == "buy")
                 {
                     <div class="border-top pt-3">
@@ -44,6 +45,7 @@
                 {
                     <div class="d-flex flex-wrap gap-2">
                         <button class="btn btn-primary" disabled="@_busy" @onclick="ShowBuy">Buy Now</button>
+                        <button class="btn btn-outline-primary" disabled="@_busy" @onclick="AddToCartAsync">Add to cart</button>
                         <button class="btn btn-outline-primary" disabled="@_busy" @onclick="ShowOffer">Make an Offer</button>
                     </div>
                 }
@@ -64,6 +66,7 @@
     private FixedPriceAvailabilityDto? _lot;
     private string? _error, _mode;
     private bool _busy, _notice;
+    private bool _addedToCart;
     private decimal? _amount;
     private string Path => $"/api/fixed-price/lots/{ListingId:D}";
 
@@ -77,6 +80,13 @@
     private void ShowBuy() => SetMode("buy");
     private void ShowOffer() => SetMode("offer");
     private void Cancel() { _mode = null; _error = null; }
+    private Task AddToCartAsync() => RunAsync(async () =>
+    {
+        _addedToCart = false;
+        var result = await Api.PutAsync<object, BuyerCartDto>($"/api/buyer/cart/lots/{ListingId:D}", new { });
+        if (result?.Lots.Any(x => x.ListingId == ListingId) != true) throw new InvalidOperationException("The lot was not added.");
+        _addedToCart = true;
+    });
     private Task BuyAsync() => RunAsync(async () =>
     {
         if (_lot is not { Available: true } lot) return;

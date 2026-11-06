@@ -1,7 +1,6 @@
 using Faunex.Api.Marketplace;
 using Faunex.Api.Auth;
 using Faunex.Api.Email;
-using Faunex.Api.Payments;
 using Faunex.Api.Tenancy;
 using Faunex.Application.Auth;
 using Faunex.Application.Authorization;
@@ -20,8 +19,8 @@ namespace Faunex.Api.Controllers;
 
 [ApiController, Route("api/fixed-price"), ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class FixedPriceController(ApplicationDbContext db, ITenantContext context, TenantRequestContext origin,
-    MarketplaceLotProjection marketplace, TimeProvider clock, UserManager<ApplicationUser> users, IEmailSender email,
-    ILogger<FixedPriceController> logger, PayFastRuntime payments) : ControllerBase
+    FixedPriceInventory inventory, TimeProvider clock, UserManager<ApplicationUser> users, IEmailSender email,
+    ILogger<FixedPriceController> logger) : ControllerBase
 {
     [HttpGet("lots/{id:guid}")]
     public async Task<ActionResult<FixedPriceAvailabilityDto>> Availability(Guid id, CancellationToken ct)
@@ -189,11 +188,8 @@ public sealed class FixedPriceController(ApplicationDbContext db, ITenantContext
         return NoContent();
     }
 
-    private IQueryable<Listing> FixedLots(Guid tenant) => marketplace.Visible(tenant, includeReserved: true)
-        .Where(x => x.BuyNowPrice > 0 && x.Quantity > 0 && (x.CurrencyCode == "ZAR" || x.CurrencyCode == "USD")
-            && !db.Auctions.IgnoreQueryFilters().Any(a => a.TenantId == tenant && a.ListingId == x.Id));
-    private IQueryable<AuctionOrder> Reserved(Guid tenant) => db.AuctionOrders.IgnoreQueryFilters()
-        .Where(x => x.TenantId == tenant && x.AuctionId == null && x.ReleasedAt == null);
+    private IQueryable<Listing> FixedLots(Guid tenant) => inventory.Lots(tenant);
+    private IQueryable<AuctionOrder> Reserved(Guid tenant) => inventory.Reserved(tenant);
     private async Task<Listing> PurchaseLot(Guid tenant, Guid id, CancellationToken ct)
     {
         var lot = await FixedLots(tenant).AsTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
@@ -208,26 +204,12 @@ public sealed class FixedPriceController(ApplicationDbContext db, ITenantContext
         if (lot.Revision != revision || lot.CurrencyCode != currency || !TimedAuctionRules.Money(lot.BuyNowPrice!.Value)) throw Changed();
     }
 
-    private async Task<bool> CheckoutConfigured(Guid tenant, string currency, CancellationToken ct) =>
-        await HasSandboxMerchant(tenant, ct) && await db.TenantChargeCatalogs.IgnoreQueryFilters()
-            .AnyAsync(x => x.TenantId == tenant && x.IsPublished && x.CurrencyCode == currency, ct);
-
-    private async Task<bool> HasSandboxMerchant(Guid tenant, CancellationToken ct) => payments.Ready &&
-        await db.TenantPaymentSettings.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenant && x.ProtectedCredentials != "", ct);
+    private Task<bool> CheckoutConfigured(Guid tenant, string currency, CancellationToken ct) =>
+        inventory.CheckoutConfiguredAsync(tenant, currency, ct);
 
     private async Task<AuctionOrder> Reserve(Listing lot, Guid buyer, decimal amount, Guid? offerId, CancellationToken ct)
     {
-        var now = clock.GetUtcNow();
-        if (!await HasSandboxMerchant(lot.TenantId, ct)) throw CheckoutUnavailable();
-        var catalog = await db.TenantChargeCatalogs.SingleOrDefaultAsync(x => x.TenantId == lot.TenantId
-            && x.IsPublished && x.CurrencyCode == lot.CurrencyCode, ct) ?? throw CheckoutUnavailable();
-        // The listing revision serializes reservation against changes to the advertised lot.
-        lot.Revision = Guid.NewGuid();
-        var order = new AuctionOrder { TenantId = lot.TenantId, ListingId = lot.Id, BuyerId = buyer, SellerId = lot.SellerId,
-            FixedPriceOfferId = offerId, Title = lot.Title, Quantity = lot.Quantity, Amount = amount,
-            CurrencyCode = lot.CurrencyCode, CreatedAt = now, UpdatedAt = now, ChargeTermsJson = ChargePricing.Freeze(catalog, lot.CurrencyCode) };
-        db.AuctionOrders.Add(order);
-        return order;
+        return inventory.Reserve(lot, buyer, amount, offerId, await inventory.FreezeChargesAsync(lot.TenantId, lot.CurrencyCode, ct));
     }
 
     private async Task<PagedResult<FixedPriceOfferDto>> Offers(IQueryable<FixedPriceOffer> query, Guid tenant, bool showOrder,
@@ -272,7 +254,7 @@ public sealed class FixedPriceController(ApplicationDbContext db, ITenantContext
     }
     private static ListingEditConflictException Changed() => new("The lot terms changed. Review the current listing.");
     private static ListingEditConflictException Unavailable() => new("This fixed-price lot is no longer available.");
-    private static ListingEditConflictException CheckoutUnavailable() => new("Checkout is not yet configured for this lot.");
+    private static ListingEditConflictException CheckoutUnavailable() => FixedPriceInventory.CheckoutUnavailable();
 
     private async Task Notify(Guid tenant, Guid? buyer, string subject, string path)
     {

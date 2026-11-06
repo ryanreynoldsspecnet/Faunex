@@ -1,0 +1,19 @@
+@page "/buyer/cart"
+@using System.Security.Claims
+
+<PageTitle>Cart</PageTitle>
+<AuthorizeView Roles="Buyer">
+    <Authorized Context="buyer">
+        <BuyerCartWorkspace @key="buyer.User.FindFirstValue(ClaimTypes.NameIdentifier)" />
+    </Authorized>
+    <NotAuthorized Context="visitor">
+        <section class="storefront">
+            <h1>Cart</h1>
+            <p>A buyer account is required to view your cart.</p>
+            @if (visitor.User.Identity?.IsAuthenticated != true)
+            {
+                <a class="btn btn-primary" href="/login?returnTo=%2Fbuyer%2Fcart">Log in</a>
+            }
+        </section>
+    </NotAuthorized>
+</AuthorizeView>
