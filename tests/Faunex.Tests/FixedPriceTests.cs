@@ -135,6 +135,29 @@ public sealed class FixedPriceTests
         Assert.Single(responses, x => x.StatusCode == HttpStatusCode.Conflict);
     }
 
+    [Fact]
+    public async Task Declined_and_expired_offers_never_reserve_the_lot()
+    {
+        await using var test = await FileCase.CreateAsync();
+        using var admin = await Client(test, FaunexRoles.TenantAdmin);
+        using var buyer = await Client(test, FaunexRoles.Buyer);
+        await MakeFixed(test);
+        await Configure(test, admin);
+        var path = $"{Root}/lots/{test.Id}";
+        var lot = (await test.App.Client.GetFromJsonAsync<FixedPriceAvailabilityDto>(path))!;
+        var offer = await Send<FixedPriceOfferDto>(buyer, path + "/offers", new FixedPriceOfferRequest(lot.Revision, 350m, "ZAR"));
+        (await admin.PostAsJsonAsync($"{Root}/incoming/{offer.Id}/decision", new FixedPriceOfferDecision(offer.Revision, "decline"))).EnsureSuccessStatusCode();
+        var next = await Send<FixedPriceOfferDto>(buyer, path + "/offers", new FixedPriceOfferRequest(lot.Revision, 375m, "ZAR"));
+        test.App.Server.Services.GetRequiredService<TestAuctionClock>().Set(next.ExpiresAt.AddSeconds(1));
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.PostAsJsonAsync($"{Root}/incoming/{next.Id}/decision",
+            new FixedPriceOfferDecision(next.Revision, "accept"))).StatusCode);
+        var history = (await buyer.GetFromJsonAsync<PagedResult<FixedPriceOfferDto>>(Root + "/offers"))!.Items;
+        Assert.Equal("Declined", history.Single(x => x.Id == offer.Id).Status);
+        Assert.Equal("Expired", history.Single(x => x.Id == next.Id).Status);
+        Assert.Empty((await buyer.GetFromJsonAsync<PagedResult<AuctionOrderDto>>("/api/orders"))!.Items);
+        Assert.True((await test.App.Client.GetFromJsonAsync<FixedPriceAvailabilityDto>(path))!.Available);
+    }
+
     [PostgresFact]
     public async Task Finalising_price_and_releasing_a_reservation_cannot_both_succeed()
     {

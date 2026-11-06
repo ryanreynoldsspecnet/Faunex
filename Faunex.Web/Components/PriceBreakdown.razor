@@ -1,5 +1,5 @@
 @using Faunex.Application.DTOs
-<dl class="review-facts price-breakdown"><dt>Winning subtotal</dt><dd>@Money(Pricing.Subtotal)</dd>
+<dl class="review-facts price-breakdown"><dt>Lot subtotal</dt><dd>@Money(Pricing.Subtotal)</dd>
     @foreach (var line in Pricing.Lines) { <dt>@line.Name</dt><dd>@Money(line.Amount)@if (!string.IsNullOrWhiteSpace(line.Description)) { <small>@line.Description</small> }</dd> }
     <dt>Additional charges</dt><dd>@Money(Pricing.AdditionalCharges)</dd><dt>Final total</dt><dd><strong>@Money(Pricing.Total)</strong></dd>
 </dl>

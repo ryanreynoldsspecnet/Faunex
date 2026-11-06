@@ -13,6 +13,7 @@ using Faunex.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Faunex.Api.Controllers;
@@ -54,7 +55,7 @@ public sealed class FixedPriceController(ApplicationDbContext db, ITenantContext
         return new FixedPriceOrderReference(order.Id);
     }
 
-    [HttpPost("lots/{id:guid}/offers"), Authorize(Policy = "BuyerOnly")]
+    [HttpPost("lots/{id:guid}/offers"), Authorize(Policy = "BuyerOnly"), EnableRateLimiting("fixed-price-offers")]
     public async Task<ActionResult<FixedPriceOfferDto>> MakeOffer(Guid id, FixedPriceOfferRequest request, CancellationToken ct)
     {
         var (tenant, buyer) = Actor();
@@ -233,7 +234,8 @@ public sealed class FixedPriceController(ApplicationDbContext db, ITenantContext
         int skip, int take, CancellationToken ct)
     {
         var total = await query.CountAsync(ct);
-        var rows = await query.OrderBy(x => x.Id).Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 50)).ToListAsync(ct);
+        var rows = await query.OrderByDescending(x => x.Status == "Pending" || x.Status == "Countered")
+            .ThenBy(x => x.Id).Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 50)).ToListAsync(ct);
         var ids = rows.Select(x => x.Id).ToArray();
         var listingIds = rows.Select(x => x.ListingId).Distinct().ToArray();
         var revisions = await FixedLots(tenant).Where(x => listingIds.Contains(x.Id) && !Reserved(tenant).Any(o => o.ListingId == x.Id))
