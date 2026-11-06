@@ -1,0 +1,147 @@
+@using Faunex.Application.DTOs
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+
+<section class="storefront" aria-labelledby="offers-title">
+    <header class="wishlist-page-heading">
+        <h1 id="offers-title">@(Incoming ? "Incoming offers" : "My offers")</h1>
+        <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="LoadAsync">Refresh</button>
+    </header>
+    @if (_error is not null) { <p class="alert alert-warning" role="alert">@_error</p> }
+    @if (_notice is not null) { <p class="alert alert-success" role="status">@_notice</p> }
+    @if (_busy && _page is null) { <p role="status">Loading offers...</p> }
+    else if (_page is { } page)
+    {
+        @if (page.Items.Count == 0) { <div class="catalogue-empty"><h2>No offers</h2></div> }
+        else
+        {
+            <ul class="list-unstyled border-top" aria-label="Offers">
+                @foreach (var offer in page.Items)
+                {
+                    <li class="py-3 border-bottom" @key="offer.Id">
+                        <h2 class="h5 text-break">@offer.Title</h2>
+                        <dl class="review-facts">
+                            <dt>Buyer offer</dt><dd>@StorefrontPresentation.Money(offer.Amount, offer.CurrencyCode)</dd>
+                            @if (offer.CounterAmount is { } counter)
+                            {
+                                <dt>Counteroffer</dt><dd>@StorefrontPresentation.Money(counter, offer.CurrencyCode)</dd>
+                            }
+                            <dt>Status</dt><dd>@Label(offer.Status)</dd>
+                            @if (offer.Status is "Pending" or "Countered")
+                            {
+                                <dt>Expires</dt><dd>@StorefrontPresentation.Time(offer.ExpiresAt)</dd>
+                            }
+                        </dl>
+                        @if (_editing?.Id == offer.Id)
+                        {
+                            <form class="d-flex flex-wrap align-items-end gap-2" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+                                @if (_decision == "counter")
+                                {
+                                    <div><label for="counter-amount" class="form-label">Counteroffer (@offer.CurrencyCode)</label>
+                                        <input id="counter-amount" type="number" class="form-control" min="0.01" step="0.01" required @bind="_counter" disabled="@_busy" /></div>
+                                }
+                                <button class="btn btn-primary" type="submit" disabled="@_busy">@ConfirmLabel</button>
+                                <button class="btn btn-outline-secondary" type="button" disabled="@_busy" @onclick="Cancel">Cancel</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <div class="d-flex gap-2 flex-wrap">
+                                @if (offer.OrderId is { } order && (!Incoming || TenantAdmin))
+                                {
+                                    <a class="btn btn-outline-primary" href="@($"/{(Incoming ? "tenant" : "buyer")}/orders/{order:D}")">View order</a>
+                                }
+                                @if (Incoming && offer.Status == "Pending")
+                                {
+                                    <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="() => Accept(offer)">Accept</button>
+                                    <button type="button" class="btn btn-outline-primary" disabled="@_busy" @onclick="() => Counter(offer)">Counter</button>
+                                    <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="() => Decline(offer)">Decline</button>
+                                }
+                                else if (!Incoming && offer.Status == "Countered")
+                                {
+                                    <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="() => Accept(offer)">Accept counteroffer</button>
+                                    <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="() => Decline(offer)">Decline counteroffer</button>
+                                }
+                                else if (!Incoming && offer.Status == "Pending")
+                                {
+                                    <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="() => Withdraw(offer)">Withdraw</button>
+                                }
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @if (_skip > 0 || _skip + PageSize < page.Total)
+        {
+            <nav class="catalogue-pagination" aria-label="Offer pages">
+                <button class="btn btn-outline-secondary" disabled="@(_busy || _skip == 0)" @onclick="PreviousAsync">Previous</button>
+                <span>Page @(_skip / PageSize + 1)</span>
+                <button class="btn btn-outline-secondary" disabled="@(_busy || _skip + PageSize >= page.Total)" @onclick="NextAsync">Next</button>
+            </nav>
+        }
+    }
+</section>
+
+@code {
+    private const int PageSize = 25;
+    [Parameter] public bool Incoming { get; set; }
+    [Parameter] public bool TenantAdmin { get; set; }
+    private PagedResult<FixedPriceOfferDto>? _page;
+    private FixedPriceOfferDto? _editing;
+    private string? _error, _notice, _decision;
+    private decimal? _counter;
+    private bool _busy;
+    private int _skip;
+    private string Path => "/api/fixed-price/" + (Incoming ? "incoming" : "offers");
+    private string ConfirmLabel => _decision switch
+    {
+        "accept" => Incoming ? "Accept and reserve lot" : "Accept and continue to checkout",
+        "counter" => "Send counteroffer",
+        "decline" => "Confirm decline",
+        _ => "Confirm withdrawal"
+    };
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private Task LoadAsync() => RunAsync(async () => { Cancel(); await ReadAsync(); });
+    private async Task ReadAsync() => _page = await Api.GetAsync<PagedResult<FixedPriceOfferDto>>($"{Path}?skip={_skip}&take={PageSize}");
+    private Task PreviousAsync() { _skip = Math.Max(0, _skip - PageSize); return LoadAsync(); }
+    private Task NextAsync() { _skip += PageSize; return LoadAsync(); }
+    private void Accept(FixedPriceOfferDto row) => Edit(row, "accept");
+    private void Counter(FixedPriceOfferDto row) => Edit(row, "counter");
+    private void Decline(FixedPriceOfferDto row) => Edit(row, "decline");
+    private void Withdraw(FixedPriceOfferDto row) => Edit(row, "withdraw");
+    private void Edit(FixedPriceOfferDto row, string decision) { _editing = row; _decision = decision; _counter = null; _notice = _error = null; }
+    private void Cancel() { _editing = null; _decision = null; _counter = null; }
+    private Task SubmitAsync() => RunAsync(async () =>
+    {
+        if (_editing is not { } offer || _decision is not { } decision) return;
+        var endpoint = $"{Path}/{offer.Id:D}/{(decision == "withdraw" ? "withdraw" : "decision")}";
+        var request = new FixedPriceOfferDecision(offer.Revision, decision, _counter);
+        if (!Incoming && decision == "accept")
+        {
+            var order = await Api.PostAsync<FixedPriceOfferDecision, FixedPriceOrderReference>(endpoint, request)
+                ?? throw new InvalidOperationException("Could not confirm this reservation. Check My orders before trying again.");
+            Nav.NavigateTo($"/buyer/orders/{order.OrderId:D}");
+            return;
+        }
+        await Api.PostAsync(endpoint, request);
+        Cancel();
+        await ReadAsync();
+        _notice = "Offer updated.";
+    });
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (_busy) return;
+        _busy = true; _error = _notice = null;
+        try { await action(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+    private static string Label(string status) => status switch
+    {
+        "Countered" => "Counteroffer sent",
+        "CounterDeclined" => "Counteroffer declined",
+        "Released" => "Reservation released",
+        _ => status
+    };
+}

@@ -28,6 +28,7 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Bid> Bids { get; set; } = null!;
     public DbSet<BuyerWishlistCollection> BuyerWishlistCollections { get; set; } = null!;
     public DbSet<AuctionOrder> AuctionOrders { get; set; } = null!;
+    public DbSet<FixedPriceOffer> FixedPriceOffers { get; set; } = null!;
     public DbSet<TenantPaymentSettings> TenantPaymentSettings { get; set; } = null!;
     public DbSet<TenantChargeCatalog> TenantChargeCatalogs { get; set; } = null!;
     public DbSet<OrderPriceQuote> OrderPriceQuotes { get; set; } = null!;
@@ -61,8 +62,13 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
                     or nameof(PayFastAttempt.NotificationCount) or nameof(PayFastAttempt.Revision) or nameof(PayFastAttempt.UpdatedAt)))))
                 throw new InvalidOperationException("Payment attempt snapshots are immutable.");
         }
-        if (ChangeTracker.Entries<AuctionOrder>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
-            throw new InvalidOperationException("Winner order snapshots are immutable.");
+        if (ChangeTracker.Entries<AuctionOrder>().Any(x => x.State == EntityState.Deleted
+            || (x.State == EntityState.Modified && (x.Entity.AuctionId != null
+                || x.Property(y => y.ReleasedAt).OriginalValue != null || x.Property(y => y.CheckoutStarted).OriginalValue
+                || x.Properties.Count(p => p.IsModified) != 1
+                || !(x.Property(y => y.ReleasedAt).IsModified && x.Entity.ReleasedAt != null
+                    || x.Property(y => y.CheckoutStarted).IsModified && x.Entity.CheckoutStarted)))))
+            throw new InvalidOperationException("Order snapshots are immutable.");
         if (ChangeTracker.Entries<OrderPriceQuote>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Accepted pricing is immutable.");
         if (ChangeTracker.Entries<ListingReviewEvent>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
@@ -144,6 +150,28 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
         modelBuilder.Entity<TenantPaymentSettings>().HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<TenantPaymentSettings>().HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);
         modelBuilder.Entity<AuctionOrder>().HasIndex(x => x.AuctionId).IsUnique();
+        modelBuilder.Entity<AuctionOrder>().HasIndex(x => new { x.TenantId, x.ListingId }).IsUnique()
+            .HasFilter("\"AuctionId\" IS NULL AND \"ReleasedAt\" IS NULL");
+        modelBuilder.Entity<AuctionOrder>().HasIndex(x => x.FixedPriceOfferId).IsUnique();
+        modelBuilder.Entity<AuctionOrder>().Property(x => x.ReleasedAt).IsConcurrencyToken();
+        modelBuilder.Entity<AuctionOrder>().Property(x => x.CheckoutStarted).IsConcurrencyToken();
+        modelBuilder.Entity<AuctionOrder>().HasOne<FixedPriceOffer>().WithMany().HasForeignKey(x => x.FixedPriceOfferId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<AuctionOrder>().ToTable(t => t.HasCheckConstraint("CK_AuctionOrders_Source",
+            "(\"AuctionId\" IS NULL AND \"WinningBidId\" IS NULL AND (\"ReleasedAt\" IS NULL OR NOT \"CheckoutStarted\")) OR (\"AuctionId\" IS NOT NULL AND \"WinningBidId\" IS NOT NULL AND \"FixedPriceOfferId\" IS NULL AND \"ReleasedAt\" IS NULL AND NOT \"CheckoutStarted\")"));
+        modelBuilder.Entity<FixedPriceOffer>(offer =>
+        {
+            offer.Property(x => x.Amount).HasPrecision(18, 2);
+            offer.Property(x => x.CounterAmount).HasPrecision(18, 2);
+            offer.Property(x => x.CurrencyCode).HasMaxLength(3);
+            offer.Property(x => x.Title).HasMaxLength(160);
+            offer.Property(x => x.Status).HasMaxLength(20);
+            offer.Property(x => x.Revision).IsConcurrencyToken();
+            offer.HasIndex(x => new { x.TenantId, x.ListingId, x.BuyerId }).IsUnique().HasFilter("\"Status\" IN ('Pending', 'Countered')");
+            offer.HasIndex(x => new { x.TenantId, x.BuyerId, x.Id });
+            offer.HasIndex(x => new { x.TenantId, x.SellerId, x.Id });
+            offer.HasOne<Listing>().WithMany().HasForeignKey(x => x.ListingId).OnDelete(DeleteBehavior.Restrict);
+            offer.HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);
+        });
         modelBuilder.Entity<AuctionOrder>().HasIndex(x => new { x.TenantId, x.BuyerId, x.Id });
         modelBuilder.Entity<AuctionOrder>().HasOne<Auction>().WithMany().HasForeignKey(x => x.AuctionId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<AuctionOrder>().HasOne<Listing>().WithMany().HasForeignKey(x => x.ListingId).OnDelete(DeleteBehavior.Restrict);

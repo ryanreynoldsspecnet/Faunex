@@ -135,6 +135,9 @@ public sealed class BirdListingService(IApplicationDbContext dbContext, ITenantC
             throw new ListingEditConflictException("This listing changed. Reload it before saving.");
         if (entity.Compliance?.Status is ListingComplianceStatus.UnderReview or ListingComplianceStatus.Suspended)
             throw new ListingEditConflictException("This listing cannot be edited in its current review state.");
+        if (await dbContext.AuctionOrders.AnyAsync(x => x.TenantId == entity.TenantId && x.ListingId == entity.Id
+            && x.AuctionId == null && x.ReleasedAt == null, cancellationToken))
+            throw new ListingEditConflictException("This listing has a fixed-price reservation.");
         if (await dbContext.Auctions.AnyAsync(x => x.ListingId == entity.Id && (x.RulesVersion != 1 || x.State != Faunex.Domain.Enums.AuctionState.Draft), cancellationToken))
             throw new ListingEditConflictException("Listings with auction activity cannot be edited.");
         await ValidateAsync(input, cancellationToken);

@@ -8,7 +8,10 @@ public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ILogger<
 {
     private readonly SmtpEmailOptions _options = options.Value;
 
-    public async Task SendPasswordResetAsync(string toEmail, string resetLink, CancellationToken cancellationToken = default)
+    public Task SendPasswordResetAsync(string toEmail, string resetLink, CancellationToken cancellationToken = default) =>
+        SendMarketplaceNoticeAsync(toEmail, "Reset your Faunex password", BuildPasswordResetBody(resetLink), cancellationToken);
+
+    public async Task SendMarketplaceNoticeAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default)
     {
         if (!_options.IsConfigured)
         {
@@ -18,8 +21,8 @@ public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ILogger<
         using var message = new MailMessage
         {
             From = new MailAddress(_options.FromEmail!, _options.FromName),
-            Subject = "Reset your Faunex password",
-            Body = BuildPasswordResetBody(resetLink),
+            Subject = subject,
+            Body = body,
             IsBodyHtml = false
         };
 
@@ -38,11 +41,11 @@ public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ILogger<
         try
         {
             await client.SendMailAsync(message, cancellationToken);
-            logger.LogInformation("Password reset email sent. to_email={ToEmail}", toEmail);
+            logger.LogInformation("Faunex email sent");
         }
         catch (Exception ex) when (ex is SmtpException or InvalidOperationException)
         {
-            throw new EmailDeliveryException("Password reset email could not be sent.", ex);
+            throw new EmailDeliveryException("Faunex email could not be sent.", ex);
         }
     }
 

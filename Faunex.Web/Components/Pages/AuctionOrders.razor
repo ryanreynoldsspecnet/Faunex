@@ -29,7 +29,7 @@
                     <tr><td><strong>@order.Title</strong><small class="order-reference">@order.Id</small></td>
                         <td>@order.Amount.ToString("0.00") @order.CurrencyCode</td>
                         <td>@(order.Quote is null ? "Not finalised" : $"{order.Quote.Pricing.Total:0.00} {order.Quote.Pricing.CurrencyCode}")</td>
-                        <td><span class="platform-status">@OrderPaymentDisplay.Label(order.PaymentStage)</span></td>
+                        <td><span class="platform-status">@(order.Released ? "Reservation released" : OrderPaymentDisplay.Label(order.PaymentStage))</span></td>
                         <td><a aria-label="@($"View order {order.Id}")" href="@(Prefix + "/" + order.Id)">View</a></td></tr>
                 }</tbody>
             </table></div>

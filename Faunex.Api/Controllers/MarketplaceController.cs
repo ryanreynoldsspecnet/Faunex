@@ -98,6 +98,7 @@ public sealed class MarketplaceController(ApplicationDbContext db, TenantDomainR
         }
 
         var listings = await QueryApprovedListings(tenantId.Value)
+            .Where(x => lotProjection.Visible(tenantId.Value).Any(l => l.Id == x.Listing.Id))
             .OrderByDescending(x => x.SortAt)
             .Select(x => x.Listing)
             .ToListAsync(cancellationToken);

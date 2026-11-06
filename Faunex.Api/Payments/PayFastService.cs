@@ -31,7 +31,7 @@ public sealed class PayFastService(ApplicationDbContext db, ITenantContext tenan
         { throw new PaymentUnavailableException("Sandbox credentials could not be read. Re-enter them or restore the payment keys."); }
     }
     public bool CanCheckout(AuctionOrder order, OrderPriceQuote? quote, PayFastAttempt? attempt, TenantPaymentSettings? settings) =>
-        runtime.Ready && quote is not null && order.CurrencyCode == "ZAR" && settings?.ProtectedCredentials.Length > 0
+        order.ReleasedAt == null && runtime.Ready && quote is not null && order.CurrencyCode == "ZAR" && settings?.ProtectedCredentials.Length > 0
         && (attempt is null || (attempt.Status == "Pending" && attempt.SettingsRevision == settings.Revision));
 
     public async Task<AuctionOrder> OwnOrderAsync(Guid id, CancellationToken ct)
@@ -45,6 +45,7 @@ public sealed class PayFastService(ApplicationDbContext db, ITenantContext tenan
     public async Task<PayFastCheckoutDto> PrepareAsync(Guid id, CancellationToken ct)
     {
         var order = await OwnOrderAsync(id, ct);
+        if (order.ReleasedAt != null) throw new ListingEditConflictException("This lot reservation was released.");
         if (!runtime.Ready) throw new PaymentUnavailableException("Sandbox checkout is not enabled or callback ingress is not configured.");
         var quote = await db.OrderPriceQuotes.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == id && x.TenantId == order.TenantId, ct)
             ?? throw new ListingEditConflictException("Accept the final itemised total before checkout.");

@@ -1,0 +1,24 @@
+@page "/buyer/offers"
+@page "/tenant/offers"
+@page "/seller/offers"
+@using System.Security.Claims
+@inject NavigationManager Nav
+
+<PageTitle>@(Incoming ? "Incoming offers" : "My offers")</PageTitle>
+<AuthorizeView Roles="@(Incoming ? "TenantAdmin,Seller" : "Buyer")">
+    <Authorized Context="account">
+        <OfferWorkspace @key="(Incoming, account.User.FindFirstValue(ClaimTypes.NameIdentifier))"
+                        Incoming="Incoming" TenantAdmin="@account.User.IsInRole("TenantAdmin")" />
+    </Authorized>
+    <NotAuthorized>
+        <section class="storefront">
+            <h1>@(Incoming ? "Incoming offers" : "My offers")</h1>
+            <p>Sign in with an eligible marketplace account to view offers.</p>
+            <a href="@(Incoming ? "/login" : "/login?returnTo=%2Fbuyer%2Foffers")">Log in</a>
+        </section>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool Incoming => !Nav.ToAbsoluteUri(Nav.Uri).AbsolutePath.StartsWith("/buyer/", StringComparison.Ordinal);
+}

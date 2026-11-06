@@ -229,6 +229,12 @@ internal sealed class TestDomainOwnership : IDomainOwnershipVerifier
 internal sealed class TestEmailSender : IEmailSender
 {
     public List<string> ResetLinks { get; } = [];
+    public List<(string To, string Subject, string Body)> Notices { get; } = [];
+    public Task SendMarketplaceNoticeAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default)
+    {
+        lock (Notices) Notices.Add((toEmail, subject, body));
+        return Task.CompletedTask;
+    }
     public Task SendPasswordResetAsync(string toEmail, string resetLink, CancellationToken cancellationToken = default)
     {
         ResetLinks.Add(resetLink);

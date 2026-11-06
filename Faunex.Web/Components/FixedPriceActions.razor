@@ -1,0 +1,102 @@
+@using Faunex.Application.DTOs
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+
+<section aria-labelledby="fixed-price-actions-title">
+    <h2 class="h5" id="fixed-price-actions-title">Purchase options</h2>
+    @if (_error is not null)
+    {
+        <p class="alert alert-warning" role="alert">@_error</p>
+        <button class="btn btn-outline-secondary mb-3" disabled="@_busy" @onclick="LoadAsync">Refresh availability</button>
+    }
+    @if (_notice) { <p class="alert alert-success" role="status">Offer sent. <a href="/buyer/offers">View my offers</a></p> }
+    @if (_lot is { Available: false } unavailable)
+    {
+        <p role="status">@(unavailable.UnavailableReason ?? "This lot is unavailable.")</p>
+    }
+    else if (_lot is { } lot)
+    {
+        <AuthorizeView Roles="Buyer">
+            <Authorized>
+                @if (_mode == "buy")
+                {
+                    <div class="border-top pt-3">
+                        <p>Reserve the whole lot (@lot.Quantity) for <strong>@StorefrontPresentation.Money(lot.Price, lot.CurrencyCode)</strong> before delivery and extras.</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-primary" disabled="@_busy" @onclick="BuyAsync">Reserve and continue to checkout</button>
+                            <button class="btn btn-outline-secondary" disabled="@_busy" @onclick="Cancel">Cancel</button>
+                        </div>
+                    </div>
+                }
+                else if (_mode == "offer")
+                {
+                    <form @onsubmit="OfferAsync" @onsubmit:preventDefault>
+                        <label for="fixed-price-offer" class="form-label">Your whole-lot offer (@lot.CurrencyCode)</label>
+                        <input id="fixed-price-offer" type="number" class="form-control mb-2" min="0.01" step="0.01"
+                               required disabled="@_busy" @bind="_amount" />
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-primary" type="submit" disabled="@_busy">Send offer</button>
+                            <button class="btn btn-outline-secondary" type="button" disabled="@_busy" @onclick="Cancel">Cancel</button>
+                        </div>
+                    </form>
+                }
+                else
+                {
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-primary" disabled="@_busy" @onclick="ShowBuy">Buy Now</button>
+                        <button class="btn btn-outline-primary" disabled="@_busy" @onclick="ShowOffer">Make an Offer</button>
+                    </div>
+                }
+            </Authorized>
+            <NotAuthorized Context="visitor">
+                @if (visitor.User.Identity?.IsAuthenticated != true)
+                {
+                    <a class="btn btn-primary" href="@($"/login?returnTo=%2Flistings%2F{ListingId:D}")">Log in to buy or make an offer</a>
+                }
+            </NotAuthorized>
+        </AuthorizeView>
+    }
+    else if (_busy) { <p role="status">Checking availability...</p> }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid ListingId { get; set; }
+    private FixedPriceAvailabilityDto? _lot;
+    private string? _error, _mode;
+    private bool _busy, _notice;
+    private decimal? _amount;
+    private string Path => $"/api/fixed-price/lots/{ListingId:D}";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private Task LoadAsync() => RunAsync(async () =>
+    {
+        _lot = null; Cancel();
+        _lot = await Api.GetPublicAsync<FixedPriceAvailabilityDto>(Path);
+    });
+    private void SetMode(string mode) { _mode = mode; _error = null; _notice = false; _amount = null; }
+    private void ShowBuy() => SetMode("buy");
+    private void ShowOffer() => SetMode("offer");
+    private void Cancel() { _mode = null; _error = null; }
+    private Task BuyAsync() => RunAsync(async () =>
+    {
+        if (_lot is not { Available: true } lot) return;
+        var result = await Api.PostAsync<FixedPricePurchaseRequest, FixedPriceOrderReference>(
+            Path + "/buy", new(lot.Revision, lot.Price, lot.CurrencyCode));
+        if (result is null) throw new InvalidOperationException("Could not confirm this reservation. Check My orders before trying again.");
+        Nav.NavigateTo($"/buyer/orders/{result.OrderId:D}");
+    });
+    private Task OfferAsync() => RunAsync(async () =>
+    {
+        if (_lot is not { Available: true } lot || _amount is not { } amount) return;
+        await Api.PostAsync<FixedPriceOfferRequest, FixedPriceOfferDto>(Path + "/offers", new(lot.Revision, amount, lot.CurrencyCode));
+        Cancel(); _notice = true;
+    });
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (_busy) return;
+        _busy = true; _error = null;
+        try { await action(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

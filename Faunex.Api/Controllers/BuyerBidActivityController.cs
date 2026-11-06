@@ -52,8 +52,8 @@ public sealed class BuyerBidActivityController(ApplicationDbContext db, ITenantC
             .Select(x => x.Id).ToListAsync(ct)).ToHashSet();
         var wonIds = rows.Where(x => Won(x.Auction, buyerId)).Select(x => x.Auction.Id).Distinct().ToArray();
         var orders = await db.AuctionOrders.AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.BuyerId == buyerId && wonIds.Contains(x.AuctionId))
-            .Select(x => new { x.AuctionId, x.ListingId, x.WinningBidId, x.Id, x.Title }).ToDictionaryAsync(x => x.AuctionId, ct);
+            .Where(x => x.TenantId == tenantId && x.BuyerId == buyerId && x.AuctionId.HasValue && wonIds.Contains(x.AuctionId.Value))
+            .Select(x => new { x.AuctionId, x.ListingId, x.WinningBidId, x.Id, x.Title }).ToDictionaryAsync(x => x.AuctionId!.Value, ct);
 
         var now = clock.GetUtcNow();
         return new PagedResult<BuyerBidActivityDto>(rows.Select(row =>
