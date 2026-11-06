@@ -22,6 +22,8 @@ public sealed class AuthController(
     IEmailSender emailSender,
     IOptions<SmtpEmailOptions> emailOptions,
     IWebHostEnvironment environment,
+    AdminMfaService mfa,
+    TimeProvider clock,
     ILogger<AuthController> logger) : ControllerBase
 {
     [IgnoreAntiforgeryToken]
@@ -89,6 +91,7 @@ public sealed class AuthController(
 
     [IgnoreAntiforgeryToken]
     [HttpPost("login")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
@@ -108,18 +111,35 @@ public sealed class AuthController(
             return BadRequest(new { error = "Invalid credentials." });
         }
 
-        var (token, expiresAt, assignedRoles) = await tokenIssuer.IssueAsync(user, cancellationToken);
+        if (user.MfaProtectedKey is not null) return Accepted(new AdminMfaChallenge(mfa.Challenge(user)));
+        return Ok(await LoginResponseAsync(user, cancellationToken));
+    }
 
+    [IgnoreAntiforgeryToken]
+    [HttpPost("login/mfa")]
+    [RequestSizeLimit(8192)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<ActionResult<AuthResponse>> CompleteMfa([FromBody] AdminMfaLogin request, CancellationToken cancellationToken)
+    {
+        var user = await mfa.CompleteLoginAsync(request, cancellationToken);
+        return user is null
+            ? BadRequest(new { error = "The code or sign-in challenge is invalid, expired, or temporarily locked." })
+            : Ok(await LoginResponseAsync(user, cancellationToken, clock.GetUtcNow()));
+    }
+
+    private async Task<AuthResponse> LoginResponseAsync(ApplicationUser user, CancellationToken cancellationToken, DateTimeOffset? verified = null)
+    {
+        var (token, expiresAt, assignedRoles) = await tokenIssuer.IssueAsync(user, cancellationToken, verified);
         logger.LogInformation("Login succeeded. actor_id={ActorId} tenant_id={TenantId} is_platform_admin={IsPlatformAdmin} roles={Roles}", user.Id, user.TenantId, user.IsPlatformAdmin, string.Join(',', assignedRoles));
 
-        return Ok(new AuthResponse(
+        return new AuthResponse(
             AccessToken: token,
             ExpiresAt: expiresAt,
             ActorId: user.Id,
-            Email: user.Email ?? request.Email,
+            Email: user.Email ?? "",
             TenantId: user.TenantId,
             IsPlatformAdmin: user.IsPlatformAdmin,
-            Roles: assignedRoles));
+            Roles: assignedRoles);
     }
 
     [IgnoreAntiforgeryToken]

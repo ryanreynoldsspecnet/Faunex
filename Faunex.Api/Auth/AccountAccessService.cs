@@ -58,6 +58,7 @@ public sealed class AccountAccessService(UserManager<ApplicationUser> users, App
         var stamp = principal.FindFirstValue(FaunexClaimTypes.SecurityStamp);
         if (user is null || string.IsNullOrEmpty(stamp)
             || !string.Equals(stamp, user.SecurityStamp, StringComparison.Ordinal)
+            || (user.MfaProtectedKey is not null && !long.TryParse(principal.FindFirstValue(FaunexClaimTypes.MfaVerifiedAt), out _))
             || !await CanSignInAsync(user, cancellationToken))
         {
             return false;

@@ -10,5 +10,6 @@ public static class FaunexClaimTypes
     public const string TenantId = "tenant_id";
     public const string Role = "role";
     public const string IsPlatformAdmin = "is_platform_admin";
+    public const string MfaVerifiedAt = "mfa_verified_at";
     public const string SecurityStamp = "security_stamp";
 }

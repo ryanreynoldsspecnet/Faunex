@@ -1,0 +1,97 @@
+@using Faunex.Application.Auth
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject TokenStore Tokens
+@inject JwtAuthStateProvider AuthState
+@inject NavigationManager Nav
+
+<section class="platform-shell" aria-labelledby="security-title">
+    <h1 id="security-title">Account security</h1>
+    @if (_error is not null) { <p class="alert alert-warning" role="alert">@_error</p> }
+    @if (_recovery is { } recovery)
+    {
+        <h2 class="h5">Save your recovery codes</h2>
+        <p>These codes are shown once. Store them somewhere safe, separate from your phone. Each code works once.</p>
+        <ul class="mfa-recovery-list">
+            @foreach (var recoveryCode in recovery.Codes) { <li><code>@recoveryCode</code></li> }
+        </ul>
+        <label class="form-check mb-3"><input class="form-check-input" type="checkbox" @bind="_saved" /> I have saved my recovery codes</label>
+        <button class="btn btn-primary" disabled="@(!_saved || _busy)" @onclick="SignInAgainAsync">Sign in again</button>
+    }
+    else if (_setup is { } setup)
+    {
+        <h2 class="h5">@(_status?.Enabled == true ? "Replace authenticator" : "Set up authenticator")</h2>
+        <p>Scan this QR code in your authenticator app, or enter the setup key manually.</p>
+        <img class="mfa-qr" src="@($"data:image/png;base64,{setup.QrPngBase64}")" width="216" height="216" alt="Authenticator setup QR code" />
+        <p class="mt-2">Setup key: <code class="text-break">@setup.ManualKey</code></p>
+        <form @onsubmit="ConfirmAsync" @onsubmit:preventDefault>
+            <label for="mfa-enrol-code" class="form-label">Six-digit authenticator code</label>
+            <input id="mfa-enrol-code" class="form-control mfa-input mb-3" inputmode="numeric" autocomplete="one-time-code"
+                   maxlength="6" required @bind="_code" disabled="@_busy" />
+            <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-primary" type="submit" disabled="@_busy">@(_status?.Enabled == true ? "Replace and revoke old device" : "Enable MFA")</button>
+                <button class="btn btn-outline-secondary" type="button" disabled="@_busy" @onclick="Cancel">Cancel</button>
+            </div>
+        </form>
+    }
+    else if (_status is { } status)
+    {
+        <h2 class="h5">Authenticator app</h2>
+        <p>@(status.Enabled ? $"MFA enabled. {status.RecoveryCodesRemaining} recovery code(s) remaining." : "MFA not enrolled.")</p>
+        @if (status.Enabled)
+        {
+            <p>To replace a lost device, sign in with your password and a recovery code. Then enroll a new authenticator here.</p>
+            <p>Replacement revokes the old device, recovery codes, and other sessions.</p>
+        }
+        <form @onsubmit="StartAsync" @onsubmit:preventDefault>
+            <label for="mfa-current-password" class="form-label">Current password</label>
+            <input id="mfa-current-password" class="form-control mfa-input mb-3" type="password" autocomplete="current-password"
+                   required @bind="_password" disabled="@_busy" />
+            <button class="btn btn-primary" type="submit" disabled="@_busy">@(status.Enabled ? "Set up replacement" : "Set up MFA")</button>
+        </form>
+    }
+    else if (_busy) { <p role="status">Loading security settings...</p> }
+    else { <button class="btn btn-outline-secondary" @onclick="LoadAsync">Reload</button> }
+</section>
+
+@code {
+    private const string Path = "/api/auth/mfa";
+    private AdminMfaStatus? _status;
+    private AdminMfaSetup? _setup;
+    private AdminMfaRecovery? _recovery;
+    private string _password = "", _code = "";
+    private string? _error;
+    private bool _busy, _saved;
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private Task LoadAsync() => RunAsync(async () => _status = await Api.GetAsync<AdminMfaStatus>(Path));
+    private Task StartAsync() => RunAsync(async () =>
+    {
+        try { _setup = await Api.PostAsync<AdminMfaStart, AdminMfaSetup>(Path + "/setup", new(_password)); }
+        finally { _password = ""; }
+    });
+    private Task ConfirmAsync() => RunAsync(async () =>
+    {
+        if (_setup is null) return;
+        try
+        {
+            _recovery = await Api.PostAsync<AdminMfaConfirm, AdminMfaRecovery>(Path + "/confirm", new(_setup.Ticket, _code));
+            if (_recovery is not null) _setup = null;
+        }
+        finally { _code = ""; }
+    });
+    private Task SignInAgainAsync() => RunAsync(async () =>
+    {
+        _recovery = null;
+        await Tokens.ClearAsync();
+        AuthState.NotifyUserAuthenticationStateChanged();
+        Nav.NavigateTo("/login");
+    });
+    private void Cancel() { _setup = null; _code = ""; _error = null; }
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (_busy) return;
+        _busy = true; _error = null;
+        try { await action(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

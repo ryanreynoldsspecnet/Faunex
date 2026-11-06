@@ -66,6 +66,7 @@ public static class ControllersRegistrationExtensions
         services.AddScoped<ISpeciesLookupService, SpeciesLookupService>();
 
         services.AddScoped<JwtTokenIssuer>();
+        services.AddScoped<AdminMfaService>();
         services.AddScoped<TradingProfileService>();
         services.AddScoped<TenantDomainResolver>();
         services.AddScoped<TenantRequestContext>();

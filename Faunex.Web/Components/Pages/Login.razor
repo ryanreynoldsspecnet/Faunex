@@ -1,6 +1,7 @@
 @page "/login"
 @rendermode InteractiveServer
 @using Faunex.Web.Auth
+@using Faunex.Application.Auth
 @inject Faunex.Web.Api.FaunexApiClient Api
 @inject Faunex.Web.Auth.TokenStore TokenStore
 @inject Faunex.Web.Auth.JwtAuthStateProvider AuthStateProvider
@@ -21,6 +22,23 @@
 
    Note: Do not set FormName here. FormName participates in Blazor's enhanced form handling and can cause the browser
    to take over submission (bypassing EditForm's OnValidSubmit) depending on render mode/configuration. *@
+@if (_challenge is not null)
+{
+    <form class="mb-3" @onsubmit="VerifyMfaAsync" @onsubmit:preventDefault>
+        <h4>@(_useRecovery ? "Recovery code" : "Authenticator verification")</h4>
+        @if (_error is not null) { <p class="alert alert-danger" role="alert">@_error</p> }
+        <label class="form-label" for="mfa-login-code">@(_useRecovery ? "One-time recovery code" : "Six-digit authenticator code")</label>
+        <input id="mfa-login-code" class="form-control mb-3" type="text" inputmode="@(_useRecovery ? "text" : "numeric")"
+               autocomplete="one-time-code" maxlength="@(_useRecovery ? 40 : 6)" required disabled="@_isSubmitting" @bind="_code" />
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-primary" type="submit" disabled="@_isSubmitting">Verify and sign in</button>
+            <button class="btn btn-outline-secondary" type="button" disabled="@_isSubmitting" @onclick="ToggleRecovery">@(_useRecovery ? "Use authenticator" : "Use a recovery code")</button>
+            <button class="btn btn-outline-secondary" type="button" disabled="@_isSubmitting" @onclick="Restart">Start over</button>
+        </div>
+    </form>
+}
+else
+{
 <EditForm EditContext="_editContext" OnValidSubmit="LoginAsync">
     <DataAnnotationsValidator />
     <ValidationSummary />
@@ -60,6 +78,7 @@
         <a href="/forgot-password">Forgot your password?</a>
     </div>
 </EditForm>
+}
 
 @code {
     [SupplyParameterFromQuery(Name = "returnTo")] public string? ReturnTo { get; set; }
@@ -68,6 +87,9 @@
     private string? _error;
     private string? _success;
     private string? _pendingRedirectTo;
+    private string? _challenge;
+    private bool _useRecovery;
+    private string _code = "";
 
     // Single model instance for the lifetime of the component instance.
     private readonly LoginFormModel _model = new();
@@ -99,9 +121,10 @@
 
     // Match backend DTO contract (Faunex.Api.Auth.AuthResponse) but only bind what we need.
     private sealed record AuthResponse(
-        string AccessToken,
+        string? AccessToken,
         bool IsPlatformAdmin,
-        IReadOnlyList<string> Roles);
+        IReadOnlyList<string>? Roles,
+        string? MfaChallenge = null);
 
     private async Task LoginAsync()
     {
@@ -120,29 +143,13 @@
                 "/api/auth/login",
                 new LoginRequest(_model.Email, _model.Password));
 
-            if (response is null || string.IsNullOrWhiteSpace(response.AccessToken))
+            if (response?.MfaChallenge is { Length: > 0 } challenge)
             {
-                _error = "Login failed.";
+                _model.Password = "";
+                _challenge = challenge;
                 return;
             }
-
-            await TokenStore.SetTokenAsync(response.AccessToken);
-            AuthStateProvider.NotifyUserAuthenticationStateChanged();
-
-            _success = "Logged in successfully.";
-            var destination = RoleNavigation.IsPlatformUser(response.IsPlatformAdmin, response.Roles)
-                ? "/platform"
-                : RoleNavigation.IsTenantAdmin(response.Roles)
-                    ? "/tenant"
-                    : PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host)
-                        ? "/"
-                        : "/browse";
-
-            if (!PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host) && response.Roles.Contains("Buyer")
-                && BuyerReturnRoute.Validate(ReturnTo) is { } returnRoute)
-                destination = returnRoute;
-
-            _pendingRedirectTo = destination;
+            await FinishAsync(response, false);
         }
         catch (Exception ex)
         {
@@ -153,4 +160,43 @@
             _isSubmitting = false;
         }
     }
+
+    private async Task VerifyMfaAsync()
+    {
+        if (_isSubmitting || _challenge is null) return;
+        _error = null;
+        _isSubmitting = true;
+        try
+        {
+            var response = await Api.PostAsync<AdminMfaLogin, AuthResponse>("/api/auth/login/mfa",
+                new(_challenge, _code, _useRecovery));
+            await FinishAsync(response, _useRecovery);
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _code = ""; _isSubmitting = false; }
+    }
+
+    private async Task FinishAsync(AuthResponse? response, bool recovered)
+    {
+        if (string.IsNullOrWhiteSpace(response?.AccessToken) || response.Roles is null)
+        {
+            _error = "Login failed.";
+            return;
+        }
+        await TokenStore.SetTokenAsync(response.AccessToken);
+        AuthStateProvider.NotifyUserAuthenticationStateChanged();
+        var platform = RoleNavigation.IsPlatformUser(response.IsPlatformAdmin, response.Roles);
+        var tenant = RoleNavigation.IsTenantAdmin(response.Roles);
+        var platformHost = PlatformHostRules.IsPlatformHost(Nav.ToAbsoluteUri(Nav.Uri).Host);
+        var destination = platform ? "/platform" : tenant ? "/tenant" : platformHost ? "/" : "/browse";
+        if (recovered && (platform || tenant)) destination = "/account/security";
+        else if (!platformHost && response.Roles.Contains("Buyer") && BuyerReturnRoute.Validate(ReturnTo) is { } returnRoute)
+            destination = returnRoute;
+        _challenge = null;
+        _model.Password = "";
+        _success = "Logged in successfully.";
+        _pendingRedirectTo = destination;
+    }
+    private void ToggleRecovery() { _useRecovery = !_useRecovery; _code = ""; _error = null; }
+    private void Restart() { _challenge = null; _useRecovery = false; _code = ""; _error = null; }
 }
