@@ -23,6 +23,9 @@
             <AuthorizeView Roles="Buyer" Context="buyerLink"><Authorized><a class="storefront-wishlists-link" href="/buyer/wishlists" title="My wishlists" aria-label="My wishlists"><img src="/icons/lucide/heart.svg" width="24" height="24" alt="" /></a></Authorized>
                 <NotAuthorized><AuthorizeView Context="visitorLink"><NotAuthorized><a class="storefront-wishlists-link" href="/login?returnTo=%2Fbuyer%2Fwishlists" title="Log in to view your wishlists" aria-label="Log in to view your wishlists"><img src="/icons/lucide/heart.svg" width="24" height="24" alt="" /></a></NotAuthorized></AuthorizeView></NotAuthorized>
             </AuthorizeView>
+            <AuthorizeView Roles="Buyer" Context="buyerCart"><Authorized><a class="storefront-cart-link" href="/buyer/cart" title="Cart" aria-label="Cart"><img src="/icons/lucide/shopping-cart.svg" width="24" height="24" alt="" /></a></Authorized>
+                <NotAuthorized><AuthorizeView Context="visitorCart"><NotAuthorized><a class="storefront-cart-link" href="/login?returnTo=%2Fbuyer%2Fcart" title="Log in to view cart" aria-label="Log in to view cart"><img src="/icons/lucide/shopping-cart.svg" width="24" height="24" alt="" /></a></NotAuthorized></AuthorizeView></NotAuthorized>
+            </AuthorizeView>
             <div class="storefront-desktop-account"><StorefrontAccountMenu @key="_navigationKey" /></div>
         </div>
         <button type="button" class="storefront-menu-toggle" aria-expanded="@(_open ? "true" : "false")" aria-controls="storefront-navigation" title="Open or close menu" @onclick="() => _open = !_open"><span class="navbar-toggler-icon" aria-hidden="true"></span><span>Menu</span></button>

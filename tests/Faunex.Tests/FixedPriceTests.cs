@@ -180,7 +180,7 @@ public sealed class FixedPriceTests
         Assert.NotEqual(order.Released, order.Quote is not null);
     }
 
-    private static async Task MakeFixed(FileCase test)
+    internal static async Task MakeFixed(FileCase test)
     {
         await test.SetState(ListingComplianceStatus.Approved, true);
         using var scope = test.App.Server.Services.CreateScope();
@@ -189,7 +189,7 @@ public sealed class FixedPriceTests
         lot.StartingPrice = 500m; lot.BuyNowPrice = 500m; lot.Quantity = 3;
         await db.SaveChangesAsync();
     }
-    private static async Task Configure(FileCase test, HttpClient admin)
+    internal static async Task Configure(FileCase test, HttpClient admin)
     {
         var options = test.App.Server.Services.GetRequiredService<IOptions<PayFastOptions>>().Value;
         options.SandboxEnabled = true; options.IngressToken = PayFastCase.Token;
@@ -198,7 +198,7 @@ public sealed class FixedPriceTests
         (await admin.PutAsJsonAsync("/api/tenant/payments/payfast",
             new SavePayFastSettingsRequest(Guid.Empty, "10000100", "46f0cd694581a", PayFastCase.Passphrase))).EnsureSuccessStatusCode();
     }
-    private static async Task<HttpClient> Client(FileCase test, string role) =>
+    internal static async Task<HttpClient> Client(FileCase test, string role) =>
         test.App.AuthenticatedClient(await test.App.TokenAsync(await test.App.AddUserAsync(test.Tenant, role)));
     private static async Task<T> Send<T>(HttpClient client, string path, object request)
     {

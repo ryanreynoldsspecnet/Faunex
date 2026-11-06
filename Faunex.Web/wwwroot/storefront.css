@@ -96,8 +96,8 @@
 .storefront-header-search .btn { min-width:48px; padding:10px; border-radius:0 4px 4px 0; }
 .storefront-search-icon { display:block; width:22px; height:22px; background:currentColor; mask:url('/icons/lucide/search.svg') center / contain no-repeat; }
 .storefront-header-actions { display:flex; align-items:center; gap:12px; grid-column:3; grid-row:1; }
-.storefront-wishlists-link { width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:4px; }
-.storefront-wishlists-link img, .storefront-account-menu > summary img { filter:brightness(0) invert(1); }
+.storefront-wishlists-link, .storefront-cart-link { width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:4px; }
+.storefront-wishlists-link img, .storefront-cart-link img, .storefront-account-menu > summary img { filter:brightness(0) invert(1); }
 .storefront-account-menu { position:relative; color:#fff; }
 .storefront-account-menu > summary { display:flex; align-items:center; gap:8px; cursor:pointer; min-height:46px; padding:8px; font-size:15px; list-style:none; border-radius:4px; }
 .storefront-account-menu > summary::-webkit-details-marker { display:none; }

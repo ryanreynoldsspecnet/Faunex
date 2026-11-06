@@ -27,6 +27,7 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Auction> Auctions { get; set; } = null!;
     public DbSet<Bid> Bids { get; set; } = null!;
     public DbSet<BuyerWishlistCollection> BuyerWishlistCollections { get; set; } = null!;
+    public DbSet<BuyerCart> BuyerCarts { get; set; } = null!;
     public DbSet<AuctionOrder> AuctionOrders { get; set; } = null!;
     public DbSet<FixedPriceOffer> FixedPriceOffers { get; set; } = null!;
     public DbSet<TenantPaymentSettings> TenantPaymentSettings { get; set; } = null!;
@@ -123,6 +124,13 @@ public sealed class ApplicationDbContext : DbContext, IApplicationDbContext
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<BuyerWishlistCollection>().HasKey(x => new { x.TenantId, x.BuyerId });
         modelBuilder.Entity<BuyerWishlistCollection>().Property(x => x.Revision).IsConcurrencyToken();
+        modelBuilder.Entity<BuyerCart>(cart =>
+        {
+            cart.HasKey(x => new { x.TenantId, x.BuyerId });
+            cart.Property(x => x.Revision).IsConcurrencyToken();
+            cart.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            cart.HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);
+        });
         modelBuilder.Entity<BuyerWishlistCollection>().Property(x => x.ContentsJson).HasMaxLength(150000).IsRequired();
         modelBuilder.Entity<BuyerWishlistCollection>().HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<BuyerWishlistCollection>().HasQueryFilter(x => CurrentTenantId != null && x.TenantId == CurrentTenantId);

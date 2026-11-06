@@ -1,0 +1,143 @@
+@using Faunex.Application.DTOs
+@inject Faunex.Web.Api.FaunexApiClient Api
+@inject NavigationManager Nav
+
+<section class="storefront" aria-labelledby="cart-title">
+    <header class="wishlist-page-heading">
+        <h1 id="cart-title">Cart</h1>
+        <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="LoadAsync">Refresh</button>
+    </header>
+    @if (_error is not null) { <p role="alert" class="alert alert-warning">@_error</p> }
+    @if (_cart is null && _busy) { <p role="status">Loading cart...</p> }
+    @if (_cart?.LatestCheckout is { Orders.Count: > 0 } latest)
+    {
+        <section class="mb-4" aria-labelledby="cart-orders-title">
+            <h2 id="cart-orders-title" class="h5">Latest checkout orders</h2>
+            <ul class="cart-lines">
+                @foreach (var order in latest.Orders)
+                {
+                    <li class="cart-line"><span class="text-break">@order.Title</span><strong>@Money(order.Subtotal, order.CurrencyCode)</strong>
+                        <a href="@($"/buyer/orders/{order.OrderId:D}")" aria-label="@($"View order for {order.Title}")">View order</a></li>
+                }
+            </ul>
+            <a href="/buyer/orders">My orders</a>
+        </section>
+    }
+    @if (_cart is { } cart)
+    {
+        @if (cart.Lots.Count == 0)
+        {
+            <div class="catalogue-empty"><h2>Your cart is empty</h2><a class="btn btn-primary" href="/browse">Browse lots</a></div>
+        }
+        else if (_review is { } review)
+        {
+            <section aria-labelledby="cart-review-title">
+                <h2 id="cart-review-title" class="h5">Review reservation</h2>
+                <ul class="cart-lines">
+                    @foreach (var row in cart.Lots.Where(x => review.Lots.Any(r => r.ListingId == x.ListingId)))
+                    {
+                        <li class="cart-line"><span class="text-break">@row.Title <small class="d-block">Whole lot, quantity @row.Quantity</small></span>
+                            <strong>@Money(row.Price!.Value, row.CurrencyCode!)</strong></li>
+                    }
+                </ul>
+                <p class="my-3"><strong>Lot subtotal: @Money(review.Lots.Sum(x => x.ExpectedPrice), "ZAR")</strong></p>
+                <p>Delivery and extras are selected on each order. Each lot is paid for separately.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="CheckoutAsync">Reserve selected lots</button>
+                    <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="() => _review = null">Back to cart</button>
+                </div>
+            </section>
+        }
+        else
+        {
+            <ul class="cart-lines" aria-label="Lots in cart">
+                @foreach (var row in cart.Lots)
+                {
+                    <li class="cart-line" @key="row.ListingId">
+                        <div class="cart-lot">
+                            <label class="cart-choice">
+                                <input type="checkbox" class="form-check-input" checked="@_selected.Contains(row.ListingId)"
+                                       disabled="@(_busy || row.UnavailableReason is not null)" @onchange="e => Select(row.ListingId, e.Value is true)" />
+                                <span class="visually-hidden">Select @(row.Title ?? "unavailable lot")</span>
+                            </label>
+                            <div class="text-break">
+                                @if (row.Title is not null) { <a href="@($"/listings/{row.ListingId:D}")">@row.Title</a><small class="d-block">Whole lot, quantity @row.Quantity</small> }
+                                else { <strong>Unavailable lot</strong> }
+                                @if (row.UnavailableReason is { } reason) { <small class="d-block">@reason</small> }
+                            </div>
+                        </div>
+                        <strong>@(row.Price is { } price && row.CurrencyCode is { } currency ? Money(price, currency) : "")</strong>
+                        <button type="button" class="btn btn-outline-secondary cart-remove" disabled="@_busy" title="Remove lot"
+                                aria-label="@($"Remove {row.Title ?? "unavailable lot"}")" @onclick="() => RemoveAsync(row.ListingId)">
+                            <img src="/icons/lucide/trash-2.svg" width="20" height="20" alt="" />
+                        </button>
+                    </li>
+                }
+            </ul>
+            <div class="cart-total">
+                <p class="mb-0"><strong>Selected subtotal: @Money(cart.Lots.Where(x => _selected.Contains(x.ListingId)).Sum(x => x.Price ?? 0), "ZAR")</strong></p>
+                <button type="button" class="btn btn-primary" disabled="@(_busy || _selected.Count == 0)" @onclick="Review">Review checkout</button>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private const string Path = "/api/buyer/cart";
+    private BuyerCartDto? _cart;
+    private CartCheckoutRequest? _review;
+    private readonly HashSet<Guid> _selected = [];
+    private bool _busy;
+    private string? _error;
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private Task LoadAsync() => RunAsync(async () => Set(await Api.GetAsync<BuyerCartDto>(Path), selectAvailable: true));
+    private Task RemoveAsync(Guid id) => RunAsync(async () =>
+    {
+        if (_cart is not { } cart) return;
+        await Api.DeleteAsync($"{Path}/lots/{id:D}?revision={cart.Revision:D}");
+        Set(await Api.GetAsync<BuyerCartDto>(Path), selectAvailable: false);
+    });
+
+    private void Select(Guid id, bool selected)
+    {
+        if (selected) _selected.Add(id);
+        else _selected.Remove(id);
+    }
+
+    private void Review()
+    {
+        if (_cart is not { } cart) return;
+        var lots = cart.Lots.Where(x => _selected.Contains(x.ListingId) && x.UnavailableReason is null)
+            .Select(x => new CartCheckoutLot(x.ListingId, x.ListingRevision!.Value, x.Price!.Value, x.CurrencyCode!)).ToArray();
+        if (lots.Length > 0) { _error = null; _review = new(cart.Revision, lots); }
+    }
+
+    private Task CheckoutAsync() => RunAsync(async () =>
+    {
+        if (_review is null) return;
+        var result = await Api.PostAsync<CartCheckoutRequest, CartCheckoutResult>(Path + "/checkout", _review)
+            ?? throw new InvalidOperationException("Checkout could not be confirmed. Refresh the cart to check for orders.");
+        if (result.Orders.Count == 1) { Nav.NavigateTo($"/buyer/orders/{result.Orders[0].OrderId:D}"); return; }
+        Set(await Api.GetAsync<BuyerCartDto>(Path), selectAvailable: false);
+    });
+
+    private void Set(BuyerCartDto? cart, bool selectAvailable)
+    {
+        _cart = cart ?? throw new InvalidOperationException("No cart response.");
+        _review = null;
+        var available = _cart.Lots.Where(x => x.UnavailableReason is null).Select(x => x.ListingId);
+        if (selectAvailable) { _selected.Clear(); _selected.UnionWith(available); }
+        else _selected.IntersectWith(available);
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (_busy) return;
+        _busy = true; _error = null;
+        try { await action(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+    private static string Money(decimal amount, string currency) => StorefrontPresentation.Money(amount, currency);
+}
