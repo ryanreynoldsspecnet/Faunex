@@ -53,22 +53,10 @@ else
         </div>
     }
 
-    <AuthorizeView>
-        <NotAuthorized>
-            <div class="alert alert-info">
-                <div>Sign in with a buyer account to place bids.</div>
-                <a class="btn btn-outline-primary mt-2" href="/login">Log in</a>
-            </div>
-        </NotAuthorized>
-        <Authorized>
-            @if (!_isBuyer)
-            {
-                <div class="alert alert-secondary">
-                    You're signed in, but bidding is only available for Buyer accounts.
-                </div>
-            }
-        </Authorized>
-    </AuthorizeView>
+    else
+    {
+        <FixedPriceActions @key="ListingId" ListingId="ListingId" />
+    }
     </div></div>
 }
 </section>
@@ -82,9 +70,6 @@ else
     private string? _error;
     private Faunex.Application.DTOs.ListingDto? _item;
 
-    private bool _isBuyer;
-
-    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -96,7 +81,6 @@ else
         _isLoading = true;
         _error = null;
         _item = null;
-        _isBuyer = false;
         _host = Nav.ToAbsoluteUri(Nav.Uri).Host;
         _isPlatformHost = PlatformHostRules.IsPlatformHost(_host);
 
@@ -111,10 +95,6 @@ else
             var host = MarketplaceRoutes.HostQuery(_host);
             _item = await Api.GetPublicAsync<Faunex.Application.DTOs.ListingDto>($"/api/marketplace/listings/{ListingId}?host={host}");
 
-            var authState = AuthenticationStateTask is null ? null : await AuthenticationStateTask;
-            var user = authState?.User;
-
-            _isBuyer = user?.Identity?.IsAuthenticated == true && (user.IsInRole("Buyer") || user.Claims.Any(c => c.Type == "role" && c.Value == "Buyer"));
         }
         catch (Exception ex)
         {

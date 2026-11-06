@@ -29,9 +29,10 @@ public sealed class AuctionOrdersController(ApplicationDbContext db, ITenantCont
         return query;
     }
     private AuctionOrderDto Map(AuctionOrder row, OrderPriceQuote? quote, PayFastAttempt? attempt, TenantPaymentSettings? settings) => new(row.Id, row.AuctionId, row.ListingId, row.Title, row.Quantity,
-        row.Amount, row.CurrencyCode, row.CreatedAt, Status: attempt is null ? "AwaitingPayment" : attempt.Status == "SandboxComplete" ? "SandboxPaymentComplete" : "SandboxPayment" + attempt.Status,
+        row.Amount, row.CurrencyCode, row.CreatedAt, Status: row.ReleasedAt != null ? "Released" : attempt is null ? "AwaitingPayment" : attempt.Status == "SandboxComplete" ? "SandboxPaymentComplete" : "SandboxPayment" + attempt.Status,
         CheckoutAvailable: payments.CanCheckout(row, quote, attempt, settings), PricingStatus: quote is null ? "ChargesNotFinalised" : "Finalised",
-        Quote: quote is null ? null : ChargePricing.Quote(quote), Payment: attempt is null ? null : PayFastService.Summary(attempt));
+        Quote: quote is null ? null : ChargePricing.Quote(quote), Payment: attempt is null ? null : PayFastService.Summary(attempt),
+        Released: row.ReleasedAt != null, CanRelease: row.AuctionId == null && row.ReleasedAt == null && !row.CheckoutStarted && quote is null && attempt is null);
     private async Task<AuctionOrderDto> MapAsync(AuctionOrder row, CancellationToken ct) => Map(row,
         await db.OrderPriceQuotes.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == row.Id && x.TenantId == row.TenantId, ct),
         await db.PayFastAttempts.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == row.Id && x.TenantId == row.TenantId, ct),
@@ -45,7 +46,7 @@ public sealed class AuctionOrdersController(ApplicationDbContext db, ITenantCont
         query = paymentStage switch
         {
             null or "" => query,
-            OrderPaymentStages.Pricing => query.Where(x => !db.OrderPriceQuotes.Any(q => q.OrderId == x.Id && q.TenantId == x.TenantId)
+            OrderPaymentStages.Pricing => query.Where(x => x.ReleasedAt == null && !db.OrderPriceQuotes.Any(q => q.OrderId == x.Id && q.TenantId == x.TenantId)
                 && !db.PayFastAttempts.Any(p => p.OrderId == x.Id && p.TenantId == x.TenantId)),
             OrderPaymentStages.Unpaid => query.Where(x => db.OrderPriceQuotes.Any(q => q.OrderId == x.Id && q.TenantId == x.TenantId)
                 && !db.PayFastAttempts.Any(p => p.OrderId == x.Id && p.TenantId == x.TenantId)),

@@ -15,13 +15,16 @@ namespace Faunex.Api.Payments;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None), RequestSizeLimit(8192)]
 public sealed class OrderPricingController(ApplicationDbContext db, ITenantContext tenant, TimeProvider clock) : ControllerBase
 {
-    private async Task<AuctionOrder> Own(Guid id, CancellationToken ct)
+    private async Task<AuctionOrder> Own(Guid id, CancellationToken ct, bool track = false)
     {
         ServiceAuthorization.EnsureNotPlatformAdminForWrite(tenant, "price buyer orders");
         ServiceAuthorization.EnsureRole(tenant, FaunexRoles.Buyer);
         var actor = (tenant as ITenantContextWithActor)?.ActorId ?? throw new UnauthorizedAccessException();
-        return await db.AuctionOrders.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.TenantId == tenant.TenantId && x.BuyerId == actor, ct)
+        var query = track ? db.AuctionOrders.AsTracking() : db.AuctionOrders.AsNoTracking();
+        var order = await query.SingleOrDefaultAsync(x => x.Id == id && x.TenantId == tenant.TenantId && x.BuyerId == actor, ct)
             ?? throw new KeyNotFoundException("Order not found.");
+        if (order.ReleasedAt != null) throw new ListingEditConflictException("This lot reservation was released.");
+        return order;
     }
     [HttpGet("options")]
     public async Task<ActionResult<ChargeTermsDto>> Options(Guid id, CancellationToken ct)
@@ -37,7 +40,7 @@ public sealed class OrderPricingController(ApplicationDbContext db, ITenantConte
     [HttpPost("finalise")]
     public async Task<ActionResult<OrderQuoteDto>> Finalise(Guid id, AcceptPriceRequest request, CancellationToken ct)
     {
-        var order = await Own(id, ct);
+        var order = await Own(id, ct, track: true);
         if (request.Selection is null) throw new ListingValidationException("Review a delivery and extras selection first.");
         var pricing = ChargePricing.Calculate(order, request.Selection);
         if (pricing.Total != request.ExpectedTotal) throw new ListingEditConflictException("The reviewed total does not match. Review the itemised total again.");
@@ -52,6 +55,7 @@ public sealed class OrderPricingController(ApplicationDbContext db, ITenantConte
         now = new DateTimeOffset(now.Ticks - now.Ticks % TimeSpan.TicksPerMicrosecond, TimeSpan.Zero);
         var quote = new OrderPriceQuote { TenantId = order.TenantId, OrderId = id, AcceptedBy = order.BuyerId,
             PricingJson = ChargePricing.Serialize(pricing), CreatedAt = now, UpdatedAt = now };
+        if (order.AuctionId == null) order.CheckoutStarted = true;
         db.OrderPriceQuotes.Add(quote); await db.SaveChangesAsync(ct); return ChargePricing.Quote(quote);
     }
 }

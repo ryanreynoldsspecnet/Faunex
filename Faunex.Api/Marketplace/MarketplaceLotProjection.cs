@@ -9,8 +9,9 @@ namespace Faunex.Api.Marketplace;
 
 public sealed class MarketplaceLotProjection(ApplicationDbContext db)
 {
-    public IQueryable<Listing> Visible(Guid tenant) => db.Listings.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive
-        && db.Tenants.Any(t => t.Id == tenant && t.IsActive) && x.Compliance != null && x.Compliance.TenantId == tenant && x.Compliance.Status == ListingComplianceStatus.Approved);
+    public IQueryable<Listing> Visible(Guid tenant, bool includeReserved = false) => db.Listings.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive
+        && db.Tenants.Any(t => t.Id == tenant && t.IsActive) && x.Compliance != null && x.Compliance.TenantId == tenant && x.Compliance.Status == ListingComplianceStatus.Approved
+        && (includeReserved || !db.AuctionOrders.IgnoreQueryFilters().Any(o => o.TenantId == tenant && o.ListingId == x.Id && o.AuctionId == null && o.ReleasedAt == null)));
 
     public IQueryable<Auction> PublishedAuctions(Guid tenant) => db.Auctions.IgnoreQueryFilters().AsNoTracking()
         .Where(x => x.TenantId == tenant && x.RulesVersion == 1 && x.Type == AuctionType.Timed && !x.IsSealedBid && x.State != AuctionState.Draft

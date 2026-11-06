@@ -46,6 +46,9 @@ public static class ControllersRegistrationExtensions
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.AddConcurrencyLimiter("payfast-notifications", limiter => { limiter.PermitLimit = 8; limiter.QueueLimit = 0; });
             options.AddConcurrencyLimiter("file-uploads", limiter => { limiter.PermitLimit = 4; limiter.QueueLimit = 0; limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst; });
+            options.AddPolicy("fixed-price-offers", http => RateLimitPartition.GetFixedWindowLimiter(
+                http.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 12, Window = TimeSpan.FromHours(1), QueueLimit = 0 }));
         });
 
         services.AddScoped<ITenantContext, ClaimsTenantContext>();

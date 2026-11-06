@@ -5,9 +5,12 @@ namespace Faunex.Domain.Entities;
 public sealed class AuctionOrder : BaseEntity
 {
     public Guid TenantId { get; set; }
-    public Guid AuctionId { get; set; }
+    public Guid? AuctionId { get; set; }
     public Guid ListingId { get; set; }
-    public Guid WinningBidId { get; set; }
+    public Guid? WinningBidId { get; set; }
+    public Guid? FixedPriceOfferId { get; set; }
+    public DateTimeOffset? ReleasedAt { get; set; }
+    public bool CheckoutStarted { get; set; }
     public Guid BuyerId { get; set; }
     public Guid SellerId { get; set; }
     public string Title { get; set; } = "";
