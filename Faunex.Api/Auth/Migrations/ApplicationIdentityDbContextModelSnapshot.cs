@@ -54,6 +54,24 @@ namespace Faunex.Api.Auth.Migrations
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("MfaFailureWindowEnd")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("MfaFailures")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("MfaLastStep")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("MfaLoginNonce")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MfaProtectedKey")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MfaRecoveryHashes")
+                        .HasColumnType("text");
+
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");

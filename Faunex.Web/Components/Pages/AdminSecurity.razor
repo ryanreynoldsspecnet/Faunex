@@ -1,0 +1,16 @@
+@page "/account/security"
+@using System.Security.Claims
+
+<PageTitle>Account security</PageTitle>
+<AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport,TenantAdmin">
+    <Authorized Context="admin">
+        <AdminMfaPanel @key="admin.User.FindFirstValue(ClaimTypes.NameIdentifier)" />
+    </Authorized>
+    <NotAuthorized>
+        <section class="platform-shell">
+            <h1>Account security</h1>
+            <p>An administrator account is required.</p>
+            <a href="/login">Log in</a>
+        </section>
+    </NotAuthorized>
+</AuthorizeView>

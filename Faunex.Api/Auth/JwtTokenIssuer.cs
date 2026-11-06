@@ -13,8 +13,11 @@ public sealed class JwtTokenIssuer(
     UserManager<ApplicationUser> users,
     TradingProfileService profiles)
 {
-    public async Task<(string token, DateTimeOffset expiresAt, IReadOnlyList<string> roles)> IssueAsync(ApplicationUser user, CancellationToken cancellationToken = default)
+    public async Task<(string token, DateTimeOffset expiresAt, IReadOnlyList<string> roles)> IssueAsync(ApplicationUser user,
+        CancellationToken cancellationToken = default, DateTimeOffset? mfaVerifiedAt = null)
     {
+        if (user.MfaProtectedKey is not null && mfaVerifiedAt is null)
+            throw new InvalidOperationException("An MFA-protected account requires a verified second factor.");
         var issuer = GetRequiredConfiguration("FAUNEX_JWT_ISSUER", "faunex-dev");
         var audience = GetRequiredConfiguration("FAUNEX_JWT_AUDIENCE", "faunex-dev");
         var signingKey = GetSigningKey();
@@ -27,8 +30,11 @@ public sealed class JwtTokenIssuer(
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Email, user.Email ?? string.Empty),
             new(FaunexClaimTypes.IsPlatformAdmin, user.IsPlatformAdmin ? "true" : "false"),
-            new(FaunexClaimTypes.SecurityStamp, await users.GetSecurityStampAsync(user))
+            new(FaunexClaimTypes.SecurityStamp, await users.GetSecurityStampAsync(user)),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
         };
+        if (mfaVerifiedAt is { } verified)
+            claims.Add(new Claim(FaunexClaimTypes.MfaVerifiedAt, verified.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)));
 
         if (user.TenantId.HasValue)
         {

@@ -9,6 +9,7 @@
                 <AuthorizeView Roles="Seller"><Authorized><a href="/seller/my-listings">My listings</a><a href="/seller/offers">Incoming offers</a></Authorized></AuthorizeView>
                 <AuthorizeView Roles="TenantAdmin"><Authorized><a href="/tenant">Manage marketplace</a><a href="/tenant/offers">Incoming offers</a></Authorized></AuthorizeView>
                 <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport"><Authorized><a href="/platform">Platform</a></Authorized></AuthorizeView>
+                <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport,TenantAdmin"><Authorized><a href="/account/security">Security</a></Authorized></AuthorizeView>
                 <a href="/logout">Log out</a>
             </Authorized>
         </AuthorizeView>

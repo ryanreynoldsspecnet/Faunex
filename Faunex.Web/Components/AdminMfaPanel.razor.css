@@ -1,0 +1,4 @@
+.mfa-qr { display: block; width: min(216px, 100%); height: auto; aspect-ratio: 1; }
+.mfa-input { max-width: 24rem; }
+.mfa-recovery-list { padding: 0; list-style: none; display: grid; gap: .35rem; }
+.mfa-recovery-list code { overflow-wrap: anywhere; user-select: all; }

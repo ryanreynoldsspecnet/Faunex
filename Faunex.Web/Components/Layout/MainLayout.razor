@@ -71,6 +71,9 @@
                     <Authorized>
                         <span class="navbar-text text-light me-2">Hi, @(auth.User.Identity?.Name ?? auth.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value)
                         </span>
+                        <AuthorizeView Roles="PlatformAdmin,PlatformSuperAdmin,PlatformComplianceAdmin,PlatformSupport,TenantAdmin" Context="security">
+                            <Authorized><NavLink class="nav-link" href="/account/security">Security</NavLink></Authorized>
+                        </AuthorizeView>
                         <NavLink class="nav-link" href="/logout">Logout</NavLink>
                     </Authorized>
                 </AuthorizeView>
